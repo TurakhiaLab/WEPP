@@ -54,5 +54,5 @@ po::variables_map parse_extract_command(po::parsed_options parsed);
 void simulate_and_place_reads(po::parsed_options parsed);
 
 void read_vcf(std::string, std::vector<struct read_info*> &);
-void place_reads(const std::vector<MAT::Node*> &, const std::vector<struct read_info*> &, tbb::concurrent_hash_map<size_t, struct min_parsimony> &, std::string);
-void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<size_t, struct min_parsimony> &);
+void place_reads(const std::vector<MAT::Node*> &, const std::vector<struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::string);
+void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &);
