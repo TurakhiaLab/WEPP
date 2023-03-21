@@ -52,7 +52,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = false;
+    bool old_vcf = true;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -129,7 +129,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
         exit(1);
     }
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "Completed in %ld sec \n\n", (timer.Stop() / 1000));
 
     
     fprintf(stderr,"\nRef Seq Length: %ld\n\n", ref_seq.size());
@@ -946,16 +946,17 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     read_vcf(vcf_filename_reads, read_ids);
     fprintf(stderr,"Reads_VCF parsed in %ld msec\n\n", timer.Stop());
 
-    tbb::concurrent_hash_map<size_t, struct min_parsimony> read_min_parsimony;
-    place_reads(traversal, read_ids, read_min_parsimony, vcf_filename_reads);
-    analyze_reads(T, traversal, read_min_parsimony);
+    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
+    place_reads(traversal, read_ids, node_score, vcf_filename_reads);
+    analyze_reads(T, traversal, node_score);
 }
 
 
-void place_reads(const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<size_t, struct min_parsimony> &read_min_parsimony, std::string vcf_filename_reads) {
+void place_reads(const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, std::string vcf_filename_reads) {
     fprintf(stderr, "Total nodes: %ld, Reads: %ld\n\n", dfs.size(), read_ids.size());
     timer.Start();
 
+    tbb::concurrent_hash_map<size_t, struct min_parsimony> read_min_parsimony;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
         [&](tbb::blocked_range<size_t> k) {
@@ -1142,14 +1143,21 @@ void place_reads(const std::vector<MAT::Node*> &dfs, const std::vector<struct re
                     parsimony_stack.push(curr_par);
                 }
 
+                for (auto n_idx: min_par.idx_list) {
+                    auto node = dfs[n_idx];
+                    tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                    auto created = node_score.insert(ac, std::make_pair(node, (1.0 / min_par.idx_list.size())));
+                    if (!created)
+                        ac->second += (1.0 / min_par.idx_list.size());
+                    ac.release();
+                }
+                
+                //Only keeping for the check
                 tbb::concurrent_hash_map<size_t, struct min_parsimony>::accessor ac;
                 read_min_parsimony.insert(ac, r);
                 ac->second = min_par;
                 ac.release();
                 
-                //if (min_par.par_list.size() <= 1000)
-                //    printf("Read: %s, Parsimony score = %ld, parsimonious positions: %ld\n", rp->read.c_str(), read_min_parsimony[r].par_list[0].size(), read_min_parsimony[r].par_list.size());
-            
             }
         },
         ap);
@@ -1207,70 +1215,72 @@ void place_reads(const std::vector<MAT::Node*> &dfs, const std::vector<struct re
 }
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<size_t, struct min_parsimony> &read_min_parsimony) {
-    //std::unordered_map<std::string, double> clade_map;
-    //using my_mutex_t = tbb::queuing_mutex;
-    //my_mutex_t my_mutex;
-    tbb::concurrent_hash_map<std::string, double> clade_map;
-    static tbb::affinity_partitioner ap;
-
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
     timer.Start();
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_min_parsimony.size()),
-        [&](tbb::blocked_range<size_t> k) {
-            for (size_t r = k.begin(); r < k.end(); ++r) {
-                tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-                read_min_parsimony.find(k_ac, r);
-                auto min_par = k_ac->second;
-                k_ac.release();
-                //Only checking those positions where parsimonious positions are <= 1000
-                    tbb::parallel_for( tbb::blocked_range<size_t>(0, min_par.idx_list.size()),
-                        [&](tbb::blocked_range<size_t> z) {
-                            for (size_t i = z.begin(); i < z.end(); i++) {  //Checking all parsimonious positions
-                                auto idx = min_par.idx_list[i];
-                                for (auto anc: T.rsearch(dfs[idx]->identifier, true)) { //Checking all ancestors of a node to get clade 
-                                    bool found = false;
-                                    //Don't consider the clades that start with numbers {Different clade naming}
-                                    auto clade = anc->clade_annotations[1];
-                                    if(clade != "") {
-                                        tbb::concurrent_hash_map<std::string, double>::accessor ac;
-                                        auto created = clade_map.insert(ac, clade);
-                                        if (created)
-                                            ac->second = (1.0 / min_par.idx_list.size());
-                                        else
-                                            ac->second += (1.0 / min_par.idx_list.size());
-                                        ac.release();
-                                        //my_mutex_t::scoped_lock my_lock;
-                                        //my_lock.acquire(my_mutex);
-                                        //    if (clade_map.find(clade) == clade_map.end()) {
-                                        //        clade_map.insert({clade, (1.0 / min_par.idx_list.size())});
-                                        //    }
-                                        //    else {
-                                        //        double score = clade_map[clade];
-                                        //        clade_map[clade] = score + (1.0 / min_par.idx_list.size());
-                                        //    }
-                                        //my_lock.release();
-                                        found = true;
-                                    }
-                                    if (found)
-                                        break;
-                                }
-                            }
-                        },
-                    ap);
-            }
-        },
-    ap);
-    fprintf(stderr,"Clade Map filled in %ld sec\n\n", (timer.Stop() / 1000));
     
-    //Print the clade scores
-    std::pair<std::string, double> entryWithMaxValue = std::make_pair("", 0.000000);
-    for (auto itr = clade_map.begin(); itr != clade_map.end(); itr++) {
-        printf("Clade: %s, Score: %f\n", itr->first.c_str(), itr->second);
-        if (itr->second > entryWithMaxValue.second)
-            entryWithMaxValue = std::make_pair(itr->first, itr->second);
+    std::unordered_map<std::string, std::pair<double, size_t>> clade_score;
+    //Print the node scores
+    std::vector<std::pair<MAT::Node*, double>> top_n(50);
+    std::partial_sort_copy(node_score.begin(),
+                        node_score.end(),
+                        top_n.begin(),
+                        top_n.end(),
+                        [](std::pair<const MAT::Node*, double> const& l,
+                           std::pair<const MAT::Node*, double> const& r)
+                        {
+                            return l.second > r.second;
+                        });
+    
+    for (auto top: top_n) {
+        for (auto anc: T.rsearch(top.first->identifier, true)) { //Checking all ancestors of a node to get clade 
+            bool found = false;
+            //Don't consider the clades that start with numbers {Different clade naming}
+            auto clade = anc->clade_annotations[1];
+            if(clade != "") {
+            printf("score = %f, Node: %s, Clade: %s\n", top.second, top.first->identifier.c_str(), clade.c_str());
+                found = true;
+            }
+            if (found)
+                break;
+        }
     }
-        fprintf(stderr,"Lineage: %s, score = %f\n", entryWithMaxValue.first.c_str(), entryWithMaxValue.second);
+    
+    //Making clade map
+    for (auto itr = node_score.begin(); itr != node_score.end(); itr++) {
+        for (auto anc: T.rsearch(itr->first->identifier, true)) { //Checking all ancestors of a node to get clade 
+            bool found = false;
+            //Don't consider the clades that start with numbers {Different clade naming}
+            auto clade = anc->clade_annotations[1];
+            if(clade != "") {
+                if (clade_score.find(clade) == clade_score.end())
+                    clade_score.insert({clade, {itr->second, 1}});
+                else
+                    clade_score[clade] = {clade_score[clade].first + itr->second, clade_score[clade].second + 1}; 
+                found = true;
+            }
+            if (found)
+                break;
+        }
+    }
 
+    std::cout << "\n\n";
+    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(5);
+    std::partial_sort_copy(clade_score.begin(),
+                       clade_score.end(),
+                       top_c.begin(),
+                       top_c.end(),
+                       [](std::pair<const std::string, std::pair<double, size_t>> const& l,
+                          std::pair<const std::string, std::pair<double, size_t>> const& r)
+                       {
+                           return (l.second.first / l.second.second) > (r.second.first / r.second.second);
+                       });
+
+    for (auto top: top_c) {
+        printf("Lineage: %s, Node_sum: %f, num_nodes: %zu, Avg: %f\n", top.first.c_str(), top.second.first, top.second.second, (top.second.first / top.second.second));
+    }
+
+
+    fprintf(stderr,"\nTop Nodes found in %ld sec\n\n", (timer.Stop() / 1000));
 }
 
 
