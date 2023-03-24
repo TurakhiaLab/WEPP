@@ -1217,10 +1217,10 @@ void place_reads(const std::vector<MAT::Node*> &dfs, const std::vector<struct re
 
 void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
     timer.Start();
-    
     std::unordered_map<std::string, std::pair<double, size_t>> clade_score;
+    
     //Print the node scores
-    std::vector<std::pair<MAT::Node*, double>> top_n(50);
+    std::vector<std::pair<MAT::Node*, double>> top_n(10);
     std::partial_sort_copy(node_score.begin(),
                         node_score.end(),
                         top_n.begin(),
@@ -1230,7 +1230,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
                         {
                             return l.second > r.second;
                         });
-    
+    std::cout << "\n\n"; 
     for (auto top: top_n) {
         for (auto anc: T.rsearch(top.first->identifier, true)) { //Checking all ancestors of a node to get clade 
             bool found = false;
@@ -1264,7 +1264,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
     }
 
     std::cout << "\n\n";
-    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(5);
+    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(25);
     std::partial_sort_copy(clade_score.begin(),
                        clade_score.end(),
                        top_c.begin(),
@@ -1274,13 +1274,110 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
                        {
                            return (l.second.first / l.second.second) > (r.second.first / r.second.second);
                        });
-
+    std::vector<std::string>top_lineages;
     for (auto top: top_c) {
         printf("Lineage: %s, Node_sum: %f, num_nodes: %zu, Avg: %f\n", top.first.c_str(), top.second.first, top.second.second, (top.second.first / top.second.second));
+        top_lineages.emplace_back(top.first);
+    }
+    fprintf(stderr,"\nTop Nodes found in %ld sec\n\n", (timer.Stop() / 1000));
+
+
+    //Clustering of lineages
+    std::unordered_map<std::string, std::pair<double, std::vector<std::string>>> cluster_score;
+    double max_score, t_score = (MAXFLOAT / 2), prev_t_score = MAXFLOAT, prev_prev_t_score = MAXFLOAT, clus_thresh;
+    std::vector<std::vector<std::string>> cluster_list;
+    std::vector<std::string> all_clus_mem, clusters_to_remove;
+    std::string best_cluster;
+    int count = 0;
+    
+    while ( ((prev_t_score - t_score) > 0.001) && ((prev_prev_t_score - t_score) > 0.001) ) {
+        std::cout << "\n\nITER: " << ++count << "\n";
+        std::cout << "t_score: " << t_score << ", prev_t_score: " << prev_t_score << "\n";
+        if (prev_t_score == MAXFLOAT)
+            cluster_list = k_means(top_lineages, 5, 100);
+        else 
+            cluster_list = k_means(all_clus_mem, 5, 100);
+        if (prev_t_score < (MAXFLOAT/2))
+            prev_prev_t_score = prev_t_score;
+        prev_t_score = t_score;
+        max_score = 0, t_score = 0;
+        cluster_score.clear();
+        all_clus_mem.clear();
+        for (auto cluster: cluster_list) {
+            std::string mem = "";
+            std::vector<std::string> clus_mem;
+            clus_mem.clear();
+            double score = 0;
+            for (auto c_mem: cluster) {
+                mem += c_mem+"_";
+                clus_mem.emplace_back(c_mem);
+                score += (clade_score[c_mem].first / clade_score[c_mem].second);
+            }
+ 
+            t_score += score;
+            cluster_score.insert({mem, {score, clus_mem}});
+            if (score > max_score) {
+                max_score = score;
+                best_cluster = mem;
+            }
+    
+        }
+        if (prev_t_score == (MAXFLOAT / 2)) {
+            std::vector<std::pair<std::string, std::pair<double, std::vector<std::string>>>> min_sc(2);
+            std::partial_sort_copy(cluster_score.begin(),
+                               cluster_score.end(),
+                               min_sc.begin(),
+                               min_sc.end(),
+                               [](std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& l,
+                                  std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& r)
+                               {
+                                   return l.second.first < r.second.first;
+                               });
+            clus_thresh = (min_sc[0].second.first + min_sc[1].second.first) / 2;
+        }
+
+        for (auto itr = cluster_score.begin(); itr != cluster_score.end(); itr++) {
+            if (itr->second.first <= clus_thresh) {
+                std::cout << "\nLineages removed: " << itr->first.c_str() << ", Score: " << itr->second.first << "\n";
+                t_score -= itr->second.first;
+                clusters_to_remove.emplace_back(itr->first);
+            }
+            else
+                all_clus_mem.insert(all_clus_mem.end(), itr->second.second.begin(), itr->second.second.end());
+        }
+        for (auto c: clusters_to_remove) 
+            cluster_score.erase(c);
+        clusters_to_remove.clear();
+        
+
+        //Print cluster_score
+        std::cout << "\nLineages after cluster thresholding: " << all_clus_mem.size() << ", Threshold: " << clus_thresh << "\n";
+        clus_thresh *= 1.025;
+        for (auto element: cluster_score)
+            printf("Cluster elemets: %s, sum: %f\n", element.first.c_str(), element.second.first);
     }
 
 
-    fprintf(stderr,"\nTop Nodes found in %ld sec\n\n", (timer.Stop() / 1000));
+    //for (auto itr = clade_score.begin(); itr != clade_score.end(); itr++) {
+    //    bool found = false;
+    //    for (auto cl: cluster_score) {
+    //        for (auto c_name: cl.second.second) {
+    //            if (c_name == itr->first) {
+    //                found = true;
+    //                break;
+    //            }
+    //        }
+    //        if (found)
+    //            break;
+    //    }
+    //    if (!found) {
+    //        cluster_score[best_cluster].first += (itr->second.first / itr->second.second);
+    //    }
+    //}
+
+    //std::cout << "\n";
+    //for (auto element: cluster_score)
+    //    printf("Cluster elemets after all nodes: %s, sum: %f\n", element.first.c_str(), element.second.first);
 }
 
 
@@ -1381,4 +1478,143 @@ void read_vcf(std::string vcf_filename_reads, std::vector<struct read_info*> &re
             }
         }
     }
+}
+
+
+
+// Function to calculate the distance between two strings
+float str_distance(const std::string& str1, const std::string& str2) {
+    float dist = 0;
+    int i, n = std::min(str1.length(), str2.length());
+    for (i = 0; i < n; i++) {
+        if (str1[i] != str2[i]) {
+            dist = dist + std::pow(10, (1.0 / (i + 1)));
+            if (((str1[i] == '.') || (str2[i] == '.')) && (str1[i-1] == str2[i-1]))
+                dist = dist + std::pow(10, (1.0 / i));
+            i++;
+            break;
+        }
+    }
+    dist = dist + std::pow(10, (float(std::abs((int)str1.length() - (int)str2.length()) + (n - i)) / ((std::max(str1.length(), str2.length()) + (i + 1)) / 2 )));
+    return dist;
+}
+
+// Compute the centroid of a cluster of strings
+std::string compute_centroid(const std::vector<std::string>& cluster) {
+    const int n = cluster.size();
+    std::vector<float> distances(n);
+    for (int i = 0; i < n; i++) {
+        distances[i] = 0;
+        for (int j = 0; j < n; j++) {
+            distances[i] += str_distance(cluster[i], cluster[j]);
+        }
+    }
+    const auto min_index = min_element(distances.begin(), distances.end());
+    if (min_index == distances.end())
+        return "";
+    else 
+        return cluster[min_index - distances.begin()];
+}
+
+// Assign each string to its nearest centroid
+std::vector<int> assign_clusters(const std::vector<std::string>& strings, const std::vector<std::string>& centroids) {
+    const int n = strings.size();
+    const int k = centroids.size();
+    std::vector<int> clusters(n);
+    for (int i = 0; i < n; i++) {
+        float min_distance = str_distance(strings[i], centroids[0]);
+        int min_index = 0;
+        for (int j = 1; j < k; j++) {
+            const float distance = str_distance(strings[i], centroids[j]);
+            if (distance < min_distance) {
+                min_distance = distance;
+                min_index = j;
+            }
+        }
+        clusters[i] = min_index;
+    }
+    return clusters;
+}
+
+// Update centroids to be the centroid of their assigned cluster
+std::vector<std::string> update_centroids(const std::vector<std::string>& strings, const std::vector<int>& clusters, const int k) {
+    std::vector<std::string> centroids(k);
+    for (int j = 0; j < k; j++) {
+        std::vector<std::string> cluster;
+        for (int i = 0; i < int(strings.size()); i++) {
+            if (clusters[i] == j) {
+                cluster.push_back(strings[i]);
+            }
+        }
+        centroids[j] = compute_centroid(cluster);
+    }
+    return centroids;
+}
+
+// Generate k initial centroids
+std::vector<std::string> generate_initial_centroids(const std::vector<std::string>& strings, const int k) {
+   std::vector<std::string> centroids; 
+   int count = 0;
+   centroids.emplace_back(strings[rand() % strings.size()]);
+   count++;
+    while (count < k) {
+        //float min_dist = 0;
+        //std::string best_str = ""; 
+        //for (int i = 0; i < int(strings.size()); i++) {
+        //    std::string str = strings[i];
+        //    float dist = 0;
+        //    for (auto cen: centroids)
+        //        dist += str_distance(cen, str); 
+        //    if (dist > min_dist) {
+        //        min_dist = dist;
+        //        best_str = str;
+        //    }
+        //}
+        //centroids.emplace_back(best_str);
+        
+        std::string rand_s = strings[rand() % strings.size()];
+        auto itr = std::find(centroids.begin(), centroids.end(), rand_s);
+        while (itr != centroids.end()) {
+            rand_s = strings[rand() % strings.size()];
+            itr = std::find(centroids.begin(), centroids.end(), rand_s);
+        }
+        centroids.emplace_back(rand_s);
+        count++;
+    }
+    
+   std::cout << "Initial Centroids\n";
+   for (auto c: centroids)
+    std::cout << c << "\n"; 
+   return centroids;   
+}
+
+// Cluster strings into k clusters using the k-means algorithm
+std::vector<std::vector<std::string>> k_means(const std::vector<std::string>& strings, const int k, const int max_iterations) {
+   std::vector<std::vector<std::string>> cluster_list;
+   std::vector<std::string> cluster, centroids = generate_initial_centroids(strings, k); 
+   float prev_distance = MAXFLOAT;
+   std::vector<int> cluster_idx; 
+   for (int i = 0; i < max_iterations; i++) {
+      cluster_idx = assign_clusters(strings, centroids);
+      centroids = update_centroids(strings, cluster_idx, k);
+      float distance = 0;
+      for (int j = 0; j < k; j++)
+        distance += str_distance(centroids[j], centroids[j]);
+      if (distance == prev_distance)
+        break;
+      prev_distance = distance;
+   }
+   
+   for (int j = 0; j < k ; j++) {
+        std::cout << "\nCentroid: " << centroids[j].c_str() << "\n";
+        cluster.clear();
+        for (int l = 0; l < int(strings.size()); l++)
+            if (cluster_idx[l] == j) {
+                cluster.emplace_back(strings[l]);
+                std::cout << strings[l].c_str() << "\n";
+            }
+        std::cout << "Cluster size: " << cluster.size() << "\n";
+        cluster_list.emplace_back(cluster);
+    }
+    return cluster_list;
 }
