@@ -56,3 +56,10 @@ void simulate_and_place_reads(po::parsed_options parsed);
 void read_vcf(std::string, std::vector<struct read_info*> &);
 void place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::vector<struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::string);
 void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &);
+
+float str_distance(const std::string&, const std::string&);		
+std::string compute_centroid(const std::vector<std::string>&);		
+std::vector<int> assign_clusters(const std::vector<std::string>&, const std::vector<std::string>&);		
+std::vector<std::string> update_centroids(const std::vector<std::string>&, const std::vector<int>&, const int);		
+std::vector<std::string> generate_initial_centroids(const std::vector<std::string>&, const int);		
+std::vector<std::vector<std::string>> k_means(const std::vector<std::string>&, const int, const int);
