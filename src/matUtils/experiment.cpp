@@ -1,7 +1,6 @@
 #include "experiment.hpp"
 
 po::variables_map parse_place_read_command(po::parsed_options parsed) {
-
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     po::variables_map vm;
@@ -953,7 +952,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
 
     tbb::concurrent_hash_map<MAT::Node*, double> node_score;
     place_reads(T, traversal, read_ids, node_score, vcf_filename_reads);
-    analyze_reads(T, traversal, node_score);
+    //analyze_reads(T, traversal, node_score);
 }
 
 
@@ -1014,7 +1013,6 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                         //Only look at mutations within the read range
                         if ((node_mut.position >= rp->start) && (node_mut.position <= rp->end)) {
                             bool found = false;
-
                             //Check in Mutation position found in parsimony of parent node
                             for (auto par_node_mut: curr_node_par_mut) {
                                 if (par_node_mut.position == node_mut.position) {
@@ -1046,15 +1044,32 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                                     //Mutation found in read, add to common_node_mut
                                     if (read_mut.mut_nuc == node_mut.mut_nuc)
                                         common_node_mut.emplace_back(read_mut);
+                                    //read_mut is 'N', add to common_node_mut
+                                    else if (read_mut.mut_nuc == 0b1111)
+                                        common_node_mut.emplace_back(read_mut);
+                                    //If mutation is different
                                     else {
-                                        struct MAT::Mutation new_mut;
-                                        new_mut.position = read_mut.position;
-                                        new_mut.ref_nuc = read_mut.ref_nuc;
-                                        new_mut.par_nuc = node_mut.mut_nuc;
-                                        new_mut.mut_nuc = read_mut.mut_nuc;
-                                        curr_node_par_mut.emplace_back(new_mut);
-                                        //Placing it in common_mut so don't add this mut again
-                                        common_node_mut.emplace_back(new_mut);
+                                        //For root, handle the mutation as child of current node. 
+                                        if (!i) {
+                                            struct MAT::Mutation new_mut;
+                                            new_mut.position = read_mut.position;
+                                            new_mut.ref_nuc = read_mut.ref_nuc;
+                                            new_mut.par_nuc = node_mut.mut_nuc;
+                                            new_mut.mut_nuc = read_mut.mut_nuc;
+                                            curr_node_par_mut.emplace_back(new_mut);
+                                            //Placing it in common_mut so don't add this mut again
+                                            common_node_mut.emplace_back(new_mut);
+                                        }
+                                        //Otherwise, handle it as sibling of current node, i.e. add as uniq mutation
+                                        //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
+                                        else {
+                                            struct MAT::Mutation new_mut;
+                                            new_mut.position = read_mut.position;
+                                            new_mut.ref_nuc = read_mut.ref_nuc;
+                                            new_mut.par_nuc = read_mut.mut_nuc;
+                                            new_mut.mut_nuc = node_mut.mut_nuc;
+                                            uniq_curr_node_mut.emplace_back(new_mut);
+                                        }
                                     }
                                     found = true;
                                     break;
@@ -1086,22 +1101,11 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                             if (present)
                                 continue;
 
-                            //Else add it to curr_node_mut
-                            curr_node_par_mut.emplace_back(read_mut);
+                            //Else add it to curr_node_mut if mut_nuc != 'N'
+                            if (read_mut.mut_nuc != 0b1111)
+                                curr_node_par_mut.emplace_back(read_mut);
                         }
                     }
-
-
-                    //std::string target = rp->read;
-                    //size_t pos = target.find("_READ");
-                    //target.erase(pos);
-                    //if (dfs[i]->identifier == target) {
-                    //    fprintf(stderr, "Node: %s\n", dfs[i]->identifier.c_str());
-                    //    for (auto m: curr_node_par_mut)
-                    //        fprintf(stderr, "curr par mut: %d, mut_nuc: %c \n", m.position, MAT::get_nuc(m.mut_nuc));
-                    //    for (auto m: rp->mutations)
-                    //        fprintf(stderr, "read mut pos: %d, mut_nuc: %c\n", m.position, MAT::get_nuc(m.mut_nuc));
-                    //}
 
                     //Checking min_parsimony
                     int new_min_par = -1; 
@@ -1144,8 +1148,11 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                     //Updating curr_node_mut for having read as child
                     curr_par.p_node_par = curr_node_par_mut;
                     curr_par.curr_node = dfs[i];
-
                     parsimony_stack.push(curr_par);
+                    
+                    uniq_curr_node_mut.clear();
+                    common_node_mut.clear();
+                    curr_node_par_mut.clear();
                 }
 
                 for (auto n_idx: min_par.idx_list) {
@@ -1162,7 +1169,8 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                 read_min_parsimony.insert(ac, r);
                 ac->second = min_par;
                 ac.release();
-                
+
+                std::cout << "Read: " << r << ", parsimony: " << min_par.idx_list.size() << "\n";
             }
         },
         ap);
@@ -1288,7 +1296,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
     }
 
     std::cout << "\n\n";
-    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(25);
+    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(20);
     std::partial_sort_copy(clade_score.begin(),
                        clade_score.end(),
                        top_c.begin(),
@@ -1307,101 +1315,80 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
 
 
     //Clustering of lineages
-    std::unordered_map<std::string, std::pair<double, std::vector<std::string>>> cluster_score;
-    double max_score, t_score = (MAXFLOAT / 2), prev_t_score = MAXFLOAT, prev_prev_t_score = MAXFLOAT, clus_thresh;
-    std::vector<std::vector<std::string>> cluster_list;
-    std::vector<std::string> all_clus_mem, clusters_to_remove;
-    std::string best_cluster;
-    int count = 0;
+    //std::unordered_map<std::string, std::pair<double, std::vector<std::string>>> cluster_score;
+    //double max_score, t_score = (MAXFLOAT / 2), prev_t_score = MAXFLOAT, prev_prev_t_score = MAXFLOAT, clus_thresh;
+    //std::vector<std::vector<std::string>> cluster_list;
+    //std::vector<std::string> all_clus_mem, clusters_to_remove;
+    //std::string best_cluster;
+    //int count = 0;
     
-    while ( ((prev_t_score - t_score) > 0.001) && ((prev_prev_t_score - t_score) > 0.001) ) {
-        std::cout << "\n\nITER: " << ++count << "\n";
-        std::cout << "t_score: " << t_score << ", prev_t_score: " << prev_t_score << "\n";
-        if (prev_t_score == MAXFLOAT)
-            cluster_list = k_means(top_lineages, 5, 100);
-        else 
-            cluster_list = k_means(all_clus_mem, 5, 100);
-        if (prev_t_score < (MAXFLOAT/2))
-            prev_prev_t_score = prev_t_score;
-        prev_t_score = t_score;
-        max_score = 0, t_score = 0;
-        cluster_score.clear();
-        all_clus_mem.clear();
-        for (auto cluster: cluster_list) {
-            std::string mem = "";
-            std::vector<std::string> clus_mem;
-            clus_mem.clear();
-            double score = 0;
-            for (auto c_mem: cluster) {
-                mem += c_mem+"_";
-                clus_mem.emplace_back(c_mem);
-                score += (clade_score[c_mem].first / clade_score[c_mem].second);
-            }
- 
-            t_score += score;
-            cluster_score.insert({mem, {score, clus_mem}});
-            if (score > max_score) {
-                max_score = score;
-                best_cluster = mem;
-            }
-    
-        }
-        if (prev_t_score == (MAXFLOAT / 2)) {
-            std::vector<std::pair<std::string, std::pair<double, std::vector<std::string>>>> min_sc(2);
-            std::partial_sort_copy(cluster_score.begin(),
-                               cluster_score.end(),
-                               min_sc.begin(),
-                               min_sc.end(),
-                               [](std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& l,
-                                  std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& r)
-                               {
-                                   return l.second.first < r.second.first;
-                               });
-            clus_thresh = (min_sc[0].second.first + min_sc[1].second.first) / 2;
-        }
-
-        for (auto itr = cluster_score.begin(); itr != cluster_score.end(); itr++) {
-            if (itr->second.first <= clus_thresh) {
-                std::cout << "\nLineages removed: " << itr->first.c_str() << ", Score: " << itr->second.first << "\n";
-                t_score -= itr->second.first;
-                clusters_to_remove.emplace_back(itr->first);
-            }
-            else
-                all_clus_mem.insert(all_clus_mem.end(), itr->second.second.begin(), itr->second.second.end());
-        }
-        for (auto c: clusters_to_remove) 
-            cluster_score.erase(c);
-        clusters_to_remove.clear();
-        
-
-        //Print cluster_score
-        std::cout << "\nLineages after cluster thresholding: " << all_clus_mem.size() << ", Threshold: " << clus_thresh << "\n";
-        clus_thresh *= 1.025;
-        for (auto element: cluster_score)
-            printf("Cluster elemets: %s, sum: %f\n", element.first.c_str(), element.second.first);
-    }
-
-
-    //for (auto itr = clade_score.begin(); itr != clade_score.end(); itr++) {
-    //    bool found = false;
-    //    for (auto cl: cluster_score) {
-    //        for (auto c_name: cl.second.second) {
-    //            if (c_name == itr->first) {
-    //                found = true;
-    //                break;
-    //            }
+    //while ( ((prev_t_score - t_score) > 0.001) && ((prev_prev_t_score - t_score) > 0.001) ) {
+    //    std::cout << "\n\nITER: " << ++count << "\n";
+    //    std::cout << "t_score: " << t_score << ", prev_t_score: " << prev_t_score << "\n";
+    //    if (prev_t_score == MAXFLOAT)
+    //        cluster_list = k_means(top_lineages, 5, 100);
+    //    else 
+    //        cluster_list = k_means(all_clus_mem, 5, 100);
+    //    if (prev_t_score < (MAXFLOAT/2))
+    //        prev_prev_t_score = prev_t_score;
+    //    prev_t_score = t_score;
+    //    max_score = 0, t_score = 0;
+    //    cluster_score.clear();
+    //    all_clus_mem.clear();
+    //    for (auto cluster: cluster_list) {
+    //        std::string mem = "";
+    //        std::vector<std::string> clus_mem;
+    //        clus_mem.clear();
+    //        double score = 0;
+    //        for (auto c_mem: cluster) {
+    //            mem += c_mem+"_";
+    //            clus_mem.emplace_back(c_mem);
+    //            score += (clade_score[c_mem].first / clade_score[c_mem].second);
     //        }
-    //        if (found)
-    //            break;
+ 
+    //        t_score += score;
+    //        cluster_score.insert({mem, {score, clus_mem}});
+    //        if (score > max_score) {
+    //            max_score = score;
+    //            best_cluster = mem;
+    //        }
+    
     //    }
-    //    if (!found) {
-    //        cluster_score[best_cluster].first += (itr->second.first / itr->second.second);
+    //    if (prev_t_score == (MAXFLOAT / 2)) {
+    //        std::vector<std::pair<std::string, std::pair<double, std::vector<std::string>>>> min_sc(2);
+    //        std::partial_sort_copy(cluster_score.begin(),
+    //                           cluster_score.end(),
+    //                           min_sc.begin(),
+    //                           min_sc.end(),
+    //                           [](std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& l,
+    //                              std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& r)
+    //                           {
+    //                               return l.second.first < r.second.first;
+    //                           });
+    //        clus_thresh = (min_sc[0].second.first + min_sc[1].second.first) / 2;
     //    }
+
+    //    for (auto itr = cluster_score.begin(); itr != cluster_score.end(); itr++) {
+    //        if (itr->second.first <= clus_thresh) {
+    //            std::cout << "\nLineages removed: " << itr->first.c_str() << ", Score: " << itr->second.first << "\n";
+    //            t_score -= itr->second.first;
+    //            clusters_to_remove.emplace_back(itr->first);
+    //        }
+    //        else
+    //            all_clus_mem.insert(all_clus_mem.end(), itr->second.second.begin(), itr->second.second.end());
+    //    }
+    //    for (auto c: clusters_to_remove) 
+    //        cluster_score.erase(c);
+    //    clusters_to_remove.clear();
+    //    
+
+    //    //Print cluster_score
+    //    std::cout << "\nLineages after cluster thresholding: " << all_clus_mem.size() << ", Threshold: " << clus_thresh << "\n";
+    //    clus_thresh *= 1.025;
+    //    for (auto element: cluster_score)
+    //        printf("Cluster elemets: %s, sum: %f\n", element.first.c_str(), element.second.first);
     //}
 
-    //std::cout << "\n";
-    //for (auto element: cluster_score)
-    //    printf("Cluster elemets after all nodes: %s, sum: %f\n", element.first.c_str(), element.second.first);
 }
 
 
