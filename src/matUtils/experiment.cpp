@@ -128,7 +128,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
         exit(1);
     }
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "Completed in %ld sec \n\n", (timer.Stop() / 1000));
 
     
     fprintf(stderr,"\nRef Seq Length: %ld\n\n", ref_seq.size());
@@ -146,44 +146,34 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::vector<std::vector<Mutation_Annotated_Tree::Node*>> ancestors, all_lineages;
     std::map<int, std::vector<struct ances_sample_list*>*> sample_map;
     std::unordered_map<int, std::vector<Mutation_Annotated_Tree::Node*>*> back_mut_map;
-    std::vector<MAT::Node*> traversal, lineage_list, lineage_selected;
+    std::vector<MAT::Node*> dfs, lineage_list, lineage_selected;
     
     //Depth first expansion to get all nodes in the tree and 
     // comparison with given lineage to get all nodes of the required lineage 
-    traversal = T.depth_first_expansion(T.root); 
+    dfs = T.depth_first_expansion(T.root); 
     
     if (!old_vcf) {
     for (auto lineage: in_lineage) {
-        bool list_start = false; 
-        for (auto n: traversal) {
-            for (auto str: n->clade_annotations) {
-                if (str == lineage) {
-                    std::queue<Mutation_Annotated_Tree::Node*> remaining_nodes;
-                    remaining_nodes.push(n);
-                    while (remaining_nodes.size() > 0) {
-                        Mutation_Annotated_Tree::Node* curr_node = remaining_nodes.front();
-                        remaining_nodes.pop();
-                        for (auto curr_mut: curr_node->clade_annotations) {
-                            if ((curr_mut == "") || curr_mut == lineage) {
-                                if (curr_node->children.size() == 0)
-                                    lineage_list.emplace_back(curr_node);
-                                else {
-                                    for (auto c: curr_node->children) {
-                                        remaining_nodes.push(c);
-                                    }
-                                }
-                                break;
+        for (auto n: dfs) {
+            if (n->clade_annotations[1] == lineage) {
+                std::queue<Mutation_Annotated_Tree::Node*> remaining_nodes;
+                remaining_nodes.push(n);
+                while (remaining_nodes.size() > 0) {
+                    Mutation_Annotated_Tree::Node* curr_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    if ((curr_node->clade_annotations[1] == "") || (curr_node->clade_annotations[1] == lineage)) {
+                        if (curr_node->children.size() == 0)
+                            lineage_list.emplace_back(curr_node);
+                        else {
+                            for (auto c: curr_node->children) {
+                                remaining_nodes.push(c);
                             }
                         }
                     }
-                    list_start = true;
-                    break;
                 }
-            }
-            if (list_start)
                 break;
+            }
         }
-
         all_lineages.emplace_back(lineage_list);
         lineage_list.clear();
     }
@@ -197,9 +187,23 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         for (int i = 0; i < ceil(dist * sample_size); i++) {
             int rand_val = int(rand() % lineage_ptr->size());
             lineage_selected.emplace_back((*lineage_ptr)[rand_val]);
-            printf("Sample Name: %s\n", (*lineage_ptr)[rand_val]->identifier.c_str());
+            //printf("Sample Name: %s\n", (*lineage_ptr)[rand_val]->identifier.c_str());
         }
         lineage_ptr++;
+    }
+
+    for (auto sample: lineage_selected) {
+        for (auto anc: T.rsearch(sample->identifier, true)) { //Checking all ancestors of a node to get clade 
+            bool found = false;
+            //Don't consider the clades that start with numbers {Different clade naming}
+            auto clade = anc->clade_annotations[1];
+            if(clade != "") {
+                printf("Sample: %s, Clade: %s\n", sample->identifier.c_str(), clade.c_str());
+                found = true;
+            }
+            if (found)
+                break;
+        }
     }
 
     fprintf(stderr, "\n%ld Samples Selected in %ld msec \n\n", lineage_selected.size(), timer.Stop());
@@ -950,13 +954,13 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     read_vcf(vcf_filename_reads, read_ids);
     fprintf(stderr,"Reads_VCF parsed in %ld msec\n\n", timer.Stop());
 
-    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
-    place_reads(T, traversal, read_ids, node_score, vcf_filename_reads);
-    //analyze_reads(T, traversal, node_score);
+    tbb::concurrent_hash_map<MAT::Node*, score_count> node_score;
+    place_reads(T, dfs, read_ids, node_score, vcf_filename_reads);
+    analyze_reads(T, dfs, node_score);
 }
 
 
-void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, std::string vcf_filename_reads) {
+void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, score_count> &node_score, std::string vcf_filename_reads) {
     fprintf(stderr, "Total nodes: %ld, Reads: %ld\n\n", dfs.size(), read_ids.size());
     timer.Start();
 
@@ -977,22 +981,6 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                 for (size_t i = 0; i < dfs.size(); i++) {
                     std::vector<MAT::Mutation> uniq_curr_node_mut, common_node_mut, curr_node_par_mut;
                     struct parsimony curr_par;
-
-                                    //std::string target = rp->read;
-                                    //size_t pos = target.find("_READ");
-                                    //target.erase(pos);
-                                    //bool there = false; 
-                                    //if (dfs[i]->identifier == target) {
-                                    //    for (auto mut: dfs[i]->mutations) {
-                                    //        if ((mut.position >= rp->start) && (mut.position <= rp->end)) {
-                                    //            fprintf(stderr, "sample mut: %d", mut.position);
-                                    //            there = true;    
-                                    //        }
-                                    //    }
-                                    //    if ((rp->mutations.empty()) && (there)) {
-                                    //        fprintf(stderr, "Start: %d, End: %d, Read Mutation gone!! \n", rp->start, rp->end);
-                                    //    }
-                                    //}
                     //Nothing in stack for first node
                     if (i) {
                         //Get the parsimony vector from parent
@@ -1155,22 +1143,27 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                     curr_node_par_mut.clear();
                 }
 
+                //Keeping tab on weighted read score being mapped to each parsimonious node
+                std::unordered_map<std::string, size_t> clade_count;
                 for (auto n_idx: min_par.idx_list) {
                     auto node = dfs[n_idx];
-                    tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-                    auto created = node_score.insert(ac, std::make_pair(node, (1.0 / min_par.idx_list.size())));
-                    if (!created)
-                        ac->second += (1.0 / min_par.idx_list.size());
+                    //Give score to parsimonious node
+                    tbb::concurrent_hash_map<MAT::Node*, score_count>::accessor ac;
+                    struct score_count sc;
+                    sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                    sc.count = 1;
+                    auto created = node_score.insert(ac, std::make_pair(node, sc));
+                    if (!created) {
+                        ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+                        ac->second.count += 1;
+                    }
                     ac.release();
                 }
-                
                 //Only keeping for the check
                 tbb::concurrent_hash_map<size_t, struct min_parsimony>::accessor ac;
                 read_min_parsimony.insert(ac, r);
                 ac->second = min_par;
                 ac.release();
-
-                std::cout << "Read: " << r << ", parsimony: " << min_par.idx_list.size() << "\n";
             }
         },
         ap);
@@ -1181,6 +1174,7 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
     unsigned long long avg = 0;
     using my_mutex_t = tbb::queuing_mutex;
     my_mutex_t my_mutex;
+    
     tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t r = k.begin(); r < k.end(); ++r) {
@@ -1243,152 +1237,96 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
         },
             ap);
 
-    fprintf(stderr, "Avg par pos: %lld\n", avg); 
+    fprintf(stderr, "Avg par pos: %lld\n", avg);
 }
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<MAT::Node*, score_count> &node_score) {
     timer.Start();
-    std::unordered_map<std::string, std::pair<double, size_t>> clade_score;
+    //std::unordered_map<std::string, std::pair<double, size_t>> clade_score;
     
-    //Print the node scores
-    std::vector<std::pair<MAT::Node*, double>> top_n(10);
+    //Get top scoring nodes
+    std::vector<std::pair<MAT::Node*, score_count>> top_n_node_score(40000);
+    std::vector<bool> peak_vec(top_n_node_score.size(), true);
+    size_t b_dist_thresh = 16;
+    
+    //Sorting the node scores
     std::partial_sort_copy(node_score.begin(),
                         node_score.end(),
-                        top_n.begin(),
-                        top_n.end(),
-                        [](std::pair<const MAT::Node*, double> const& l,
-                           std::pair<const MAT::Node*, double> const& r)
+                        top_n_node_score.begin(),
+                        top_n_node_score.end(),
+                        [](std::pair<const MAT::Node*, score_count> const& l,
+                           std::pair<const MAT::Node*, score_count> const& r)
                         {
-                            return l.second > r.second;
+                            return l.second.score > r.second.score;
                         });
-    std::cout << "\n\n"; 
-    for (auto top: top_n) {
-        for (auto anc: T.rsearch(top.first->identifier, true)) { //Checking all ancestors of a node to get clade 
+
+    //Peak Detection
+//    for (size_t i = 0; i < top_n_node_score.size(); i++) {
+//        auto curr_node = top_n_node_score[i].first;
+//        if (!(curr_node->is_leaf()))
+//            peak_vec[i] = false;
+//        if (!peak_vec[i])
+//            continue;
+//        for (size_t j = i+1; j < top_n_node_score.size(); j++) {
+//            auto cmp_node = top_n_node_score[j].first;
+//            if (!(cmp_node->is_leaf()))
+//                peak_vec[j] = false;
+//            if (!peak_vec[j])
+//                continue;
+//            size_t b_dist = branch_distance(curr_node, cmp_node);
+//            if (b_dist > b_dist_thresh)
+//                peak_vec[j] = true;
+//            else
+//                peak_vec[j] = false;
+//        }
+//
+//        for (auto anc: T.rsearch(curr_node->identifier, true)) { //Checking all ancestors of a node to get clade 
+//            bool found = false;
+//            //Don't consider the clades that start with numbers {Different clade naming}
+//            auto clade = anc->clade_annotations[1];
+//            if(clade != "") {
+//                printf("PEAK score = %f, Node: %s, Clade: %s\n", top_n_node_score[i].second, curr_node->identifier.c_str(), clade.c_str());
+//                found = true;
+//            }
+//            if (found)
+//                break;
+//        }
+//    }
+//
+    for (auto n_s: top_n_node_score) {
+        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
             bool found = false;
             //Don't consider the clades that start with numbers {Different clade naming}
             auto clade = anc->clade_annotations[1];
             if(clade != "") {
-            printf("score = %f, Node: %s, Clade: %s\n", top.second, top.first->identifier.c_str(), clade.c_str());
+                printf("score = %f, count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.count, n_s.first->identifier.c_str(), clade.c_str());
                 found = true;
             }
             if (found)
                 break;
         }
     }
-    
-    //Making clade map
-    for (auto itr = node_score.begin(); itr != node_score.end(); itr++) {
-        for (auto anc: T.rsearch(itr->first->identifier, true)) { //Checking all ancestors of a node to get clade 
-            bool found = false;
-            //Don't consider the clades that start with numbers {Different clade naming}
-            auto clade = anc->clade_annotations[1];
-            if(clade != "") {
-                if (clade_score.find(clade) == clade_score.end())
-                    clade_score.insert({clade, {itr->second, 1}});
-                else
-                    clade_score[clade] = {clade_score[clade].first + itr->second, clade_score[clade].second + 1}; 
-                found = true;
-            }
-            if (found)
-                break;
-        }
-    }
 
-    std::cout << "\n\n";
-    std::vector<std::pair<std::string, std::pair<double, size_t>>> top_c(20);
-    std::partial_sort_copy(clade_score.begin(),
-                       clade_score.end(),
-                       top_c.begin(),
-                       top_c.end(),
-                       [](std::pair<const std::string, std::pair<double, size_t>> const& l,
-                          std::pair<const std::string, std::pair<double, size_t>> const& r)
-                       {
-                           return (l.second.first / l.second.second) > (r.second.first / r.second.second);
-                       });
-    std::vector<std::string>top_lineages;
-    for (auto top: top_c) {
-        printf("Lineage: %s, Node_sum: %f, num_nodes: %zu, Avg: %f\n", top.first.c_str(), top.second.first, top.second.second, (top.second.first / top.second.second));
-        top_lineages.emplace_back(top.first);
-    }
-    fprintf(stderr,"\nTop Nodes found in %ld sec\n\n", (timer.Stop() / 1000));
-
-
-    //Clustering of lineages
-    //std::unordered_map<std::string, std::pair<double, std::vector<std::string>>> cluster_score;
-    //double max_score, t_score = (MAXFLOAT / 2), prev_t_score = MAXFLOAT, prev_prev_t_score = MAXFLOAT, clus_thresh;
-    //std::vector<std::vector<std::string>> cluster_list;
-    //std::vector<std::string> all_clus_mem, clusters_to_remove;
-    //std::string best_cluster;
-    //int count = 0;
-    
-    //while ( ((prev_t_score - t_score) > 0.001) && ((prev_prev_t_score - t_score) > 0.001) ) {
-    //    std::cout << "\n\nITER: " << ++count << "\n";
-    //    std::cout << "t_score: " << t_score << ", prev_t_score: " << prev_t_score << "\n";
-    //    if (prev_t_score == MAXFLOAT)
-    //        cluster_list = k_means(top_lineages, 5, 100);
-    //    else 
-    //        cluster_list = k_means(all_clus_mem, 5, 100);
-    //    if (prev_t_score < (MAXFLOAT/2))
-    //        prev_prev_t_score = prev_t_score;
-    //    prev_t_score = t_score;
-    //    max_score = 0, t_score = 0;
-    //    cluster_score.clear();
-    //    all_clus_mem.clear();
-    //    for (auto cluster: cluster_list) {
-    //        std::string mem = "";
-    //        std::vector<std::string> clus_mem;
-    //        clus_mem.clear();
-    //        double score = 0;
-    //        for (auto c_mem: cluster) {
-    //            mem += c_mem+"_";
-    //            clus_mem.emplace_back(c_mem);
-    //            score += (clade_score[c_mem].first / clade_score[c_mem].second);
+    ////Making clade map
+    //for (auto itr = node_score.begin(); itr != node_score.end(); itr++) {
+    //    for (auto anc: T.rsearch(itr->first->identifier, true)) { //Checking all ancestors of a node to get clade 
+    //        bool found = false;
+    //        //Don't consider the clades that start with numbers {Different clade naming}
+    //        auto clade = anc->clade_annotations[1];
+    //        if(clade != "") {
+    //            if (clade_score.find(clade) == clade_score.end())
+    //                clade_score.insert({clade, {itr->second, 1}});
+    //            else
+    //                clade_score[clade] = {clade_score[clade].first + itr->second, clade_score[clade].second + 1}; 
+    //            found = true;
     //        }
- 
-    //        t_score += score;
-    //        cluster_score.insert({mem, {score, clus_mem}});
-    //        if (score > max_score) {
-    //            max_score = score;
-    //            best_cluster = mem;
-    //        }
-    
+    //        if (found)
+    //            break;
     //    }
-    //    if (prev_t_score == (MAXFLOAT / 2)) {
-    //        std::vector<std::pair<std::string, std::pair<double, std::vector<std::string>>>> min_sc(2);
-    //        std::partial_sort_copy(cluster_score.begin(),
-    //                           cluster_score.end(),
-    //                           min_sc.begin(),
-    //                           min_sc.end(),
-    //                           [](std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& l,
-    //                              std::pair<const std::string, std::pair<double, std::vector<std::string>>> const& r)
-    //                           {
-    //                               return l.second.first < r.second.first;
-    //                           });
-    //        clus_thresh = (min_sc[0].second.first + min_sc[1].second.first) / 2;
-    //    }
-
-    //    for (auto itr = cluster_score.begin(); itr != cluster_score.end(); itr++) {
-    //        if (itr->second.first <= clus_thresh) {
-    //            std::cout << "\nLineages removed: " << itr->first.c_str() << ", Score: " << itr->second.first << "\n";
-    //            t_score -= itr->second.first;
-    //            clusters_to_remove.emplace_back(itr->first);
-    //        }
-    //        else
-    //            all_clus_mem.insert(all_clus_mem.end(), itr->second.second.begin(), itr->second.second.end());
-    //    }
-    //    for (auto c: clusters_to_remove) 
-    //        cluster_score.erase(c);
-    //    clusters_to_remove.clear();
-    //    
-
-    //    //Print cluster_score
-    //    std::cout << "\nLineages after cluster thresholding: " << all_clus_mem.size() << ", Threshold: " << clus_thresh << "\n";
-    //    clus_thresh *= 1.025;
-    //    for (auto element: cluster_score)
-    //        printf("Cluster elemets: %s, sum: %f\n", element.first.c_str(), element.second.first);
     //}
-
+    
+    fprintf(stderr,"\nTop Nodes found in %ld msec\n\n", timer.Stop());
 }
 
 
@@ -1492,126 +1430,25 @@ void read_vcf(std::string vcf_filename_reads, std::vector<struct read_info*> &re
 }
 
 
-
-// Function to calculate the distance between two strings
-float str_distance(const std::string& str1, const std::string& str2) {
-    float dist = 0;
-    int i, n = std::min(str1.length(), str2.length());
-    for (i = 0; i < n; i++) {
-        if (str1[i] != str2[i]) {
-            dist = dist + std::pow(10, (1.0 / (i + 1)));
-            if (((str1[i] == '.') || (str2[i] == '.')) && (str1[i-1] == str2[i-1]))
-                dist = dist + std::pow(10, (1.0 / i));
-            i++;
-            break;
-        }
+//Function to calculation distance between two nodes
+size_t branch_distance(MAT::Node* N1, MAT::Node* N2) {
+    if (N1 == N2)
+        return 0;
+    size_t distance = 0;
+    MAT::Node node1 = *N1, node2 = *N2;
+    while (node1.level > node2.level) {
+        node1 = *node1.parent;
+        distance++;
+    } 
+    while (node1.level < node2.level) {
+        node2 = *node2.parent;
+        distance++; 
     }
-    dist = dist + std::pow(10, (float(std::abs((int)str1.length() - (int)str2.length()) + (n - i)) / ((std::max(str1.length(), str2.length()) + (i + 1)) / 2 )));
-    return dist;
-}
-
-// Compute the centroid of a cluster of strings
-std::string compute_centroid(const std::vector<std::string>& cluster) {
-    const int n = cluster.size();
-    std::vector<float> distances(n);
-    for (int i = 0; i < n; i++) {
-        distances[i] = 0;
-        for (int j = 0; j < n; j++) {
-            distances[i] += str_distance(cluster[i], cluster[j]);
-        }
+    while (node1.parent != node2.parent) {
+        node1 = *node1.parent;
+        node2 = *node2.parent;
+        distance += 2;
     }
-    const auto min_index = min_element(distances.begin(), distances.end());
-    if (min_index == distances.end())
-        return "";
-    else 
-        return cluster[min_index - distances.begin()];
-}
-
-// Assign each string to its nearest centroid
-std::vector<int> assign_clusters(const std::vector<std::string>& strings, const std::vector<std::string>& centroids) {
-    const int n = strings.size();
-    const int k = centroids.size();
-    std::vector<int> clusters(n);
-    for (int i = 0; i < n; i++) {
-        float min_distance = str_distance(strings[i], centroids[0]);
-        int min_index = 0;
-        for (int j = 1; j < k; j++) {
-            const float distance = str_distance(strings[i], centroids[j]);
-            if (distance < min_distance) {
-                min_distance = distance;
-                min_index = j;
-            }
-        }
-        clusters[i] = min_index;
-    }
-    return clusters;
-}
-
-// Update centroids to be the centroid of their assigned cluster
-std::vector<std::string> update_centroids(const std::vector<std::string>& strings, const std::vector<int>& clusters, const int k) {
-    std::vector<std::string> centroids(k);
-    for (int j = 0; j < k; j++) {
-        std::vector<std::string> cluster;
-        for (int i = 0; i < int(strings.size()); i++) {
-            if (clusters[i] == j) {
-                cluster.push_back(strings[i]);
-            }
-        }
-        centroids[j] = compute_centroid(cluster);
-    }
-    return centroids;
-}
-
-// Generate k initial centroids
-std::vector<std::string> generate_initial_centroids(const std::vector<std::string>& strings, const int k) {
-   std::vector<std::string> centroids; 
-   int count = 0;
-   centroids.emplace_back(strings[rand() % strings.size()]);
-   count++;
-    while (count < k) {
-        std::string rand_s = strings[rand() % strings.size()];
-        auto itr = std::find(centroids.begin(), centroids.end(), rand_s);
-        while (itr != centroids.end()) {
-            rand_s = strings[rand() % strings.size()];
-            itr = std::find(centroids.begin(), centroids.end(), rand_s);
-        }
-        centroids.emplace_back(rand_s);
-        count++;
-    }
-    
-   //std::cout << "Initial Centroids\n";
-   //for (auto c: centroids)
-   // std::cout << c << "\n"; 
-   return centroids;   
-}
-
-// Cluster strings into k clusters using the k-means algorithm
-std::vector<std::vector<std::string>> k_means(const std::vector<std::string>& strings, const int k, const int max_iterations) {
-   std::vector<std::vector<std::string>> cluster_list;
-   std::vector<std::string> cluster, centroids = generate_initial_centroids(strings, k); 
-   float prev_distance = MAXFLOAT;
-   std::vector<int> cluster_idx; 
-   for (int i = 0; i < max_iterations; i++) {
-      cluster_idx = assign_clusters(strings, centroids);
-      centroids = update_centroids(strings, cluster_idx, k);
-      float distance = 0;
-      for (int j = 0; j < k; j++)
-        distance += str_distance(centroids[j], centroids[j]);
-      if (distance == prev_distance)
-        break;
-      prev_distance = distance;
-   }
-   
-   for (int j = 0; j < k ; j++) {
-        //std::cout << "\nCentroid: " << centroids[j].c_str() << "\n";
-        cluster.clear();
-        for (int l = 0; l < int(strings.size()); l++)
-            if (cluster_idx[l] == j) {
-                cluster.emplace_back(strings[l]);
-                //std::cout << strings[l].c_str() << "\n";
-            }
-        //std::cout << "Cluster size: " << cluster.size() << "\n";
-        cluster_list.emplace_back(cluster);
-    }
-    return cluster_list;
+    distance += 2;
+    return distance;
 }
