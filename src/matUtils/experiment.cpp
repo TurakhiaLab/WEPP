@@ -954,17 +954,17 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     read_vcf(vcf_filename_reads, read_ids);
     fprintf(stderr,"Reads_VCF parsed in %ld msec\n\n", timer.Stop());
 
-    tbb::concurrent_hash_map<MAT::Node*, score_count> node_score;
-    place_reads(T, dfs, read_ids, node_score, vcf_filename_reads);
-    analyze_reads(T, dfs, node_score);
+    tbb::concurrent_hash_map<MAT::Node*, score_read> node_score;
+    tbb::concurrent_hash_map<size_t, struct min_parsimony> read_min_parsimony;
+    place_reads(T, dfs, read_ids, node_score, read_min_parsimony, vcf_filename_reads);
+    analyze_reads(T, dfs, read_ids, node_score, read_min_parsimony);
 }
 
 
-void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, score_count> &node_score, std::string vcf_filename_reads) {
+void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, score_read> &node_score, tbb::concurrent_hash_map<size_t, struct min_parsimony> &read_min_parsimony, std::string vcf_filename_reads) {
     fprintf(stderr, "Total nodes: %ld, Reads: %ld\n\n", dfs.size(), read_ids.size());
     timer.Start();
 
-    tbb::concurrent_hash_map<size_t, struct min_parsimony> read_min_parsimony;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
         [&](tbb::blocked_range<size_t> k) {
@@ -1144,21 +1144,21 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
                 }
 
                 //Keeping tab on weighted read score being mapped to each parsimonious node
-                std::unordered_map<std::string, size_t> clade_count;
                 for (auto n_idx: min_par.idx_list) {
                     auto node = dfs[n_idx];
                     //Give score to parsimonious node
-                    tbb::concurrent_hash_map<MAT::Node*, score_count>::accessor ac;
-                    struct score_count sc;
+                    struct score_read sc;
                     sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-                    sc.count = 1;
+                    sc.reads.emplace_back(r);
+                    tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
                     auto created = node_score.insert(ac, std::make_pair(node, sc));
                     if (!created) {
                         ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-                        ac->second.count += 1;
+                        ac->second.reads.emplace_back(r);
                     }
                     ac.release();
                 }
+
                 //Only keeping for the check
                 tbb::concurrent_hash_map<size_t, struct min_parsimony>::accessor ac;
                 read_min_parsimony.insert(ac, r);
@@ -1170,11 +1170,16 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
     
     fprintf(stderr,"Reads placed in %ld sec\n\n", (timer.Stop() / 1000));
     
+}
+
+
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::vector<struct read_info*> &read_ids, tbb::concurrent_hash_map<MAT::Node*, score_read> &node_score, tbb::concurrent_hash_map<size_t, struct min_parsimony> &read_min_parsimony) {
+    timer.Start();
     //Check to ensure every read has its corresponding sample as its most parsimonious position
     unsigned long long avg = 0;
     using my_mutex_t = tbb::queuing_mutex;
     my_mutex_t my_mutex;
-    
+    static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t r = k.begin(); r < k.end(); ++r) {
@@ -1237,31 +1242,171 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
         },
             ap);
 
-    fprintf(stderr, "Avg par pos: %lld\n", avg);
-}
+    fprintf(stderr, "Avg par pos: %lld found in %ld sec\n", avg, (timer.Stop() / 1000));
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::concurrent_hash_map<MAT::Node*, score_count> &node_score) {
-    timer.Start();
-    //std::unordered_map<std::string, std::pair<double, size_t>> clade_score;
-    
     //Get top scoring nodes
-    std::vector<std::pair<MAT::Node*, score_count>> top_n_node_score(40000);
-    std::vector<bool> peak_vec(top_n_node_score.size(), true);
-    size_t b_dist_thresh = 16;
+    timer.Start();
+    int top_n = 1;
+    std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n), top_samples;
+    std::vector<size_t> remaining_reads;
+    std::vector<std::string> selected_clades;
+
+    for (size_t i = 0; i < read_ids.size(); i++)
+        remaining_reads.emplace_back(i);
     
+    while (!remaining_reads.empty()) {
+        //Sorting the node scores
+        std::partial_sort_copy(node_score.begin(),
+                            node_score.end(),
+                            top_n_node_score.begin(),
+                            top_n_node_score.end(),
+                            [](std::pair<const MAT::Node*, score_read> const& l,
+                               std::pair<const MAT::Node*, score_read> const& r)
+                            {
+                                return l.second.score > r.second.score;
+                            });
+        node_score.clear();        
+        top_samples.emplace_back(top_n_node_score[0]);
+    
+        //Find the reads not mapped to the best node
+        auto rem_r_itr = remaining_reads.begin();
+        while (rem_r_itr != remaining_reads.end()) {
+            auto top_itr = std::find(top_n_node_score[0].second.reads.begin(), top_n_node_score[0].second.reads.end(), *rem_r_itr);
+            if (top_itr != top_n_node_score[0].second.reads.end())
+                rem_r_itr = remaining_reads.erase(rem_r_itr);
+            else rem_r_itr++;
+        }
+        top_n_node_score.clear();
+        top_n_node_score.resize(top_n);
+
+        //Calculating node score for remaining reads
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto r = remaining_reads[i];
+                    tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
+                    read_min_parsimony.find(k_ac, r);
+                    auto min_par = k_ac->second;
+                    k_ac.release();
+                    for (auto n_idx: min_par.idx_list) {
+                        auto node = dfs[n_idx];
+                        //Give score to parsimonious node
+                        struct score_read sc;
+                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                        sc.reads.emplace_back(r);
+                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+                        auto created = node_score.insert(ac, std::make_pair(node, sc));
+                        if (!created) {
+                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+                            ac->second.reads.emplace_back(r);
+                        }
+                        ac.release();
+                    }
+                }
+            },
+        ap);
+    }
+
+
+    //Print the greedy top_n samples with their clades
+    for (auto n_s: top_samples) {
+        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
+            bool found = false;
+            //Don't consider the clades that start with numbers {Different clade naming}
+            auto clade = anc->clade_annotations[1];
+            if(clade != "") {
+                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
+                if (clade_itr == selected_clades.end())
+                    selected_clades.emplace_back(clade);
+                printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+                found = true;
+            }
+            if (found)
+                break;
+        }
+    }
+
+    //Rescoring the nodes only belonging to selected lineages
+    node_score.clear();        
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t r = k.begin(); r < k.end(); ++r) {
+                tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
+                read_min_parsimony.find(k_ac, r);
+                auto min_par = k_ac->second;
+                k_ac.release();
+                for (auto n_idx: min_par.idx_list) {
+                    auto node = dfs[n_idx];
+                    for (auto anc: T.rsearch(node->identifier, true)) { //Checking all ancestors of a node to get clade 
+                        bool found = false;
+                        //Don't consider the clades that start with numbers {Different clade naming}
+                        auto clade = anc->clade_annotations[1];
+                        if(clade != "") {
+                            auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
+                            //On finding the node among the selected clades, update its score
+                            if (clade_itr != selected_clades.end()) {
+                                struct score_read sc;
+                                sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                                sc.reads.emplace_back(r);
+                                tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+                                auto created = node_score.insert(ac, std::make_pair(node, sc));
+                                if (!created) {
+                                    ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+                                    ac->second.reads.emplace_back(r);
+                                }
+                                ac.release();
+                            }
+                            found = true;
+                        }
+                        if (found)
+                            break;
+                    }
+                }
+            }
+        },
+     ap);
+
+
     //Sorting the node scores
+    top_n_node_score.clear();
+    top_n_node_score.resize(100);
     std::partial_sort_copy(node_score.begin(),
                         node_score.end(),
                         top_n_node_score.begin(),
                         top_n_node_score.end(),
-                        [](std::pair<const MAT::Node*, score_count> const& l,
-                           std::pair<const MAT::Node*, score_count> const& r)
+                        [](std::pair<const MAT::Node*, score_read> const& l,
+                           std::pair<const MAT::Node*, score_read> const& r)
                         {
                             return l.second.score > r.second.score;
                         });
 
+    std::cout << "\n Top Nodes after rescoring among limited clades\n\n";
+    //Print the top_n samples with their clades after rescoring with handful clades
+    for (auto n_s: top_n_node_score) {
+        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
+            bool found = false;
+            //Don't consider the clades that start with numbers {Different clade naming}
+            auto clade = anc->clade_annotations[1];
+            if(clade != "") {
+                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
+                if (clade_itr == selected_clades.end())
+                    selected_clades.emplace_back(clade);
+                printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+                found = true;
+            }
+            if (found)
+                break;
+        }
+    }
+
+
+    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
+                
+
     //Peak Detection
+//    std::vector<bool> peak_vec(top_n_node_score.size(), true);
+//    size_t b_dist_thresh = 16;
 //    for (size_t i = 0; i < top_n_node_score.size(); i++) {
 //        auto curr_node = top_n_node_score[i].first;
 //        if (!(curr_node->is_leaf()))
@@ -1294,39 +1439,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, tbb::
 //        }
 //    }
 //
-    for (auto n_s: top_n_node_score) {
-        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
-            bool found = false;
-            //Don't consider the clades that start with numbers {Different clade naming}
-            auto clade = anc->clade_annotations[1];
-            if(clade != "") {
-                printf("score = %f, count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.count, n_s.first->identifier.c_str(), clade.c_str());
-                found = true;
-            }
-            if (found)
-                break;
-        }
-    }
 
-    ////Making clade map
-    //for (auto itr = node_score.begin(); itr != node_score.end(); itr++) {
-    //    for (auto anc: T.rsearch(itr->first->identifier, true)) { //Checking all ancestors of a node to get clade 
-    //        bool found = false;
-    //        //Don't consider the clades that start with numbers {Different clade naming}
-    //        auto clade = anc->clade_annotations[1];
-    //        if(clade != "") {
-    //            if (clade_score.find(clade) == clade_score.end())
-    //                clade_score.insert({clade, {itr->second, 1}});
-    //            else
-    //                clade_score[clade] = {clade_score[clade].first + itr->second, clade_score[clade].second + 1}; 
-    //            found = true;
-    //        }
-    //        if (found)
-    //            break;
-    //    }
-    //}
-    
-    fprintf(stderr,"\nTop Nodes found in %ld msec\n\n", timer.Stop());
 }
 
 
