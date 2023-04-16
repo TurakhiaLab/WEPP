@@ -193,17 +193,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     }
 
     for (auto sample: lineage_selected) {
-        for (auto anc: T.rsearch(sample->identifier, true)) { //Checking all ancestors of a node to get clade 
-            bool found = false;
-            //Don't consider the clades that start with numbers {Different clade naming}
-            auto clade = anc->clade_annotations[1];
-            if(clade != "") {
-                printf("Sample: %s, Clade: %s\n", sample->identifier.c_str(), clade.c_str());
-                found = true;
-            }
-            if (found)
-                break;
-        }
+        auto clade = get_clade(T, sample);
+        printf("Sample: %s, Clade: %s\n", sample->identifier.c_str(), clade.c_str());
     }
 
     fprintf(stderr, "\n%ld Samples Selected in %ld msec \n\n", lineage_selected.size(), timer.Stop());
@@ -1167,7 +1158,7 @@ void place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const s
             }
         },
         ap);
-    
+
     fprintf(stderr,"Reads placed in %ld sec\n\n", (timer.Stop() / 1000));
     
 }
@@ -1211,18 +1202,8 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     }
                     else {
                         fprintf(stderr, "Sample not Found !!! \n");
-                        for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
-                            bool found = false;
-                            //Don't consider the clades that start with numbers {Different clade naming}
-                            auto clade = anc->clade_annotations[1];
-                            if(clade != "") {
-                                fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
-                                found = true;
-                            }
-                            if (found)
-                                break;
-                        }
-
+                        auto clade = get_clade(T, T.get_node(target));
+                        fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
                         fprintf(stderr, "mut pos: ");
                         for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
                             for (auto mut: anc->mutations)
@@ -1244,16 +1225,19 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
 
     fprintf(stderr, "Avg par pos: %lld found in %ld sec\n", avg, (timer.Stop() / 1000));
 
-
-    //Get top scoring nodes
+   //GREEDY ALGORITHM for getting handful of clades
+   //Get top scoring nodes
     timer.Start();
-    int top_n = 1;
-    std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n), top_samples;
+    int top_n = 100;
+    std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n);
     std::vector<size_t> remaining_reads;
     std::vector<std::string> selected_clades;
 
-    for (size_t i = 0; i < read_ids.size(); i++)
-        remaining_reads.emplace_back(i);
+    auto r_min_itr = read_min_parsimony.begin();
+    while (r_min_itr != read_min_parsimony.end()) {
+        remaining_reads.emplace_back(r_min_itr->first);
+        r_min_itr++;
+    }
     
     while (!remaining_reads.empty()) {
         //Sorting the node scores
@@ -1266,17 +1250,30 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                             {
                                 return l.second.score > r.second.score;
                             });
-        node_score.clear();        
-        top_samples.emplace_back(top_n_node_score[0]);
-    
-        //Find the reads not mapped to the best node
-        auto rem_r_itr = remaining_reads.begin();
-        while (rem_r_itr != remaining_reads.end()) {
-            auto top_itr = std::find(top_n_node_score[0].second.reads.begin(), top_n_node_score[0].second.reads.end(), *rem_r_itr);
-            if (top_itr != top_n_node_score[0].second.reads.end())
-                rem_r_itr = remaining_reads.erase(rem_r_itr);
-            else rem_r_itr++;
-        }
+        node_score.clear();
+
+        //Find the reads not mapped to the best nodes
+        auto top_n_itr = top_n_node_score.begin();
+        while (top_n_itr != top_n_node_score.end()) {
+            auto curr_clade = get_clade(T, top_n_itr->first);
+            auto c_check_itr = std::find(selected_clades.begin(), selected_clades.end(), curr_clade);
+            //Allow top scorer or others with equal score but different clade
+            if ( (abs(top_n_itr->second.score - top_n_node_score[0].second.score) < 1e-9) && (c_check_itr == selected_clades.end()) ) {
+                //Store the clades corresponding to top scoring node
+                selected_clades.emplace_back(curr_clade);
+                //Remove mapped reads from remaining_reads
+                auto rem_r_itr = remaining_reads.begin();
+                while (rem_r_itr != remaining_reads.end()) {
+                    auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
+                    if (itr != top_n_itr->second.reads.end())
+                        rem_r_itr = remaining_reads.erase(rem_r_itr);
+                    else rem_r_itr++;
+                }
+            }
+            else if (abs(top_n_itr->second.score - top_n_node_score[0].second.score) > 1e-9)
+                break;
+            top_n_itr++;
+        }        
         top_n_node_score.clear();
         top_n_node_score.resize(top_n);
 
@@ -1309,23 +1306,9 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     }
 
 
-    //Print the greedy top_n samples with their clades
-    for (auto n_s: top_samples) {
-        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
-            bool found = false;
-            //Don't consider the clades that start with numbers {Different clade naming}
-            auto clade = anc->clade_annotations[1];
-            if(clade != "") {
-                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
-                if (clade_itr == selected_clades.end())
-                    selected_clades.emplace_back(clade);
-                printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
-                found = true;
-            }
-            if (found)
-                break;
-        }
-    }
+    //Print the clades otained from greedy algorithm
+    for (auto clade: selected_clades)
+        printf("CLADE Selected: %s\n", clade.c_str());
 
     //Rescoring the nodes only belonging to selected lineages
     node_score.clear();        
@@ -1338,30 +1321,22 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 k_ac.release();
                 for (auto n_idx: min_par.idx_list) {
                     auto node = dfs[n_idx];
-                    for (auto anc: T.rsearch(node->identifier, true)) { //Checking all ancestors of a node to get clade 
-                        bool found = false;
-                        //Don't consider the clades that start with numbers {Different clade naming}
-                        auto clade = anc->clade_annotations[1];
-                        if(clade != "") {
-                            auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
-                            //On finding the node among the selected clades, update its score
-                            if (clade_itr != selected_clades.end()) {
-                                struct score_read sc;
-                                sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-                                sc.reads.emplace_back(r);
-                                tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
-                                auto created = node_score.insert(ac, std::make_pair(node, sc));
-                                if (!created) {
-                                    ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-                                    ac->second.reads.emplace_back(r);
-                                }
-                                ac.release();
-                            }
-                            found = true;
+                    auto clade = get_clade(T, node);
+                    auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
+                    //On finding the node among the selected clades, update its score
+                    if (clade_itr != selected_clades.end()) {
+                        struct score_read sc;
+                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                        sc.reads.emplace_back(r);
+                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+                        auto created = node_score.insert(ac, std::make_pair(node, sc));
+                        if (!created) {
+                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+                            ac->second.reads.emplace_back(r);
                         }
-                        if (found)
-                            break;
+                        ac.release();
                     }
+
                 }
             }
         },
@@ -1370,7 +1345,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
 
     //Sorting the node scores
     top_n_node_score.clear();
-    top_n_node_score.resize(100);
+    top_n_node_score.resize(1000);
     std::partial_sort_copy(node_score.begin(),
                         node_score.end(),
                         top_n_node_score.begin(),
@@ -1384,15 +1359,42 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     std::cout << "\n Top Nodes after rescoring among limited clades\n\n";
     //Print the top_n samples with their clades after rescoring with handful clades
     for (auto n_s: top_n_node_score) {
-        for (auto anc: T.rsearch(n_s.first->identifier, true)) { //Checking all ancestors of a node to get clade 
+        auto clade = get_clade(T, n_s.first);
+        printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+    }
+
+
+    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
+
+
+    //Peak Detection
+    std::vector<bool> peak_vec(top_n_node_score.size(), true);
+    size_t b_dist_thresh = 16;
+    for (size_t i = 0; i < top_n_node_score.size(); i++) {
+        auto curr_node = top_n_node_score[i].first;
+        if (!(curr_node->is_leaf()))
+            peak_vec[i] = false;
+        if (!peak_vec[i])
+            continue;
+        for (size_t j = i+1; j < top_n_node_score.size(); j++) {
+            auto cmp_node = top_n_node_score[j].first;
+            if (!(cmp_node->is_leaf()))
+                peak_vec[j] = false;
+            if (!peak_vec[j])
+                continue;
+            size_t b_dist = branch_distance(curr_node, cmp_node);
+            if (b_dist > b_dist_thresh)
+                peak_vec[j] = true;
+            else
+                peak_vec[j] = false;
+        }
+
+        for (auto anc: T.rsearch(curr_node->identifier, true)) { //Checking all ancestors of a node to get clade 
             bool found = false;
             //Don't consider the clades that start with numbers {Different clade naming}
             auto clade = anc->clade_annotations[1];
             if(clade != "") {
-                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
-                if (clade_itr == selected_clades.end())
-                    selected_clades.emplace_back(clade);
-                printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+                printf("PEAK score = %f, read_count = %lu, Node: %s, Clade: %s\n", top_n_node_score[i].second.score, top_n_node_score[i].second.reads.size(), curr_node->identifier.c_str(), clade.c_str());
                 found = true;
             }
             if (found)
@@ -1400,45 +1402,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         }
     }
 
-
-    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
-                
-
-    //Peak Detection
-//    std::vector<bool> peak_vec(top_n_node_score.size(), true);
-//    size_t b_dist_thresh = 16;
-//    for (size_t i = 0; i < top_n_node_score.size(); i++) {
-//        auto curr_node = top_n_node_score[i].first;
-//        if (!(curr_node->is_leaf()))
-//            peak_vec[i] = false;
-//        if (!peak_vec[i])
-//            continue;
-//        for (size_t j = i+1; j < top_n_node_score.size(); j++) {
-//            auto cmp_node = top_n_node_score[j].first;
-//            if (!(cmp_node->is_leaf()))
-//                peak_vec[j] = false;
-//            if (!peak_vec[j])
-//                continue;
-//            size_t b_dist = branch_distance(curr_node, cmp_node);
-//            if (b_dist > b_dist_thresh)
-//                peak_vec[j] = true;
-//            else
-//                peak_vec[j] = false;
-//        }
-//
-//        for (auto anc: T.rsearch(curr_node->identifier, true)) { //Checking all ancestors of a node to get clade 
-//            bool found = false;
-//            //Don't consider the clades that start with numbers {Different clade naming}
-//            auto clade = anc->clade_annotations[1];
-//            if(clade != "") {
-//                printf("PEAK score = %f, Node: %s, Clade: %s\n", top_n_node_score[i].second, curr_node->identifier.c_str(), clade.c_str());
-//                found = true;
-//            }
-//            if (found)
-//                break;
-//        }
-//    }
-//
 
 }
 
@@ -1564,4 +1527,15 @@ size_t branch_distance(MAT::Node* N1, MAT::Node* N2) {
     }
     distance += 2;
     return distance;
+}
+
+//Get the clade name
+std::string get_clade(const MAT::Tree &T, MAT::Node* n) {
+    //Checking all ancestors of a node to get clade
+    for (auto anc: T.rsearch(n->identifier, true)) {  
+        //Don't consider the clades that start with numbers {Different clade naming}
+        auto clade = anc->clade_annotations[1];
+        if(clade != "")
+            return clade;
+    }
 }
