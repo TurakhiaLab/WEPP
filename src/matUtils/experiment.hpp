@@ -63,3 +63,4 @@ void place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::
 void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::vector<struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, score_read> &, tbb::concurrent_hash_map<size_t, struct min_parsimony> &);
 
 size_t branch_distance(MAT::Node*, MAT::Node*);
+std::string get_clade(const MAT::Tree &, MAT::Node*);
