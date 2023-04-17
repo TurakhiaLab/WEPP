@@ -1229,6 +1229,8 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
    //Get top scoring nodes
     timer.Start();
     int top_n = 25;
+    size_t b_dist_thresh = 100;
+    double score_thresh = 0.9;
     std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n);
     std::vector<size_t> remaining_reads;
     std::vector<std::string> selected_clades;
@@ -1365,7 +1367,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     //}
 
 
-    //Peak Detection + Greedy Algorithm
+    //Greedy Peak Detection
     std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
     r_min_itr = read_min_parsimony.begin();
     while (r_min_itr != read_min_parsimony.end()) {
@@ -1388,6 +1390,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         node_score.clear();
 
         //Get a leaf top node not seen before 
+        std::vector<bool> peak_vec(top_n_node_score.size(), true);
         auto top_n_itr = top_n_node_score.begin();
         while (top_n_itr != top_n_node_score.end()) {
             //Find unseen top node
@@ -1400,71 +1403,63 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             //Check if leaf
             if ((top_n_itr->first->is_leaf()) && (p_itr == peak_node_score.end())) 
                 break;
+            // Skip for peak consideration if node not leaf or seen in pervious iteration
+            peak_vec[top_n_itr - top_n_node_score.begin()] = false;
             top_n_itr++;
         }
         double top_score = top_n_itr->second.score;
         
-        //Find the reads not mapped to the best nodes
+        //Find the peak nodes and remove reads mapped to peak nodes
         while (top_n_itr != top_n_node_score.end()) {
-            //Find top score leaves
-            if ( (abs(top_score - top_n_itr->second.score) < 1e-9 ) && (top_n_itr->first->is_leaf())) {
-                //Store unique top nodes
-                auto p_itr = peak_node_score.begin();
-                while (p_itr != peak_node_score.end()) {
-                    if (p_itr->first == top_n_itr->first)
-                        break;
-                    p_itr++;
-                }
-                if (p_itr == peak_node_score.end()) {
-                    peak_node_score.emplace_back(*top_n_itr);
-                    //Remove mapped reads from remaining_reads
-                    auto rem_r_itr = remaining_reads.begin();
-                    while (rem_r_itr != remaining_reads.end()) {
-                        auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
-                        if (itr != top_n_itr->second.reads.end())
-                            rem_r_itr = remaining_reads.erase(rem_r_itr);
-                        else rem_r_itr++;
-                    }
-                }
-            }
-            else if (abs(top_score - top_n_itr->second.score) > 1e-9)
-                break;
-            top_n_itr++;
-        }        
-
-        //Peak Detect
-        std::vector<bool> peak_vec(top_n_node_score.size(), true);
-        size_t b_dist_thresh = 64;
-        double score_thresh = 0.99;
-        for (size_t i = 0; i < top_n_node_score.size(); i++) {
-            auto curr_node = top_n_node_score[i].first;
+            //Peak Finding
+            auto curr_node = top_n_itr->first;
             if (!(curr_node->is_leaf()))
-                peak_vec[i] = false;
-            if (!peak_vec[i])
+                peak_vec[top_n_itr - top_n_node_score.begin()] = false;
+            if (!peak_vec[top_n_itr - top_n_node_score.begin()]) {
+                top_n_itr++;
                 continue;
-            for (size_t j = i+1; j < top_n_node_score.size(); j++) {
-                auto cmp_node = top_n_node_score[j].first;
+            }
+            auto top_n_peak_cmp_itr = top_n_itr + 1;
+            while (top_n_peak_cmp_itr != top_n_node_score.end()) {
+                auto cmp_node = top_n_peak_cmp_itr->first;
                 if (!(cmp_node->is_leaf()))
-                    peak_vec[j] = false;
-                if (!peak_vec[j])
+                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
+                if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
+                    top_n_peak_cmp_itr++;
                     continue;
-                size_t b_dist = branch_distance(curr_node, cmp_node);
-                if (b_dist > b_dist_thresh)
-                    peak_vec[j] = true;
-                else
-                    peak_vec[j] = false;
+                }
+                //Calculate branch distance if scores of both nodes are not equal
+                if (abs(top_n_itr->second.score - top_n_peak_cmp_itr->second.score) < 1e-9 )
+                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
+                else {
+                    size_t b_dist = branch_distance(curr_node, cmp_node);
+                    if (b_dist > b_dist_thresh)
+                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
+                    else
+                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
+                }
+                top_n_peak_cmp_itr++;
             }
             //Only add unique leaf nodes in peak score with score >= 0.1 top_score
             auto p_itr = peak_node_score.begin();
             while (p_itr != peak_node_score.end()) {
-                if (p_itr->first == top_n_node_score[i].first)
+                if (p_itr->first == curr_node)
                     break;
                 p_itr++;
             }
-            if ((top_n_node_score[i].first->is_leaf()) && (p_itr == peak_node_score.end()) && (top_n_node_score[i].second.score >= (score_thresh * top_score)))
-                peak_node_score.emplace_back(top_n_node_score[i]);
-        }
-
+            if ((p_itr == peak_node_score.end()) && (top_n_itr->second.score >= (score_thresh * top_score))) {
+                peak_node_score.emplace_back(*top_n_itr);
+                //Remove reads mapped to this node from remaining_reads
+                auto rem_r_itr = remaining_reads.begin();
+                while (rem_r_itr != remaining_reads.end()) {
+                    auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
+                    if (itr != top_n_itr->second.reads.end())
+                        rem_r_itr = remaining_reads.erase(rem_r_itr);
+                    else rem_r_itr++;
+                }
+            }
+            top_n_itr++;
+        }        
 
         //Calculating node score for remaining reads
         tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
