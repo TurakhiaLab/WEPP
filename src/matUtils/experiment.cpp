@@ -1228,11 +1228,11 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
    //GREEDY ALGORITHM for getting handful of clades
    //Get top scoring nodes
     timer.Start();
-    int top_n = 100;
+    int top_n = 25;
     std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n);
     std::vector<size_t> remaining_reads;
     std::vector<std::string> selected_clades;
-
+    
     auto r_min_itr = read_min_parsimony.begin();
     while (r_min_itr != read_min_parsimony.end()) {
         remaining_reads.emplace_back(r_min_itr->first);
@@ -1307,8 +1307,9 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
 
 
     //Print the clades otained from greedy algorithm
-    for (auto clade: selected_clades)
-        printf("CLADE Selected: %s\n", clade.c_str());
+    for (size_t i = 0; i < selected_clades.size(); i++) {
+        printf("CLADE Selected: %s\n", selected_clades[i].c_str());
+    }
 
     //Rescoring the nodes only belonging to selected lineages
     node_score.clear();        
@@ -1345,7 +1346,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
 
     //Sorting the node scores
     top_n_node_score.clear();
-    top_n_node_score.resize(1000);
+    top_n_node_score.resize(top_n);
     std::partial_sort_copy(node_score.begin(),
                         node_score.end(),
                         top_n_node_score.begin(),
@@ -1357,52 +1358,150 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                         });
 
     std::cout << "\n Top Nodes after rescoring among limited clades\n\n";
-    //Print the top_n samples with their clades after rescoring with handful clades
-    for (auto n_s: top_n_node_score) {
+    ////Print the top_n samples with their clades after rescoring with handful clades
+    //for (auto n_s: top_n_node_score) {
+    //    auto clade = get_clade(T, n_s.first);
+    //    printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+    //}
+
+
+    //Peak Detection + Greedy Algorithm
+    std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
+    r_min_itr = read_min_parsimony.begin();
+    while (r_min_itr != read_min_parsimony.end()) {
+        remaining_reads.emplace_back(r_min_itr->first);
+        r_min_itr++;
+    }
+    while (!remaining_reads.empty()) {
+        //Sorting the node scores
+        top_n_node_score.clear();
+        top_n_node_score.resize(top_n);
+        std::partial_sort_copy(node_score.begin(),
+                            node_score.end(),
+                            top_n_node_score.begin(),
+                            top_n_node_score.end(),
+                            [](std::pair<const MAT::Node*, score_read> const& l,
+                               std::pair<const MAT::Node*, score_read> const& r)
+                            {
+                                return l.second.score > r.second.score;
+                            });
+        node_score.clear();
+
+        //Get a leaf top node not seen before 
+        auto top_n_itr = top_n_node_score.begin();
+        while (top_n_itr != top_n_node_score.end()) {
+            //Find unseen top node
+            auto p_itr = peak_node_score.begin();
+            while (p_itr != peak_node_score.end()) {
+                if (p_itr->first == top_n_itr->first)
+                    break;
+                p_itr++;
+            }
+            //Check if leaf
+            if ((top_n_itr->first->is_leaf()) && (p_itr == peak_node_score.end())) 
+                break;
+            top_n_itr++;
+        }
+        double top_score = top_n_itr->second.score;
+        
+        //Find the reads not mapped to the best nodes
+        while (top_n_itr != top_n_node_score.end()) {
+            //Find top score leaves
+            if ( (abs(top_score - top_n_itr->second.score) < 1e-9 ) && (top_n_itr->first->is_leaf())) {
+                //Store unique top nodes
+                auto p_itr = peak_node_score.begin();
+                while (p_itr != peak_node_score.end()) {
+                    if (p_itr->first == top_n_itr->first)
+                        break;
+                    p_itr++;
+                }
+                if (p_itr == peak_node_score.end()) {
+                    peak_node_score.emplace_back(*top_n_itr);
+                    //Remove mapped reads from remaining_reads
+                    auto rem_r_itr = remaining_reads.begin();
+                    while (rem_r_itr != remaining_reads.end()) {
+                        auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
+                        if (itr != top_n_itr->second.reads.end())
+                            rem_r_itr = remaining_reads.erase(rem_r_itr);
+                        else rem_r_itr++;
+                    }
+                }
+            }
+            else if (abs(top_score - top_n_itr->second.score) > 1e-9)
+                break;
+            top_n_itr++;
+        }        
+
+        //Peak Detect
+        std::vector<bool> peak_vec(top_n_node_score.size(), true);
+        size_t b_dist_thresh = 64;
+        double score_thresh = 0.99;
+        for (size_t i = 0; i < top_n_node_score.size(); i++) {
+            auto curr_node = top_n_node_score[i].first;
+            if (!(curr_node->is_leaf()))
+                peak_vec[i] = false;
+            if (!peak_vec[i])
+                continue;
+            for (size_t j = i+1; j < top_n_node_score.size(); j++) {
+                auto cmp_node = top_n_node_score[j].first;
+                if (!(cmp_node->is_leaf()))
+                    peak_vec[j] = false;
+                if (!peak_vec[j])
+                    continue;
+                size_t b_dist = branch_distance(curr_node, cmp_node);
+                if (b_dist > b_dist_thresh)
+                    peak_vec[j] = true;
+                else
+                    peak_vec[j] = false;
+            }
+            //Only add unique leaf nodes in peak score with score >= 0.1 top_score
+            auto p_itr = peak_node_score.begin();
+            while (p_itr != peak_node_score.end()) {
+                if (p_itr->first == top_n_node_score[i].first)
+                    break;
+                p_itr++;
+            }
+            if ((top_n_node_score[i].first->is_leaf()) && (p_itr == peak_node_score.end()) && (top_n_node_score[i].second.score >= (score_thresh * top_score)))
+                peak_node_score.emplace_back(top_n_node_score[i]);
+        }
+
+
+        //Calculating node score for remaining reads
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto r = remaining_reads[i];
+                    tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
+                    read_min_parsimony.find(k_ac, r);
+                    auto min_par = k_ac->second;
+                    k_ac.release();
+                    for (auto n_idx: min_par.idx_list) {
+                        auto node = dfs[n_idx];
+                        //Give score to parsimonious node
+                        struct score_read sc;
+                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                        sc.reads.emplace_back(r);
+                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+                        auto created = node_score.insert(ac, std::make_pair(node, sc));
+                        if (!created) {
+                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+                            ac->second.reads.emplace_back(r);
+                        }
+                        ac.release();
+                    }
+                }
+            },
+        ap);
+
+    }
+
+    for (auto n_s: peak_node_score) {
         auto clade = get_clade(T, n_s.first);
-        printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+        printf("PEAK score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
     }
 
 
     fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
-
-
-    //Peak Detection
-    std::vector<bool> peak_vec(top_n_node_score.size(), true);
-    size_t b_dist_thresh = 16;
-    for (size_t i = 0; i < top_n_node_score.size(); i++) {
-        auto curr_node = top_n_node_score[i].first;
-        if (!(curr_node->is_leaf()))
-            peak_vec[i] = false;
-        if (!peak_vec[i])
-            continue;
-        for (size_t j = i+1; j < top_n_node_score.size(); j++) {
-            auto cmp_node = top_n_node_score[j].first;
-            if (!(cmp_node->is_leaf()))
-                peak_vec[j] = false;
-            if (!peak_vec[j])
-                continue;
-            size_t b_dist = branch_distance(curr_node, cmp_node);
-            if (b_dist > b_dist_thresh)
-                peak_vec[j] = true;
-            else
-                peak_vec[j] = false;
-        }
-
-        for (auto anc: T.rsearch(curr_node->identifier, true)) { //Checking all ancestors of a node to get clade 
-            bool found = false;
-            //Don't consider the clades that start with numbers {Different clade naming}
-            auto clade = anc->clade_annotations[1];
-            if(clade != "") {
-                printf("PEAK score = %f, read_count = %lu, Node: %s, Clade: %s\n", top_n_node_score[i].second.score, top_n_node_score[i].second.reads.size(), curr_node->identifier.c_str(), clade.c_str());
-                found = true;
-            }
-            if (found)
-                break;
-        }
-    }
-
-
 }
 
 
