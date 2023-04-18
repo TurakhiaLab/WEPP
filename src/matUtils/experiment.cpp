@@ -1230,7 +1230,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     timer.Start();
     int top_n = 25;
     size_t b_dist_thresh = 100;
-    double score_thresh = 0.9;
+    double score_thresh = 0.8;
     std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n);
     std::vector<size_t> remaining_reads;
     std::vector<std::string> selected_clades;
@@ -1344,28 +1344,8 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             }
         },
      ap);
-
-
-    //Sorting the node scores
-    top_n_node_score.clear();
-    top_n_node_score.resize(top_n);
-    std::partial_sort_copy(node_score.begin(),
-                        node_score.end(),
-                        top_n_node_score.begin(),
-                        top_n_node_score.end(),
-                        [](std::pair<const MAT::Node*, score_read> const& l,
-                           std::pair<const MAT::Node*, score_read> const& r)
-                        {
-                            return l.second.score > r.second.score;
-                        });
-
+    
     std::cout << "\n Top Nodes after rescoring among limited clades\n\n";
-    ////Print the top_n samples with their clades after rescoring with handful clades
-    //for (auto n_s: top_n_node_score) {
-    //    auto clade = get_clade(T, n_s.first);
-    //    printf("score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
-    //}
-
 
     //Greedy Peak Detection
     std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
