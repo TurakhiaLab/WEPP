@@ -95,6 +95,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     dir_prefix += "/";
     std::string vcf_filename_samples = dir_prefix + vm["write-vcf"].as<std::string>() + "_samples.vcf";
     std::string vcf_filename_reads = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads.vcf";
+    std::string vcf_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.vcf";
+    std::string depth_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.depth";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -459,24 +461,41 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     //Printing and storing in VCF
     std::ofstream outfile_samples(vcf_filename_samples, std::ios::out | std::ios::binary);
     std::ofstream outfile_reads(vcf_filename_reads, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_samples, outbuf_reads;
+    std::ofstream outfile_reads_freyja(vcf_filename_reads_freyja, std::ios::out | std::ios::binary);
+    std::ofstream outfile_reads_freyja_depth(depth_filename_reads_freyja, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_samples, outbuf_reads, outbuf_reads_freyja, outbuf_reads_freyja_depth;
     if (vcf_filename_samples.find(".gz\0") != std::string::npos) {
         outbuf_samples.push(boost::iostreams::gzip_compressor());
     }
     if (vcf_filename_reads.find(".gz\0") != std::string::npos) {
         outbuf_reads.push(boost::iostreams::gzip_compressor());
     }
+    if (vcf_filename_reads_freyja.find(".gz\0") != std::string::npos) {
+        outbuf_reads_freyja.push(boost::iostreams::gzip_compressor());
+    }
+    if (depth_filename_reads_freyja.find(".gz\0") != std::string::npos) {
+        outbuf_reads_freyja_depth.push(boost::iostreams::gzip_compressor());
+    }
     outbuf_samples.push(outfile_samples);
     outbuf_reads.push(outfile_reads);
+    outbuf_reads_freyja.push(outfile_reads_freyja);
+    outbuf_reads_freyja_depth.push(outfile_reads_freyja_depth);
     std::ostream vcf_file_samples(&outbuf_samples);
     std::ostream vcf_file_reads(&outbuf_reads);
+    std::ostream vcf_file_reads_freyja(&outbuf_reads_freyja);
+    std::ostream depth_file_reads_freyja(&outbuf_reads_freyja_depth);
 
     vcf_file_samples << "##fileformat=VCFv4.2\n";
     vcf_file_samples << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
     vcf_file_samples << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+    
     vcf_file_reads << "##fileformat=VCFv4.2\n";
     vcf_file_reads << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
     vcf_file_reads << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+    
+    vcf_file_reads_freyja << "##fileformat=VCFv4.2\n";
+    vcf_file_reads_freyja << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
+    vcf_file_reads_freyja << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
     
     for (auto node: lineage_selected) {
         vcf_file_samples << "\t" << node->identifier;
@@ -488,15 +507,16 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     
     vcf_file_samples << "\n";
     vcf_file_reads << "\n";
+    vcf_file_reads_freyja << "\n";
     
     std::vector<int> lineage_present(lineage_selected.size());
     std::vector<int> read_present(sample_read_list.size());
     std::vector<int> misreads_eligible;
-    std::string vcf_file_read_holder, vcf_file_read_match;
+    std::string vcf_file_read_holder, vcf_file_read_match, vcf_file_read_freyja_holder, vcf_file_read_freyja_match, depth_file_read_freyja_holder;
     std::vector<struct pos_misread*>::iterator misread_ptr;
     std::vector<struct sample_ances_list*> sample_ancestors;
     auto previous_pos = sample_map.begin()->first;
-    long unsigned int map_count = 0;
+    int map_count = 0, allele_pos = 1;
     
     
     //Populating VCF based on mutating positions in the sample map 
@@ -513,14 +533,17 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         sample_ancestors.clear(); 
         vcf_file_read_holder.clear();
         vcf_file_read_match.clear();
+        vcf_file_read_freyja_holder.clear();
+        vcf_file_read_freyja_match.clear();
         fill(lineage_present.begin(), lineage_present.end(), 0);
         fill(read_present.begin(), read_present.end(), 0);
+        std::vector<int>read_match_count;
  
         //Tackling Misreads not present as mutations in our sample map
         misread_ptr = misread_pos.begin();
         while (misread_ptr != misread_pos.end()) {
             auto m_e_itr = std::find(misreads_eligible.begin(), misreads_eligible.end(), (*misread_ptr)->pos);
-            if ( (!(*misread_ptr)->used) && (m_e_itr == misreads_eligible.end()) && ( ( (map_count == sample_map.size()-1) && ((*misread_ptr)->pos > map.first) ) || ( (map.first == sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) ) || ( (map.first != sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) && ((*misread_ptr)->pos > previous_pos) ) ) ) {
+            if ( (!(*misread_ptr)->used) && (m_e_itr == misreads_eligible.end()) && ( ( (map_count == (int)sample_map.size()-1) && ((*misread_ptr)->pos > map.first) ) || ( (map.first == sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) ) || ( (map.first != sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) && ((*misread_ptr)->pos > previous_pos) ) ) ) {
                 misreads_eligible.emplace_back((*misread_ptr)->pos);    
             }
             misread_ptr++;
@@ -535,13 +558,22 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                 vcf_file_read_holder.append("\t");
                 vcf_file_read_holder.push_back(ref_nuc_name_reads);
                 vcf_file_read_holder.append("\t");
+                
+                vcf_file_read_freyja_holder.append("\t");
+                vcf_file_read_freyja_holder.push_back(ref_nuc_name_reads);
+                vcf_file_read_freyja_holder.append("\t");
+                read_match_count.clear();
                 for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
                     if (i) {
                         vcf_file_read_holder += ",";
+                        vcf_file_read_freyja_holder += ",";
                     }
                     vcf_file_read_holder += mut_nuc_list_reads[i];
+                    vcf_file_read_freyja_holder += mut_nuc_list_reads[i];
+                    read_match_count.emplace_back(0);
                 }
                 vcf_file_read_holder += "\t.\t.\t.\t.\t";
+                vcf_file_read_freyja_holder += "\t.\t.\t";
 
                 std::vector<struct sample_read_pair*>::iterator s_r_ptr;
                 s_r_ptr = sample_read_list.begin();
@@ -556,9 +588,35 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                     } 
                 }
 
-                for (auto read: read_present)
+                for (auto read: read_present) {
                     vcf_file_read_holder.append(std::to_string(read) + "\t");
+                    if (read)
+                        read_match_count[read-1] += 1;
+                }
                 vcf_file_read_holder += "\n";
+                
+                int total_count = 0;
+                s_r_ptr = sample_read_list.begin();
+                int start, end;
+                while (s_r_ptr != sample_read_list.end()) {
+                    std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                    std::smatch match;
+                    if (std::regex_search((*s_r_ptr)->read, match, rgx)) {
+                        start = std::stoi(match[1]);
+                        end = std::stoi(match[2]);
+                        if ((misread >= start) && (misread <= end))
+                            total_count++;
+                    }
+                    s_r_ptr++;
+                }
+                vcf_file_read_freyja_holder += "AF=";
+                for (int i = 0; i < int(read_match_count.size()); i++) {
+                    if (i)
+                        vcf_file_read_freyja_holder += ",";
+                    float af = (float)read_match_count[i] / (float)total_count;
+                    vcf_file_read_freyja_holder.append(std::to_string(af));
+                }
+                vcf_file_read_freyja_holder += "\n";
                 
                 ref_nuc_name_reads={};
                 misread_names.clear();
@@ -596,6 +654,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                         
                         vcf_file_read_holder += "NC_045512v2\t" + std::to_string((*misread_ptr)->pos) + "\t";
                         vcf_file_read_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]);
+                        vcf_file_read_freyja_holder += "NC_045512v2\t" + std::to_string((*misread_ptr)->pos) + "\t";
+                        vcf_file_read_freyja_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]);
                         mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0])); 
                         nuc_used.emplace_back(misread_nuc[0]);
                         misread_nuc.clear();
@@ -618,6 +678,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                         if (unique) {
                             vcf_file_read_holder += ",";
                             vcf_file_read_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]); 
+                            vcf_file_read_freyja_holder += ",";
+                            vcf_file_read_freyja_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]); 
                             mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
                             nuc_used.emplace_back(misread_nuc[0]);
                         }
@@ -627,7 +689,6 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                         misread_nuc.clear();
                     }
                     (*misread_ptr)->used = true;
-                    //std::cout << "Misread pos: " << (*misread_ptr)->pos << ", Sample: " << (*misread_ptr)->read <<  "\n";   
                     last_pos = misread;
                 }   
                 misread_ptr++;
@@ -638,14 +699,23 @@ void simulate_and_place_reads (po::parsed_options parsed) {
             vcf_file_read_holder.append("\t");
             vcf_file_read_holder.push_back(ref_nuc_name_reads);
             vcf_file_read_holder.append("\t");
+            
+            vcf_file_read_freyja_holder.append("\t");
+            vcf_file_read_freyja_holder.push_back(ref_nuc_name_reads);
+            vcf_file_read_freyja_holder.append("\t");
+            read_match_count.clear();
             for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
                 if (i) {
                     vcf_file_read_holder += ",";
+                    vcf_file_read_freyja_holder += ",";
                 }
                 vcf_file_read_holder += mut_nuc_list_reads[i];
+                vcf_file_read_freyja_holder += mut_nuc_list_reads[i];
+                read_match_count.emplace_back(0);
             }
             vcf_file_read_holder += "\t.\t.\t.\t.\t";
-
+            vcf_file_read_freyja_holder += "\t.\t.\t";
+            
             fill(read_present.begin(), read_present.end(), 0);
             std::vector<struct sample_read_pair*>::iterator s_r_ptr;
             s_r_ptr = sample_read_list.begin();
@@ -659,13 +729,41 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                     s_r_ptr++;
                 } 
             }
-            for (auto read: read_present)
+            
+            for (auto read: read_present) {
                 vcf_file_read_holder += std::to_string(read) + "\t";
+                if (read)
+                    read_match_count[read-1] += 1;
+            }
             vcf_file_read_holder += "\n";
             
+            int total_count = 0;
+            s_r_ptr = sample_read_list.begin();
+            int start, end;
+            while (s_r_ptr != sample_read_list.end()) {
+                std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                std::smatch match;
+                if (std::regex_search((*s_r_ptr)->read, match, rgx)) {
+                    start = std::stoi(match[1]);
+                    end = std::stoi(match[2]);
+                    if ((last_pos >= start) && (last_pos <= end))
+                        total_count++;
+                }
+                s_r_ptr++;
+            }
+            vcf_file_read_freyja_holder += "AF=";
+            for (int i = 0; i < int(read_match_count.size()); i++) {
+                if (i)
+                    vcf_file_read_freyja_holder += ",";
+                float af = (float)read_match_count[i] / (float)total_count;
+                vcf_file_read_freyja_holder.append(std::to_string(af));
+            }
+            vcf_file_read_freyja_holder += "\n";
             
-            if (map_count != sample_map.size()-1)
+            if (map_count != (int)sample_map.size()-1) {
                 vcf_file_reads << vcf_file_read_holder;
+                vcf_file_reads_freyja << vcf_file_read_freyja_holder;
+            }
         }
 
 
@@ -723,12 +821,16 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                                             if (!encountered_read) {
                                                 vcf_file_read_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
                                                 vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
+                                                vcf_file_read_freyja_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
+                                                vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
                                                 mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
                                                 encountered_read = true;
                                             }
                                             else if (mut_nuc_list_reads.find(MAT::get_nuc(misread_nuc[0])) == std::string::npos) {
                                                 vcf_file_read_match += ",";
                                                 vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
+                                                vcf_file_read_freyja_match += ",";
+                                                vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
                                                 mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
                                             }
                                             misread_nuc.clear();
@@ -742,12 +844,16 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                                         if (!encountered_read) {
                                             vcf_file_read_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
                                             vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc);
+                                            vcf_file_read_freyja_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
+                                            vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc);
                                             mut_nuc_list_reads.push_back(MAT::get_nuc(mut_anc.mut_nuc));  
                                             encountered_read = true;                     
                                         }
                                         else if (mut_nuc_list_reads.find(MAT::get_nuc(mut_anc.mut_nuc)) == std::string::npos) {
                                             vcf_file_read_match += ",";
                                             vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc); 
+                                            vcf_file_read_freyja_match += ",";
+                                            vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc); 
                                             mut_nuc_list_reads.push_back(MAT::get_nuc(mut_anc.mut_nuc));  
                                         }
                                     }
@@ -770,16 +876,23 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         }
         vcf_file_samples << "\t.\t.\t.\t.\t";
         
+        read_match_count.clear();
         if (encountered_read) {
             vcf_file_reads << vcf_file_read_match;
             vcf_file_reads << "\t" <<  ref_nuc_name_reads << "\t";
+            vcf_file_reads_freyja << vcf_file_read_freyja_match;
+            vcf_file_reads_freyja << "\t" <<  ref_nuc_name_reads << "\t";
             for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
                 if (i) {
                     vcf_file_reads << ",";
+                    vcf_file_reads_freyja << ",";
                 }
                 vcf_file_reads << mut_nuc_list_reads[i];
+                vcf_file_reads_freyja << mut_nuc_list_reads[i];
+                read_match_count.emplace_back(0);
             }
             vcf_file_reads << "\t.\t.\t.\t.\t";
+            vcf_file_reads_freyja << "\t.\t.\t";
         }
 
         std::vector<struct ances_sample_list*> *anc_sample_list; 
@@ -918,25 +1031,99 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         vcf_file_samples << "\n";
         
         if (encountered_read) {
-            for (auto read: read_present)
+            for (auto read: read_present) {
                 vcf_file_reads << read <<"\t";
+                if (read)
+                    read_match_count[read-1] += 1;
+            }
             vcf_file_reads << "\n";
         }
 
-        if ((map_count == sample_map.size()-1) && (misreads_eligible.size()))
+        int total_count = 0;
+        int start, end;
+        using my_mutex_t = tbb::queuing_mutex;
+        my_mutex_t my_mutex;
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t s = k.begin(); s < k.end(); ++s) {
+                    auto sample_read = sample_read_list[s];
+                    std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                    std::smatch match;
+                    my_mutex_t::scoped_lock my_lock;
+                    my_lock.acquire(my_mutex);
+                    if (std::regex_search(sample_read->read, match, rgx)) {
+                        start = std::stoi(match[1]);
+                        end = std::stoi(match[2]);
+                        if ((map.first >= start) && (map.first <= end)) {
+                                total_count++;
+                        }
+                    }
+                    my_lock.release();
+                }
+            },
+        ap);
+        for (int i = 0; i < int(read_match_count.size()); i++) {
+            if (!i)
+                vcf_file_reads_freyja << "AF=";
+            if (i)
+                vcf_file_reads_freyja << ",";
+            float af = (float)read_match_count[i] / (float)total_count;
+            vcf_file_reads_freyja << std::to_string(af);
+            if (i == int(read_match_count.size() - 1))
+                vcf_file_reads_freyja << "\n";
+        }
+
+        while (allele_pos <= map.first) {
+            int read_count = 0;
+            int start, end;
+            using my_mutex_t = tbb::queuing_mutex;
+            my_mutex_t my_mutex;
+            static tbb::affinity_partitioner ap;
+            tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
+                [&](tbb::blocked_range<size_t> k) {
+                    for (size_t s = k.begin(); s < k.end(); ++s) {
+                        auto sample_read = sample_read_list[s];
+                        std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                        std::smatch match;
+                        my_mutex_t::scoped_lock my_lock;
+                        my_lock.acquire(my_mutex);
+                        if (std::regex_search(sample_read->read, match, rgx)) {
+                            start = std::stoi(match[1]);
+                            end = std::stoi(match[2]);
+                            if ((allele_pos >= start) && (allele_pos <= end)) {
+                                    read_count++;
+                            }
+                        }
+                        my_lock.release();
+                    }
+                },
+            ap);
+            depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos) + "\t" + ref_seq[allele_pos] + "\t" + std::to_string(read_count) + "\n";
+            allele_pos++;
+        }
+
+
+        if ((map_count == ((int)sample_map.size()-1)) && (misreads_eligible.size())) {
             vcf_file_reads << vcf_file_read_holder;
-        
+            vcf_file_reads_freyja << vcf_file_read_freyja_holder;
+        }
+        else if (map_count == ((int)sample_map.size()-1))
+            depth_file_reads_freyja << depth_file_read_freyja_holder;
         previous_pos = map.first;
         map_count ++;
-        //fprintf(stderr, "Map position %ld written in both VCF \n", map_count-1);
     }
 
-    fprintf(stderr, "VCFs Written in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "VCFs Written in %ld sec \n\n", (timer.Stop() / 1000));
 
     boost::iostreams::close(outbuf_samples);
     boost::iostreams::close(outbuf_reads);
+    boost::iostreams::close(outbuf_reads_freyja);
+    boost::iostreams::close(outbuf_reads_freyja_depth);
     outfile_samples.close();
     outfile_reads.close();
+    outfile_reads_freyja.close();
+    outfile_reads_freyja_depth.close();
     }
 
     std::vector<struct read_info *> read_ids;
@@ -1612,4 +1799,5 @@ std::string get_clade(const MAT::Tree &T, MAT::Node* n) {
         if(clade != "")
             return clade;
     }
+    return "";
 }
