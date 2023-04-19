@@ -51,7 +51,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = true;
+    bool old_vcf = false;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -516,7 +516,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::vector<struct pos_misread*>::iterator misread_ptr;
     std::vector<struct sample_ances_list*> sample_ancestors;
     auto previous_pos = sample_map.begin()->first;
-    int map_count = 0, allele_pos = 1;
+    int map_count = 0, allele_pos = 0;
     
     
     //Populating VCF based on mutating positions in the sample map 
@@ -1099,7 +1099,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
                     }
                 },
             ap);
-            depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos) + "\t" + ref_seq[allele_pos] + "\t" + std::to_string(read_count) + "\n";
+            depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos+1) + "\t" + ref_seq[allele_pos] + "\t" + std::to_string(read_count) + "\n";
             allele_pos++;
         }
 
@@ -1108,8 +1108,37 @@ void simulate_and_place_reads (po::parsed_options parsed) {
             vcf_file_reads << vcf_file_read_holder;
             vcf_file_reads_freyja << vcf_file_read_freyja_holder;
         }
-        else if (map_count == ((int)sample_map.size()-1))
+        if (map_count == ((int)sample_map.size()-1)) {
+            while (allele_pos < (int)ref_seq.size()) {
+                int read_count = 0;
+                int start, end;
+                using my_mutex_t = tbb::queuing_mutex;
+                my_mutex_t my_mutex;
+                static tbb::affinity_partitioner ap;
+                tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
+                    [&](tbb::blocked_range<size_t> k) {
+                        for (size_t s = k.begin(); s < k.end(); ++s) {
+                            auto sample_read = sample_read_list[s];
+                            std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                            std::smatch match;
+                            my_mutex_t::scoped_lock my_lock;
+                            my_lock.acquire(my_mutex);
+                            if (std::regex_search(sample_read->read, match, rgx)) {
+                                start = std::stoi(match[1]);
+                                end = std::stoi(match[2]);
+                                if ((allele_pos >= start) && (allele_pos <= end)) {
+                                        read_count++;
+                                }
+                            }
+                            my_lock.release();
+                        }
+                    },
+                ap);
+                depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos+1) + "\t" + ref_seq[allele_pos] + "\t" + std::to_string(read_count) + "\n";
+                allele_pos++;
+            }
             depth_file_reads_freyja << depth_file_read_freyja_holder;
+        }
         previous_pos = map.first;
         map_count ++;
     }
