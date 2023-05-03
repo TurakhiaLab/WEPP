@@ -1150,30 +1150,18 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     outfile_reads_freyja_depth.close();
     }
     
-    timer.Start();
-    read_vcf(num_threads, T, dfs, vcf_filename_reads);
-    fprintf(stderr,"read VCF parsed and reads placed in %ld sec\n\n", (timer.Stop() / 1000));
-    
-    //std::vector<struct read_info *> read_ids;
-    //tbb::concurrent_hash_map<MAT::Node*, score_read> node_score;
-    //tbb::concurrent_hash_map<size_t, struct min_parsimony> read_min_parsimony;
-    //place_reads(T, dfs, read_ids, node_score, read_min_parsimony, vcf_filename_reads);
-    ////analyze_reads(T, dfs, read_ids, node_score, read_min_parsimony);
+    std::unordered_map<int, struct read_info*> read_map;
+    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
+    read_vcf(num_threads, T, dfs, read_map, node_score, vcf_filename_reads);
+    analyze_reads(T, dfs, read_map, node_score);
 }
 
 
 
-void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::string vcf_filename_reads) {
-    //Instantiating buffers for writing reads to file after read placement
-    std::string txt_filename_reads_info = "reads_info.txt";
-    std::ofstream outfile_reads_info(txt_filename_reads_info, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_reads_info;
-    outbuf_reads_info.push(outfile_reads_info);
-    std::ostream text_file_reads(&outbuf_reads_info);
-    text_file_reads << "#read_number : node_id\n";
-    
+void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
     // Store the header information from VCF
+    timer.Start();
     std::vector<int> missing_idx;
     std::vector<struct read_info*> read_ids;
     std::string s;
@@ -1201,8 +1189,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
     }
 
     //Use tbb:pipeline to send one read at a time to read_place
-    int k = 0, read_id_wr = 0, read_id_rd = 0;
-    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
+    int k = 0;
     tbb::parallel_pipeline (
         num_threads,
         tbb::make_filter <void, struct read_info*> (
@@ -1213,6 +1200,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
                     auto iter = read_ids.begin();
                     std::advance(iter, k);
                     if (iter != read_ids.end()) {
+                        read_map.insert({k, (*iter)});
                         std::string s;
                         bool header_found = false;
                         boost::filesystem::ifstream fileHandler(vcf_filename_reads);
@@ -1274,42 +1262,23 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
                 return nullptr;
             }
         )  &    
-        //read_palcement search
-        tbb::make_filter <struct read_info*, std::vector<int>> (
+        //read_palcement search and VERIFY
+        tbb::make_filter <struct read_info*, void> (
             tbb::filter::parallel,
-            [&] (struct read_info* read_id) -> std::vector<int> {
-                std::vector<int> read_nodes = place_reads(T, dfs, read_id, node_score);
-                return read_nodes;
-            }
-        ) &
-        //print the read->nodes in a file
-        tbb::make_filter <std::vector<int>, void> (
-            tbb::filter::serial,
-            [&] (std::vector<int> read_nodes) -> void {
-                text_file_reads << read_id_wr++;
-                text_file_reads << " : ";
-                text_file_reads << read_nodes.size();
-                //for (int i = 0; i < (int)read_nodes.size(); i++) {
-                //    if (i)
-                //        text_file_reads << ",";
-                //    text_file_reads << read_nodes[i];
-                //}
-                text_file_reads << "\n";
-                read_nodes.clear();
+            [&] (struct read_info* read_id) -> void {
+                place_reads(T, dfs, read_id, NULL, node_score);
             }
         )
     );
 
-    boost::iostreams::close(outbuf_reads_info);
-    outfile_reads_info.close();
-    
+    fprintf(stderr,"read VCF parsed and reads placed in %ld sec\n\n", (timer.Stop() / 1000));   
 }
 
 
- std::vector<int> place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
+bool place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
-    
+    //Checking all nodes of the tree
     for (int i = 0; i < (int)dfs.size(); i++) {
         std::vector<MAT::Mutation> uniq_curr_node_mut, common_node_mut, curr_node_par_mut;
         struct parsimony curr_par;
@@ -1328,7 +1297,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
                 fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
             curr_node_par_mut = parent_parsimony.p_node_par;
         }
-
+        //Checking all mutations of current node
         for (auto node_mut: dfs[i]->mutations) {
             //Only look at mutations within the read range
             if ((node_mut.position >= rp->start) && (node_mut.position <= rp->end)) {
@@ -1447,7 +1416,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
             min_par.par_list.emplace_back(curr_node_par_mut);
         }
 
-        //Updating parsimony to be stored a a child
+        //Updating parsimony to be stored as a child
         for (auto uniq_mut: uniq_curr_node_mut) {
             //Just reverse mut_nuc and par_nuc and add it to parsimony
             int8_t temp = uniq_mut.par_nuc;
@@ -1466,345 +1435,339 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
         curr_node_par_mut.clear();
     }
 
-    //Clear Stack, parsimonious positions, and read_mutations
+    //Clear Stack
     while (!parsimony_stack.empty())
         parsimony_stack.pop();
-    min_par.par_list.clear();
-    rp->mutations.clear();
     
-    //Keeping tab on weighted read score being mapped to each parsimonious node
-    std::vector<int> read_nodes;
-    for (auto n_idx: min_par.idx_list) {
-        auto node = dfs[n_idx];
-        read_nodes.emplace_back(n_idx);
-        //Give score to parsimonious node
-        double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-        tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-        auto created = node_score.insert(ac, std::make_pair(node, score));
-        if (!created) {
-            ac->second += (1.0 / pow(min_par.idx_list.size(), 2.0));
+    //Compute node_score
+    if (check_node == NULL) {
+        //VERIFY
+        //Check to ensure every read has its corresponding sample as its most parsimonious position
+        std::string target = rp->read;
+        size_t pos = target.find("_READ");
+        target.erase(pos);
+        bool found = false;
+        int idx, i;
+        for (i = 0; i < (int)min_par.idx_list.size(); i++) {
+            idx = min_par.idx_list[i];
+            if (dfs[idx]->identifier == target) {
+                found = true;
+                break;
+            }
         }
-        ac.release();
+        if ((!found) || (min_par.par_list[0].size())) {
+            if (found) {
+                for (auto mut: min_par.par_list[i])
+                    fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+                fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
+                for (auto mut: rp->mutations)
+                    fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+            }
+            else {
+                fprintf(stderr, "Sample not Found !!! \n");
+                auto clade = get_clade(T, T.get_node(target));
+                fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
+                fprintf(stderr, "mut pos: ");
+                for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
+                    for (auto mut: anc->mutations)
+                        fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
+                }
+                fprintf(stderr, "\n");
+            }
+            fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
+            std::cout << "\n";
+        }
+    
+        //Keeping tab on weighted read score being mapped to each parsimonious node
+        min_par.par_list.clear();
+        for (auto n_idx: min_par.idx_list) {
+            auto node = dfs[n_idx];
+            //Give score to parsimonious node
+            double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+            auto created = node_score.insert(ac, std::make_pair(node, score));
+            if (!created) {
+                ac->second += score;
+            }
+            ac.release();
+        }
+        min_par.idx_list.clear();
+        return false;
     }
-    min_par.idx_list.clear();
-    return read_nodes;
+    //Check if given node is present in parsimonious list of read
+    else {
+        min_par.par_list.clear();
+        for (auto n_idx: min_par.idx_list) {
+            auto node = dfs[n_idx];
+            if (node == check_node)
+                return true;
+        }
+        min_par.idx_list.clear();
+        return false;
+    }
 }
 
 
-//void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* read_id, const int read_id_wr, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
-//    timer.Start();
-//    //Check to ensure every read has its corresponding sample as its most parsimonious position
-//    unsigned long long avg = 0;
-//    using my_mutex_t = tbb::queuing_mutex;
-//    my_mutex_t my_mutex;
-//    static tbb::affinity_partitioner ap;
-//    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
-//        [&](tbb::blocked_range<size_t> k) {
-//            for (size_t r = k.begin(); r < k.end(); ++r) {
-//                auto rp = read_ids[r];
-//                tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-//                read_min_parsimony.find(k_ac, r);
-//                auto min_par = k_ac->second;
-//                k_ac.release();
-//                std::string target = rp->read;
-//                size_t pos = target.find("_READ");
-//                target.erase(pos);
-//                bool found = false;
-//                size_t idx, i;
-//                for (i = 0; i < min_par.idx_list.size(); i++) {
-//                    idx = min_par.idx_list[i];
-//                    if (dfs[idx]->identifier == target) {
-//                        found = true;
-//                        break;
-//                    }
-//                }
-//
-//                if ((!found) || (min_par.par_list[0].size())) {
-//                    if (found) {
-//                        for (auto mut: min_par.par_list[i])
-//                            fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-//                        fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
-//                        for (auto mut: rp->mutations)
-//                            fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-//                    }
-//                    else {
-//                        fprintf(stderr, "Sample not Found !!! \n");
-//                        auto clade = get_clade(T, T.get_node(target));
-//                        fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
-//                        fprintf(stderr, "mut pos: ");
-//                        for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
-//                            for (auto mut: anc->mutations)
-//                                fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
-//                        }
-//                        fprintf(stderr, "\n");
-//                    }
-//                    
-//                    fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld, sample_idx = %ld \n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size(), idx);
-//                    std::cout << "\n";
-//
-//                }
-//
-//                my_mutex_t::scoped_lock my_lock{my_mutex};
-//                    avg += (min_par.idx_list.size() / read_ids.size());
-//            }
-//        },
-//            ap);
-//
-//    fprintf(stderr, "Avg par pos: %lld found in %ld sec\n", avg, (timer.Stop() / 1000));
-//
-//   //GREEDY ALGORITHM for getting handful of clades
-//   //Get top scoring nodes
-//    timer.Start();
-//    int top_n = 25;
-//    size_t b_dist_thresh = 100;
-//    double score_thresh = 0.8;
-//    std::vector<std::pair<MAT::Node*, score_read>> top_n_node_score(top_n);
-//    std::vector<size_t> remaining_reads;
-//    std::vector<std::string> selected_clades;
-//    
-//    auto r_min_itr = read_min_parsimony.begin();
-//    while (r_min_itr != read_min_parsimony.end()) {
-//        remaining_reads.emplace_back(r_min_itr->first);
-//        r_min_itr++;
-//    }
-//    
-//    while (!remaining_reads.empty()) {
-//        //Sorting the node scores
-//        std::partial_sort_copy(node_score.begin(),
-//                            node_score.end(),
-//                            top_n_node_score.begin(),
-//                            top_n_node_score.end(),
-//                            [](std::pair<const MAT::Node*, score_read> const& l,
-//                               std::pair<const MAT::Node*, score_read> const& r)
-//                            {
-//                                return l.second.score > r.second.score;
-//                            });
-//        node_score.clear();
-//
-//        //Find the reads not mapped to the best nodes
-//        auto top_n_itr = top_n_node_score.begin();
-//        while (top_n_itr != top_n_node_score.end()) {
-//            auto curr_clade = get_clade(T, top_n_itr->first);
-//            auto c_check_itr = std::find(selected_clades.begin(), selected_clades.end(), curr_clade);
-//            //Allow top scorer or others with equal score but different clade
-//            if ( (abs(top_n_itr->second.score - top_n_node_score[0].second.score) < 1e-9) && (c_check_itr == selected_clades.end()) ) {
-//                //Store the clades corresponding to top scoring node
-//                selected_clades.emplace_back(curr_clade);
-//                //Remove mapped reads from remaining_reads
-//                auto rem_r_itr = remaining_reads.begin();
-//                while (rem_r_itr != remaining_reads.end()) {
-//                    auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
-//                    if (itr != top_n_itr->second.reads.end())
-//                        rem_r_itr = remaining_reads.erase(rem_r_itr);
-//                    else rem_r_itr++;
-//                }
-//            }
-//            else if (abs(top_n_itr->second.score - top_n_node_score[0].second.score) > 1e-9)
-//                break;
-//            top_n_itr++;
-//        }        
-//        top_n_node_score.clear();
-//        top_n_node_score.resize(top_n);
-//
-//        //Calculating node score for remaining reads
-//        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
-//            [&](tbb::blocked_range<size_t> k) {
-//                for (size_t i = k.begin(); i < k.end(); ++i) {
-//                    auto r = remaining_reads[i];
-//                    tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-//                    read_min_parsimony.find(k_ac, r);
-//                    auto min_par = k_ac->second;
-//                    k_ac.release();
-//                    for (auto n_idx: min_par.idx_list) {
-//                        auto node = dfs[n_idx];
-//                        //Give score to parsimonious node
-//                        struct score_read sc;
-//                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                        sc.reads.emplace_back(r);
-//                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
-//                        auto created = node_score.insert(ac, std::make_pair(node, sc));
-//                        if (!created) {
-//                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                            ac->second.reads.emplace_back(r);
-//                        }
-//                        ac.release();
-//                    }
-//                }
-//            },
-//        ap);
-//    }
-//
-//
-//    //Print the clades otained from greedy algorithm
-//    for (size_t i = 0; i < selected_clades.size(); i++) {
-//        printf("CLADE Selected: %s\n", selected_clades[i].c_str());
-//    }
-//
-//    //Rescoring the nodes only belonging to selected lineages
-//    node_score.clear();        
-//    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
-//        [&](tbb::blocked_range<size_t> k) {
-//            for (size_t r = k.begin(); r < k.end(); ++r) {
-//                tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-//                read_min_parsimony.find(k_ac, r);
-//                auto min_par = k_ac->second;
-//                k_ac.release();
-//                for (auto n_idx: min_par.idx_list) {
-//                    auto node = dfs[n_idx];
-//                    auto clade = get_clade(T, node);
-//                    auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
-//                    //On finding the node among the selected clades, update its score
-//                    if (clade_itr != selected_clades.end()) {
-//                        struct score_read sc;
-//                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                        sc.reads.emplace_back(r);
-//                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
-//                        auto created = node_score.insert(ac, std::make_pair(node, sc));
-//                        if (!created) {
-//                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                            ac->second.reads.emplace_back(r);
-//                        }
-//                        ac.release();
-//                    }
-//
-//                }
-//            }
-//        },
-//     ap);
-//    
-//    std::cout << "\n Top Nodes after rescoring among limited clades\n\n";
-//
-//    //Greedy Peak Detection
-//    std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
-//    r_min_itr = read_min_parsimony.begin();
-//    while (r_min_itr != read_min_parsimony.end()) {
-//        remaining_reads.emplace_back(r_min_itr->first);
-//        r_min_itr++;
-//    }
-//    while (!remaining_reads.empty()) {
-//        //Sorting the node scores
-//        top_n_node_score.clear();
-//        top_n_node_score.resize(top_n);
-//        std::partial_sort_copy(node_score.begin(),
-//                            node_score.end(),
-//                            top_n_node_score.begin(),
-//                            top_n_node_score.end(),
-//                            [](std::pair<const MAT::Node*, score_read> const& l,
-//                               std::pair<const MAT::Node*, score_read> const& r)
-//                            {
-//                                return l.second.score > r.second.score;
-//                            });
-//        node_score.clear();
-//
-//        //Get a leaf top node not seen before 
-//        std::vector<bool> peak_vec(top_n_node_score.size(), true);
-//        auto top_n_itr = top_n_node_score.begin();
-//        while (top_n_itr != top_n_node_score.end()) {
-//            //Find unseen top node
-//            auto p_itr = peak_node_score.begin();
-//            while (p_itr != peak_node_score.end()) {
-//                if (p_itr->first == top_n_itr->first)
-//                    break;
-//                p_itr++;
-//            }
-//            //Check if leaf
-//            if ((top_n_itr->first->is_leaf()) && (p_itr == peak_node_score.end())) 
-//                break;
-//            // Skip for peak consideration if node not leaf or seen in pervious iteration
-//            peak_vec[top_n_itr - top_n_node_score.begin()] = false;
-//            top_n_itr++;
-//        }
-//        double top_score = top_n_itr->second.score;
-//        
-//        //Find the peak nodes and remove reads mapped to peak nodes
-//        while (top_n_itr != top_n_node_score.end()) {
-//            //Peak Finding
-//            auto curr_node = top_n_itr->first;
-//            if (!(curr_node->is_leaf()))
-//                peak_vec[top_n_itr - top_n_node_score.begin()] = false;
-//            if (!peak_vec[top_n_itr - top_n_node_score.begin()]) {
-//                top_n_itr++;
-//                continue;
-//            }
-//            auto top_n_peak_cmp_itr = top_n_itr + 1;
-//            while (top_n_peak_cmp_itr != top_n_node_score.end()) {
-//                auto cmp_node = top_n_peak_cmp_itr->first;
-//                if (!(cmp_node->is_leaf()))
-//                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
-//                if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
-//                    top_n_peak_cmp_itr++;
-//                    continue;
-//                }
-//                //Calculate branch distance if scores of both nodes are not equal
-//                if (abs(top_n_itr->second.score - top_n_peak_cmp_itr->second.score) < 1e-9 )
-//                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
-//                else {
-//                    size_t b_dist = branch_distance(curr_node, cmp_node);
-//                    if (b_dist > b_dist_thresh)
-//                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
-//                    else
-//                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
-//                }
-//                top_n_peak_cmp_itr++;
-//            }
-//            //Only add unique leaf nodes in peak score with score >= 0.1 top_score
-//            auto p_itr = peak_node_score.begin();
-//            while (p_itr != peak_node_score.end()) {
-//                if (p_itr->first == curr_node)
-//                    break;
-//                p_itr++;
-//            }
-//            if ((p_itr == peak_node_score.end()) && (top_n_itr->second.score >= (score_thresh * top_score))) {
-//                peak_node_score.emplace_back(*top_n_itr);
-//                //Remove reads mapped to this node from remaining_reads
-//                auto rem_r_itr = remaining_reads.begin();
-//                while (rem_r_itr != remaining_reads.end()) {
-//                    auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
-//                    if (itr != top_n_itr->second.reads.end())
-//                        rem_r_itr = remaining_reads.erase(rem_r_itr);
-//                    else rem_r_itr++;
-//                }
-//            }
-//            top_n_itr++;
-//        }        
-//
-//        //Calculating node score for remaining reads
-//        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
-//            [&](tbb::blocked_range<size_t> k) {
-//                for (size_t i = k.begin(); i < k.end(); ++i) {
-//                    auto r = remaining_reads[i];
-//                    tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-//                    read_min_parsimony.find(k_ac, r);
-//                    auto min_par = k_ac->second;
-//                    k_ac.release();
-//                    for (auto n_idx: min_par.idx_list) {
-//                        auto node = dfs[n_idx];
-//                        //Give score to parsimonious node
-//                        struct score_read sc;
-//                        sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                        sc.reads.emplace_back(r);
-//                        tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
-//                        auto created = node_score.insert(ac, std::make_pair(node, sc));
-//                        if (!created) {
-//                            ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-//                            ac->second.reads.emplace_back(r);
-//                        }
-//                        ac.release();
-//                    }
-//                }
-//            },
-//        ap);
-//
-//    }
-//
-//    for (auto n_s: peak_node_score) {
-//        auto clade = get_clade(T, n_s.first);
-//        printf("PEAK score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
-//    }
-//
-//
-//    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
-//}
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
+   //GREEDY ALGORITHM for getting handful of clades
+   //Get top scoring nodes
+    timer.Start();
+    int top_n = 25, b_dist_thresh = 100;
+    double score_thresh = 0.8;
+    std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
+    std::vector<std::string> selected_clades;
+    std::vector<int> remaining_reads;
+    auto itr = read_map.begin();
+    while (itr != read_map.end()) {
+        remaining_reads.emplace_back(itr->first);
+        itr++;
+    }
+    
+    while (!remaining_reads.empty()) {
+        //Sorting the node scores
+        std::partial_sort_copy(node_score.begin(),
+                            node_score.end(),
+                            top_n_node_score.begin(),
+                            top_n_node_score.end(),
+                            [](std::pair<const MAT::Node*, double> const& l,
+                               std::pair<const MAT::Node*, double> const& r)
+                            {
+                                return l.second > r.second;
+                            });
+        node_score.clear();
+        
+        //Find the reads not mapped to the best nodes
+        auto top_n_itr = top_n_node_score.begin();
+        while (top_n_itr != top_n_node_score.end()) {
+            auto curr_clade = get_clade(T, top_n_itr->first);
+            auto c_check_itr = std::find(selected_clades.begin(), selected_clades.end(), curr_clade);
+            //Allow top scorer or others with equal score but different clade
+            if (abs(top_n_node_score[0].second - top_n_itr->second) < 1e-9) {
+                //Store the clades corresponding to top scoring node
+                if (c_check_itr == selected_clades.end())
+                    selected_clades.emplace_back(curr_clade);
+                //Remove mapped reads from remaining_reads
+                std::vector<int> remove_reads;
+                using my_mutex_t = tbb::queuing_mutex;
+                my_mutex_t my_mutex;
+                static tbb::affinity_partitioner ap;
+                //Parallel for for each remaining read
+                tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+                    [&](tbb::blocked_range<size_t> k) {
+                        for (size_t i = k.begin(); i < k.end(); ++i) {
+                            int rm_idx = remaining_reads[i];
+                            auto read_id = read_map.find(rm_idx)->second;
+                            bool read_present = place_reads(T, dfs, read_id, top_n_itr->first, node_score);
+                            node_score.clear();
+                            //Read contains current node -> REMOVE
+                            if (read_present) {
+                                my_mutex_t::scoped_lock my_lock{my_mutex};
+                                remove_reads.emplace_back(rm_idx);
+                            }
+                        }
+                    },
+                ap);
+                //Remove from remaining reads
+                for (auto rm_idx: remove_reads) {
+                    auto itr = remaining_reads.begin();
+                    while (itr != remaining_reads.end()) {
+                        if ((*itr) == rm_idx) {
+                            remaining_reads.erase(itr);
+                            break;
+                        }
+                        itr++;
+                    }
+                }
+                remove_reads.clear();
+            }
+            else if (abs(top_n_node_score[0].second - top_n_itr->second) > 1e-9)
+                break;
+            top_n_itr++;
+        }        
+        top_n_node_score.clear();
+        top_n_node_score.resize(top_n);
+
+        //Calculating node score for remaining reads
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    int rm_idx = remaining_reads[i];
+                    auto read_id = read_map.find(rm_idx)->second;
+                    place_reads(T, dfs, read_id, NULL, node_score);
+                }
+            },
+        ap);
+    }
+
+    //Print the clades otained from greedy algorithm
+    for (size_t i = 0; i < selected_clades.size(); i++) {
+        printf("CLADE Selected: %s\n", selected_clades[i].c_str());
+    }
+
+    ////Rescoring the nodes only belonging to selected lineages
+    //node_score.clear();        
+    //tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
+    //    [&](tbb::blocked_range<size_t> k) {
+    //        for (size_t r = k.begin(); r < k.end(); ++r) {
+    //            tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
+    //            read_min_parsimony.find(k_ac, r);
+    //            auto min_par = k_ac->second;
+    //            k_ac.release();
+    //            for (auto n_idx: min_par.idx_list) {
+    //                auto node = dfs[n_idx];
+    //                auto clade = get_clade(T, node);
+    //                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
+    //                //On finding the node among the selected clades, update its score
+    //                if (clade_itr != selected_clades.end()) {
+    //                    struct score_read sc;
+    //                    sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+    //                    sc.reads.emplace_back(r);
+    //                    tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+    //                    auto created = node_score.insert(ac, std::make_pair(node, sc));
+    //                    if (!created) {
+    //                        ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+    //                        ac->second.reads.emplace_back(r);
+    //                    }
+    //                    ac.release();
+    //                }
+
+    //            }
+    //        }
+    //    },
+    // ap);
+    
+    ////Greedy Peak Detection
+    //std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
+    //r_min_itr = read_min_parsimony.begin();
+    //while (r_min_itr != read_min_parsimony.end()) {
+    //    remaining_reads.emplace_back(r_min_itr->first);
+    //    r_min_itr++;
+    //}
+    //while (!remaining_reads.empty()) {
+    //    //Sorting the node scores
+    //    top_n_node_score.clear();
+    //    top_n_node_score.resize(top_n);
+    //    std::partial_sort_copy(node_score.begin(),
+    //                        node_score.end(),
+    //                        top_n_node_score.begin(),
+    //                        top_n_node_score.end(),
+    //                        [](std::pair<const MAT::Node*, score_read> const& l,
+    //                           std::pair<const MAT::Node*, score_read> const& r)
+    //                        {
+    //                            return l.second.score > r.second.score;
+    //                        });
+    //    node_score.clear();
+
+    //    //Get a leaf top node not seen before 
+    //    std::vector<bool> peak_vec(top_n_node_score.size(), true);
+    //    auto top_n_itr = top_n_node_score.begin();
+    //    while (top_n_itr != top_n_node_score.end()) {
+    //        //Find unseen top node
+    //        auto p_itr = peak_node_score.begin();
+    //        while (p_itr != peak_node_score.end()) {
+    //            if (p_itr->first == top_n_itr->first)
+    //                break;
+    //            p_itr++;
+    //        }
+    //        //Check if leaf
+    //        if ((top_n_itr->first->is_leaf()) && (p_itr == peak_node_score.end())) 
+    //            break;
+    //        // Skip for peak consideration if node not leaf or seen in pervious iteration
+    //        peak_vec[top_n_itr - top_n_node_score.begin()] = false;
+    //        top_n_itr++;
+    //    }
+    //    double top_score = top_n_itr->second.score;
+    //    
+    //    //Find the peak nodes and remove reads mapped to peak nodes
+    //    while (top_n_itr != top_n_node_score.end()) {
+    //        //Peak Finding
+    //        auto curr_node = top_n_itr->first;
+    //        if (!(curr_node->is_leaf()))
+    //            peak_vec[top_n_itr - top_n_node_score.begin()] = false;
+    //        if (!peak_vec[top_n_itr - top_n_node_score.begin()]) {
+    //            top_n_itr++;
+    //            continue;
+    //        }
+    //        auto top_n_peak_cmp_itr = top_n_itr + 1;
+    //        while (top_n_peak_cmp_itr != top_n_node_score.end()) {
+    //            auto cmp_node = top_n_peak_cmp_itr->first;
+    //            if (!(cmp_node->is_leaf()))
+    //                peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
+    //            if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
+    //                top_n_peak_cmp_itr++;
+    //                continue;
+    //            }
+    //            //Calculate branch distance if scores of both nodes are not equal
+    //            if (abs(top_n_itr->second.score - top_n_peak_cmp_itr->second.score) < 1e-9 )
+    //                peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
+    //            else {
+    //                size_t b_dist = branch_distance(curr_node, cmp_node);
+    //                if (b_dist > b_dist_thresh)
+    //                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
+    //                else
+    //                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
+    //            }
+    //            top_n_peak_cmp_itr++;
+    //        }
+    //        //Only add unique leaf nodes in peak score with score >= 0.1 top_score
+    //        auto p_itr = peak_node_score.begin();
+    //        while (p_itr != peak_node_score.end()) {
+    //            if (p_itr->first == curr_node)
+    //                break;
+    //            p_itr++;
+    //        }
+    //        if ((p_itr == peak_node_score.end()) && (top_n_itr->second.score >= (score_thresh * top_score))) {
+    //            peak_node_score.emplace_back(*top_n_itr);
+    //            //Remove reads mapped to this node from remaining_reads
+    //            auto rem_r_itr = remaining_reads.begin();
+    //            while (rem_r_itr != remaining_reads.end()) {
+    //                auto itr = std::find(top_n_itr->second.reads.begin(), top_n_itr->second.reads.end(), *rem_r_itr);
+    //                if (itr != top_n_itr->second.reads.end())
+    //                    rem_r_itr = remaining_reads.erase(rem_r_itr);
+    //                else rem_r_itr++;
+    //            }
+    //        }
+    //        top_n_itr++;
+    //    }        
+
+    //    //Calculating node score for remaining reads
+    //    tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+    //        [&](tbb::blocked_range<size_t> k) {
+    //            for (size_t i = k.begin(); i < k.end(); ++i) {
+    //                auto r = remaining_reads[i];
+    //                tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
+    //                read_min_parsimony.find(k_ac, r);
+    //                auto min_par = k_ac->second;
+    //                k_ac.release();
+    //                for (auto n_idx: min_par.idx_list) {
+    //                    auto node = dfs[n_idx];
+    //                    //Give score to parsimonious node
+    //                    struct score_read sc;
+    //                    sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+    //                    sc.reads.emplace_back(r);
+    //                    tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
+    //                    auto created = node_score.insert(ac, std::make_pair(node, sc));
+    //                    if (!created) {
+    //                        ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
+    //                        ac->second.reads.emplace_back(r);
+    //                    }
+    //                    ac.release();
+    //                }
+    //            }
+    //        },
+    //    ap);
+
+    //}
+
+    //for (auto n_s: peak_node_score) {
+    //    auto clade = get_clade(T, n_s.first);
+    //    printf("PEAK score = %f, read_count = %lu, Node: %s, Clade: %s\n", n_s.second.score, n_s.second.reads.size(), n_s.first->identifier.c_str(), clade.c_str());
+    //}
+
+
+    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
+}
 
 
 //Function to calculation distance between two nodes
