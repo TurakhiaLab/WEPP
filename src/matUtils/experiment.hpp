@@ -52,11 +52,11 @@ struct min_parsimony {
 po::variables_map parse_extract_command(po::parsed_options parsed);
 void simulate_and_place_reads(po::parsed_options parsed);
 
-void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, const std::string);
+void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, std::unordered_map<int, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::string);
 
-std::vector<int> place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, tbb::concurrent_hash_map<MAT::Node*, double> &);
+bool place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, tbb::concurrent_hash_map<MAT::Node*, double> &);
 
-//void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::vector<struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, score_read> &, tbb::concurrent_hash_map<size_t, struct min_parsimony> &);
+void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*>&, tbb::concurrent_hash_map<MAT::Node*, double> &);
 
 size_t branch_distance(MAT::Node*, MAT::Node*);
 std::string get_clade(const MAT::Tree &, MAT::Node*);
