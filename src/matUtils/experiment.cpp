@@ -1266,7 +1266,8 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
         tbb::make_filter <struct read_info*, void> (
             tbb::filter::parallel,
             [&] (struct read_info* read_id) -> void {
-                place_reads(T, dfs, read_id, NULL, node_score);
+                std::unordered_map<std::string, double> clades;
+                place_reads(T, dfs, read_id, NULL, clades, node_score, 0);
             }
         )
     );
@@ -1275,7 +1276,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
 }
 
 
-bool place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
+int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, const std::unordered_map<std::string, double> &selected_clades, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const int par_score_lim) {
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
     //Checking all nodes of the tree
@@ -1398,10 +1399,13 @@ bool place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct 
 
         //Checking min_parsimony
         int new_min_par = -1; 
-        if (!(min_par.par_list.size()))
+        // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+        if ((!(min_par.par_list.size())) && ((int)curr_node_par_mut.size() >= par_score_lim))
             new_min_par = 1;
-        else if (curr_node_par_mut.size() < min_par.par_list[0].size())
+        // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+        else if ((curr_node_par_mut.size() < min_par.par_list[0].size()) && ((int)curr_node_par_mut.size() >= par_score_lim))
             new_min_par = 1;
+        // If cur_par_score == best_par_score -> APPEND
         else if (curr_node_par_mut.size() == min_par.par_list[0].size())
             new_min_par = 0;
         
@@ -1480,19 +1484,46 @@ bool place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct 
     
         //Keeping tab on weighted read score being mapped to each parsimonious node
         min_par.par_list.clear();
-        for (auto n_idx: min_par.idx_list) {
-            auto node = dfs[n_idx];
-            //Give score to parsimonious node
-            double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-            auto created = node_score.insert(ac, std::make_pair(node, score));
-            if (!created) {
-                ac->second += score;
+        //par_score_next tells if the specified clades belong to parsimonious positions
+        int par_score_next = -1;
+        // In absence of specific clades, add scores to nodes
+        if (selected_clades.empty()) {
+            for (auto n_idx: min_par.idx_list) {
+                auto node = dfs[n_idx];
+                //Give score to parsimonious node: Score -> 1/N^2
+                double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                auto created = node_score.insert(ac, std::make_pair(node, score));
+                if (!created) {
+                    ac->second += score;
+                }
+                ac.release();
             }
-            ac.release();
+        }
+        // Add scores to nodes belonging to specific clades
+        else {
+            for (auto n_idx: min_par.idx_list) {
+                auto node = dfs[n_idx];
+                auto curr_clade = get_clade(T, node);
+                //auto itr = std::find(selected_clades.begin(), selected_clades.end(), curr_clade);
+                auto itr = selected_clades.find(curr_clade);
+                if (itr != selected_clades.end()) {
+                    par_score_next = 0;
+                    //Give score to parsimonious node: Score -> 1/N
+                    double score = (1.0 / pow(min_par.idx_list.size(), 1.0));
+                    tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                    auto created = node_score.insert(ac, std::make_pair(node, score));
+                    if (!created) {
+                        ac->second += score;
+                    }
+                    ac.release();
+                }
+            }
+            if (par_score_next)
+                par_score_next = par_score_lim + 1;
         }
         min_par.idx_list.clear();
-        return false;
+        return par_score_next;
     }
     //Check if given node is present in parsimonious list of read
     else {
@@ -1500,22 +1531,21 @@ bool place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct 
         for (auto n_idx: min_par.idx_list) {
             auto node = dfs[n_idx];
             if (node == check_node)
-                return true;
+                return 1;
         }
         min_par.idx_list.clear();
-        return false;
+        return 0;
     }
 }
 
 
 void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score) {
-   //GREEDY ALGORITHM for getting handful of clades
-   //Get top scoring nodes
+   //GREEDY ALGORITHM for getting Lineages
     timer.Start();
-    int top_n = 25, b_dist_thresh = 100;
+    int top_n = 25, b_dist_thresh = 100, remaining_read_thresh = 5;
     double score_thresh = 0.8;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
-    std::vector<std::string> selected_clades;
+    std::unordered_map<std::string, double> selected_clades;
     std::vector<int> remaining_reads;
     auto itr = read_map.begin();
     while (itr != read_map.end()) {
@@ -1523,7 +1553,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         itr++;
     }
     
-    while (!remaining_reads.empty()) {
+    while ((int)remaining_reads.size() >= remaining_read_thresh) {
         //Sorting the node scores
         std::partial_sort_copy(node_score.begin(),
                             node_score.end(),
@@ -1540,24 +1570,25 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         auto top_n_itr = top_n_node_score.begin();
         while (top_n_itr != top_n_node_score.end()) {
             auto curr_clade = get_clade(T, top_n_itr->first);
-            auto c_check_itr = std::find(selected_clades.begin(), selected_clades.end(), curr_clade);
+            auto c_check_itr = selected_clades.find(curr_clade);
             //Allow top scorer or others with equal score but different clade
             if (abs(top_n_node_score[0].second - top_n_itr->second) < 1e-9) {
                 //Store the clades corresponding to top scoring node
                 if (c_check_itr == selected_clades.end())
-                    selected_clades.emplace_back(curr_clade);
+                    selected_clades.insert({curr_clade, 0.0});
                 //Remove mapped reads from remaining_reads
                 std::vector<int> remove_reads;
                 using my_mutex_t = tbb::queuing_mutex;
                 my_mutex_t my_mutex;
                 static tbb::affinity_partitioner ap;
-                //Parallel for for each remaining read
+                //Parallel_for loop for each remaining read
                 tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
                     [&](tbb::blocked_range<size_t> k) {
                         for (size_t i = k.begin(); i < k.end(); ++i) {
                             int rm_idx = remaining_reads[i];
                             auto read_id = read_map.find(rm_idx)->second;
-                            bool read_present = place_reads(T, dfs, read_id, top_n_itr->first, node_score);
+                            std::unordered_map<std::string, double> clades;
+                            int read_present = place_reads(T, dfs, read_id, top_n_itr->first, clades, node_score, 0);
                             node_score.clear();
                             //Read contains current node -> REMOVE
                             if (read_present) {
@@ -1594,49 +1625,48 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 for (size_t i = k.begin(); i < k.end(); ++i) {
                     int rm_idx = remaining_reads[i];
                     auto read_id = read_map.find(rm_idx)->second;
-                    place_reads(T, dfs, read_id, NULL, node_score);
+                    std::unordered_map<std::string, double> clades;
+                    place_reads(T, dfs, read_id, NULL, clades, node_score, 0);
                 }
             },
         ap);
     }
+    remaining_reads.clear();
 
+    //Rescoring the nodes only belonging to selected lineages
+    node_score.clear();        
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                auto read_id = read_map.find(i)->second;
+                int par_score_next = place_reads(T, dfs, read_id, NULL, selected_clades, node_score, 0);
+                //Read not belonging to any of selected clades
+                while (par_score_next)
+                    par_score_next = place_reads(T, dfs, read_id, NULL, selected_clades, node_score, par_score_next);
+            }
+        },
+    ap);
+
+    //Summing node scores of a particular Lineage
+    for (auto ns: node_score) {
+        auto curr_clade = get_clade(T, ns.first);
+        selected_clades[curr_clade] += ns.second;
+    }
+    double sum_clade = 0.0;
+    auto sc_itr = selected_clades.begin();
+    while (sc_itr != selected_clades.end()) {
+        sum_clade += sc_itr->second;
+        sc_itr++;
+    }
     //Print the clades otained from greedy algorithm
-    for (size_t i = 0; i < selected_clades.size(); i++) {
-        printf("CLADE Selected: %s\n", selected_clades[i].c_str());
+    sc_itr = selected_clades.begin();
+    while (sc_itr != selected_clades.end()) {
+        printf("CLADE Selected: %s, Score: %f\n", sc_itr->first.c_str(), (sc_itr->second / sum_clade));
+        sc_itr++;
     }
 
-    ////Rescoring the nodes only belonging to selected lineages
-    //node_score.clear();        
-    //tbb::parallel_for( tbb::blocked_range<size_t>(0, read_ids.size()),
-    //    [&](tbb::blocked_range<size_t> k) {
-    //        for (size_t r = k.begin(); r < k.end(); ++r) {
-    //            tbb::concurrent_hash_map<size_t, struct min_parsimony>::const_accessor k_ac;
-    //            read_min_parsimony.find(k_ac, r);
-    //            auto min_par = k_ac->second;
-    //            k_ac.release();
-    //            for (auto n_idx: min_par.idx_list) {
-    //                auto node = dfs[n_idx];
-    //                auto clade = get_clade(T, node);
-    //                auto clade_itr = std::find(selected_clades.begin(), selected_clades.end(), clade);
-    //                //On finding the node among the selected clades, update its score
-    //                if (clade_itr != selected_clades.end()) {
-    //                    struct score_read sc;
-    //                    sc.score = (1.0 / pow(min_par.idx_list.size(), 2.0));
-    //                    sc.reads.emplace_back(r);
-    //                    tbb::concurrent_hash_map<MAT::Node*, score_read>::accessor ac;
-    //                    auto created = node_score.insert(ac, std::make_pair(node, sc));
-    //                    if (!created) {
-    //                        ac->second.score += (1.0 / pow(min_par.idx_list.size(), 2.0));
-    //                        ac->second.reads.emplace_back(r);
-    //                    }
-    //                    ac.release();
-    //                }
 
-    //            }
-    //        }
-    //    },
-    // ap);
-    
     ////Greedy Peak Detection
     //std::vector<std::pair<MAT::Node*, score_read>> peak_node_score;
     //r_min_itr = read_min_parsimony.begin();
