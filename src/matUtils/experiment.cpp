@@ -1138,7 +1138,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
         map_count ++;
     }
 
-    fprintf(stderr, "VCFs Written in %ld sec \n\n", (timer.Stop() / 1000));
+    fprintf(stderr, "VCFs Written in %ld min\n\n", (timer.Stop() / (60 * 1000)));
 
     boost::iostreams::close(outbuf_samples);
     boost::iostreams::close(outbuf_reads);
@@ -1154,13 +1154,13 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     tbb::concurrent_hash_map<MAT::Node*, double> node_score;
     tbb::concurrent_hash_map<std::string, double> clade_score;
     std::unordered_map<std::string, double> selected_clades;
-    read_vcf(num_threads, T, dfs, read_map, selected_clades, node_score, clade_score, vcf_filename_reads);
+    read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
     analyze_reads(T, dfs, read_map, selected_clades, node_score, clade_score);
 }
 
 
 
-void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::unordered_map<std::string, double> &selected_clades, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, tbb::concurrent_hash_map<std::string, double> &clade_score, const std::string vcf_filename_reads) {
+void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
     // Store the header information from VCF
     timer.Start();
@@ -1168,11 +1168,13 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
     std::vector<struct read_info*> read_ids;
     std::string s;
     boost::filesystem::ifstream fileHandler(vcf_filename_reads);
+    bool header_found = false;
     while (getline(fileHandler, s)) {
         std::vector<std::string> words;
         MAT::string_split(s, words);
         if (words.size() > 1) {
             if (words[1] == "POS") {
+                header_found = true;
                 for (int j=9; j < (int)words.size(); j++) {
                     struct read_info * rp = new struct read_info;
                     rp->read = words[j];
@@ -1185,95 +1187,62 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
                     read_ids.emplace_back(rp);
                     missing_idx.emplace_back(j);
                 }
-                break;
             }
-        }
-    }
-
-    //Use tbb:pipeline to send one read at a time to read_place
-    int k = 0;
-    tbb::parallel_pipeline (
-        num_threads,
-        tbb::make_filter <void, struct read_info*> (
-            tbb::filter::serial_in_order,
-            [&] (tbb::flow_control& fc) -> struct read_info* {
+            else if (header_found) {
+                std::vector<std::string> alleles;
+                alleles.clear();
+                MAT::string_split(words[4], ',', alleles);
+                int k = 0;
                 while (k < (int)missing_idx.size()) {
                     size_t j = missing_idx[k];
                     auto iter = read_ids.begin();
                     std::advance(iter, k);
                     if (iter != read_ids.end()) {
                         read_map.insert({k, (*iter)});
-                        std::string s;
-                        bool header_found = false;
-                        boost::filesystem::ifstream fileHandler(vcf_filename_reads);
-                        while (getline(fileHandler, s)) {
-                            std::vector<std::string> words;
-                            MAT::string_split(s, words);
-                            if (words.size() > 1) {
-                                if (words[1] == "POS") {
-                                    header_found = true;
-                                }
-                                else if (header_found) {
-                                    std::vector<std::string> alleles;
-                                    alleles.clear();
-                                    MAT::string_split(words[4], ',', alleles);
-                                    MAT::Mutation m;
-                                    m.chrom = words[0];
-                                    m.position = std::stoi(words[1]);
-                                    if (std::stoi(words[j]) > int(alleles.size())) {
-                                        fprintf(stderr, "\n\nPosition: %d, k = %d,\n", m.position, k);
-                                        fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
-                                    }
-                                    m.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                                    assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
-                                    m.par_nuc = m.ref_nuc;
-                                    // Alleles such as '.' should be treated as missing
-                                    // data. if the word is numeric, it is an index to one
-                                    // of the alleles
-                                    if (isdigit(words[j][0])) {
-                                        int allele_id = std::stoi(words[j]);
-                                        if (allele_id > 0) {
-                                            std::string allele = alleles[allele_id-1];
-                                            if (allele[0] == 'N') {
-                                                m.is_missing = true;
-                                                m.mut_nuc = MAT::get_nuc_id('N');
-                                            } else {
-                                                auto nuc = MAT::get_nuc_id(allele[0]);
-                                                if (nuc == MAT::get_nuc_id('N')) {
-                                                    m.is_missing = true;
-                                                } else {
-                                                    m.is_missing = false;
-                                                }
-                                                m.mut_nuc = nuc;
-                                            }
-                                            (*iter)->mutations.emplace_back(m);
-                                        }
-                                    } else {
-                                        m.is_missing = true;
-                                        m.mut_nuc = MAT::get_nuc_id('N');
-                                        (*iter)->mutations.emplace_back(m);
-                                    }
-                                } 
-                            }
+                        MAT::Mutation m;
+                        m.chrom = words[0];
+                        m.position = std::stoi(words[1]);
+                        if (std::stoi(words[j]) > int(alleles.size())) {
+                            fprintf(stderr, "\n\nPosition: %d, k = %d,\n", m.position, k);
+                            fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
                         }
-                    }
+                        m.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                        assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
+                        m.par_nuc = m.ref_nuc;
+                        // Alleles such as '.' should be treated as missing
+                        // data. if the word is numeric, it is an index to one
+                        // of the alleles
+                        if (isdigit(words[j][0])) {
+                            int allele_id = std::stoi(words[j]);
+                            if (allele_id > 0) {
+                                std::string allele = alleles[allele_id-1];
+                                if (allele[0] == 'N') {
+                                    m.is_missing = true;
+                                    m.mut_nuc = MAT::get_nuc_id('N');
+                                } else {
+                                    auto nuc = MAT::get_nuc_id(allele[0]);
+                                    if (nuc == MAT::get_nuc_id('N')) {
+                                        m.is_missing = true;
+                                    } else {
+                                        m.is_missing = false;
+                                    }
+                                    m.mut_nuc = nuc;
+                                }
+                                (*iter)->mutations.emplace_back(m);
+                            }
+                        } else {
+                            m.is_missing = true;
+                            m.mut_nuc = MAT::get_nuc_id('N');
+                            (*iter)->mutations.emplace_back(m);
+                        }
+                    } 
                     k++;
-                    return (*iter);
                 }
-                fc.stop();
-                return nullptr;
             }
-        )  &    
-        //read_palcement search and VERIFY
-        tbb::make_filter <struct read_info*, void> (
-            tbb::filter::parallel,
-            [&] (struct read_info* read_id) -> void {
-                place_reads(T, dfs, read_id, NULL, selected_clades, node_score, clade_score, false, 0);
-            }
-        )
-    );
+        }
+    }
 
-    fprintf(stderr,"read VCF parsed and reads placed in %ld sec\n\n", (timer.Stop() / 1000));   
+    fprintf(stderr,"read VCF parsed in %ld min\n\n", (timer.Stop() / (60 * 1000)));   
 }
 
 
@@ -1503,18 +1472,21 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
         }
         // Add scores to nodes belonging to specific clades
         else {
-            std::vector<std::string> clade_list;
+            std::unordered_map<std::string, int> clade_list;
             for (auto n_idx: min_par.idx_list) {
                 auto node = dfs[n_idx];
                 auto curr_clade = get_clade(T, node);
-                auto cl_itr = std::find(clade_list.begin(), clade_list.end(), curr_clade);
+                //auto cl_itr = std::find(clade_list.begin(), clade_list.end(), curr_clade);
+                auto cl_itr = clade_list.find(curr_clade);
                 if (cl_itr == clade_list.end())
-                    clade_list.emplace_back(curr_clade);
+                    //clade_list.emplace_back(curr_clade);
+                    clade_list.insert({curr_clade, 0.0});
                 auto itr = selected_clades.find(curr_clade);
                 if (itr != selected_clades.end()) {
                     par_score_next = 0;
                     //Give score to parsimonious node: Score -> 1/N^2
                     double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
+                    clade_list[curr_clade] += 1;
                     tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
                     auto created = node_score.insert(ac, std::make_pair(node, score));
                     if (!created) {
@@ -1523,19 +1495,22 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                     ac.release();
                 }
             }
-            //Update clade_score 
-            for (auto cl: clade_list) {
-                auto itr = selected_clades.find(cl);
+            //Update clade_score
+            auto cl_itr = clade_list.begin();
+            while (cl_itr != clade_list.end()) { 
+            //for (auto cl: clade_list) {
+                auto itr = selected_clades.find(cl_itr->first);
                 if (itr != selected_clades.end()) {
-                    //Give score to clade of parsimonious node: Score -> 1/N
-                    double score = (1.0 / clade_list.size());
+                    //Give score to clade of parsimonious node: Score -> 1/N^2 * node_weight
+                    double score = (1.0 / pow(clade_list.size(), 2.0)) * log10(cl_itr->second);
                     tbb::concurrent_hash_map<std::string, double>::accessor ac;
-                    auto created = clade_score.insert(ac, std::make_pair(cl, score));
+                    auto created = clade_score.insert(ac, std::make_pair(cl_itr->first, score));
                     if (!created) {
                         ac->second += score;
                     }
                     ac.release();
                 }
+                cl_itr++;
             } 
             clade_list.clear();
             //Nodes not belonging to selected_clades
@@ -1573,6 +1548,18 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     }
 
     while ((int)remaining_reads.size() >= remaining_read_thresh) {
+        //Calculating node score for remaining reads
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    int rm_idx = remaining_reads[i];
+                    auto read_id = read_map.find(rm_idx)->second;
+                    place_reads(T, dfs, read_id, NULL, selected_clades, node_score, clade_score, false, 0);
+                }
+            },
+        ap);
+
         //Sorting the node scores
         std::partial_sort_copy(node_score.begin(),
                             node_score.end(),
@@ -1634,18 +1621,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         }        
         top_n_node_score.clear();
         top_n_node_score.resize(top_n);
-
-        //Calculating node score for remaining reads
-        static tbb::affinity_partitioner ap;
-        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
-            [&](tbb::blocked_range<size_t> k) {
-                for (size_t i = k.begin(); i < k.end(); ++i) {
-                    int rm_idx = remaining_reads[i];
-                    auto read_id = read_map.find(rm_idx)->second;
-                    place_reads(T, dfs, read_id, NULL, selected_clades, node_score, clade_score, false, 0);
-                }
-            },
-        ap);
     }
     remaining_reads.clear();
 
@@ -1663,6 +1638,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             }
         },
     ap);
+
 
     double sum_clade = 0.0;
     auto cl_sc_itr = clade_score.begin();
@@ -1808,7 +1784,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     //}
 
 
-    fprintf(stderr,"\nAnalysis algorithms took %ld sec\n\n", (timer.Stop() / 1000));
+    fprintf(stderr,"Analysis algorithms took %ld min\n\n", (timer.Stop() / (60 * 1000)));
 }
 
 

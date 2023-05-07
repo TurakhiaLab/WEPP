@@ -52,7 +52,7 @@ struct min_parsimony {
 po::variables_map parse_extract_command(po::parsed_options parsed);
 void simulate_and_place_reads(po::parsed_options parsed);
 
-void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, std::unordered_map<int, struct read_info*> &, const std::unordered_map<std::string, double> &, tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_hash_map<std::string, double> &, const std::string);
+void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, std::unordered_map<int, struct read_info*> &, const std::string);
 
 int place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, const std::unordered_map<std::string, double> &, tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_hash_map<std::string, double> &, const bool, const int);
 
