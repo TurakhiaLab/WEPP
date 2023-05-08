@@ -54,9 +54,9 @@ void simulate_and_place_reads(po::parsed_options parsed);
 
 void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, std::unordered_map<int, struct read_info*> &, const std::string);
 
-int place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, const std::unordered_map<std::string, double> &, tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_hash_map<std::string, double> &, const bool, const int);
+int place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, const std::unordered_map<std::string, std::vector<MAT::Mutation>> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const bool, const int);
 
-void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, std::unordered_map<std::string, double> &, tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_hash_map<std::string, double> &);
+void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::string);
 
 size_t branch_distance(MAT::Node*, MAT::Node*);
 std::string get_clade(const MAT::Tree &, MAT::Node*);
