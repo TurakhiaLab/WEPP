@@ -1657,37 +1657,57 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     }
 
     //Getting reads having lineage defining mutations
-    int found;
+    //Loop over all the reads
     auto rm_itr = read_map.begin();
     while (rm_itr != read_map.end()) {
         std::vector<std::string> clade_list;
+        int max_mut = 0;
+        //Loop over all clades
         auto cl_itr = selected_clades.begin();
         while (cl_itr != selected_clades.end()) {
-            found = 0;
+            int mut_found = 0;
+            //Loop over clade mutations
             for (auto cl_m: cl_itr->second) {
+                //Loop over read mutations
                 for (auto rd_m: rm_itr->second->mutations) {
                     if ((rd_m.position == cl_m.position) && (rd_m.mut_nuc == cl_m.mut_nuc)) {
-                        clade_list.emplace_back(cl_itr->first);
-                        found = 1;
+                        mut_found += 1;
                         break;
                     }
                 }
-                if (found)
-                    break;
             }
+            if (mut_found > max_mut) {
+                max_mut = mut_found;
+                clade_list.clear();
+                clade_list.emplace_back(cl_itr->first);
+            }
+            else if (mut_found == max_mut)
+                clade_list.emplace_back(cl_itr->first);
             cl_itr++;
         }
-        for (auto cl: clade_list)
-            clade_score[cl] += (1.0 / clade_list.size());
+        //Add weighted read score to all clades whose mutation matches with read 
+        if (clade_list.size() != selected_clades.size()) {
+            for (auto cl: clade_list)
+                clade_score[cl] += ((float)pow(2.0, max_mut) / pow(2.0, clade_list.size()));
+        }
         clade_list.clear();
         rm_itr++;
     }
 
+    double sum = 0.0;
     auto cls_itr = clade_score.begin();
     while (cls_itr != clade_score.end()) {
-        printf("\nCLADE: %s, score: %f, clade_mut: %ld, score_per_mut: %f", cls_itr->first.c_str(), cls_itr->second, selected_clades[cls_itr->first].size(), (cls_itr->second / selected_clades[cls_itr->first].size()));
+        //double score = log2(cls_itr->second) / selected_clades[cls_itr->first].size();
+        double score = (cls_itr->second) / selected_clades[cls_itr->first].size();
+        sum += score;
         cls_itr++;
     }
+    cls_itr = clade_score.begin();
+    while (cls_itr != clade_score.end()) {
+        printf("\nCLADE: %s, score: %f, mutations: %ld, Abundance: %f", cls_itr->first.c_str(), (cls_itr->second) / selected_clades[cls_itr->first].size(), selected_clades[cls_itr->first].size(), ((cls_itr->second) / (selected_clades[cls_itr->first].size() * sum)));
+        cls_itr++;
+    }
+
 
 /////////////////////////////////////
     ////Rescoring the nodes only belonging to selected lineages and specific reads
