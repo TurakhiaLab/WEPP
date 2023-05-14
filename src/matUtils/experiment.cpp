@@ -51,7 +51,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = true;
+    bool old_vcf = false;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -95,7 +95,6 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     dir_prefix += "/";
     std::string vcf_filename_samples = dir_prefix + vm["write-vcf"].as<std::string>() + "_samples.vcf";
     std::string vcf_filename_reads = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads.vcf";
-    std::string lineage_filename = dir_prefix + vm["write-vcf"].as<std::string>() + "_lineage_mutations.txt";
     std::string vcf_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.vcf";
     std::string depth_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.depth";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
@@ -1157,7 +1156,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::vector<std::string> vcf_samples;
     read_sample_vcf(vcf_samples, vcf_filename_samples);
     read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
-    analyze_reads(T, dfs, read_map, node_score, vcf_samples, lineage_filename);
+    analyze_reads(T, dfs, read_map, node_score, vcf_samples);
 }
 
 void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
@@ -1524,7 +1523,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 }
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string lineage_filename) {
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples) {
    //GREEDY ALGORITHM for getting Lineages
     timer.Start();
     int top_n = 10, remaining_read_thresh = (int)read_map.size() * 0.001;
@@ -1619,110 +1618,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         top_n_node_score.resize(top_n);
     }
     remaining_reads.clear();
-
-    ////Getting lineage defining mutations for selected clades
-    //boost::filesystem::ifstream fileHandler(lineage_filename);
-    //std::string s;
-    //while (getline(fileHandler, s)) {
-    //    std::vector<std::string> words;
-    //    std::string curr_clade;
-    //    MAT::string_split(s, words);
-    //    curr_clade = words[0];
-    //    if (selected_clades.find(curr_clade) != selected_clades.end()) {
-    //        words.clear();
-    //        MAT::string_split(s, '>', words);
-    //        for (int i = 1; i < (int)words.size(); i++) {
-    //            //Erase the first space in string
-    //            words[i].erase(remove_if(words[i].begin(), words[i].end(), isspace), words[i].end());
-    //            std::vector<std::string> mutations;
-    //            MAT::string_split(words[i], ',', mutations);
-    //            for (auto mut: mutations) {
-    //                MAT::Mutation m;
-    //                m.ref_nuc = MAT::get_nuc_id(mut[0]);
-    //                mut.erase(mut.begin());
-    //                m.par_nuc = m.ref_nuc;
-    //                m.mut_nuc = MAT::get_nuc_id(mut[mut.size()-1]);
-    //                mut.erase(mut.begin() + mut.size() - 1);
-    //                m.position = std::stoi(mut);
-    //                selected_clades[curr_clade].emplace_back(m);
-    //            }
-    //        }
-    //    }
-    //}
-
-    ////Removing mutations common to all clades
-    //int j = 0;
-    //while (j < (int)selected_clades.begin()->second.size()) {
-    //    MAT::Mutation ref_m = selected_clades.begin()->second[0];
-    //    auto cl_itr = selected_clades.begin();
-    //    while (cl_itr != selected_clades.end()) {
-    //        if (!((ref_m.position == cl_itr->second[0].position) && (ref_m.mut_nuc == cl_itr->second[0].mut_nuc)))
-    //            break;
-    //        cl_itr++;
-    //    }
-    //    //If mutation common in all clades then remove mutation
-    //    if (cl_itr == selected_clades.end()) {
-    //        cl_itr = selected_clades.begin();
-    //        while (cl_itr != selected_clades.end()) {
-    //            cl_itr->second.erase(cl_itr->second.begin());
-    //            cl_itr++;
-    //        }
-    //    }
-    //    else 
-    //        break;
-    //}
-
-    ////Getting reads having lineage defining mutations
-    ////Loop over all the reads
-    //auto rm_itr = read_map.begin();
-    //while (rm_itr != read_map.end()) {
-    //    std::vector<std::string> clade_list;
-    //    int max_mut = 0;
-    //    //Loop over all clades
-    //    auto cl_itr = selected_clades.begin();
-    //    while (cl_itr != selected_clades.end()) {
-    //        int mut_found = 0;
-    //        //Loop over clade mutations
-    //        for (auto cl_m: cl_itr->second) {
-    //            //Loop over read mutations
-    //            for (auto rd_m: rm_itr->second->mutations) {
-    //                if ((rd_m.position == cl_m.position) && (rd_m.mut_nuc == cl_m.mut_nuc)) {
-    //                    mut_found += 1;
-    //                    break;
-    //                }
-    //            }
-    //        }
-    //        if (mut_found > max_mut) {
-    //            max_mut = mut_found;
-    //            clade_list.clear();
-    //            clade_list.emplace_back(cl_itr->first);
-    //        }
-    //        else if (mut_found == max_mut)
-    //            clade_list.emplace_back(cl_itr->first);
-    //        cl_itr++;
-    //    }
-    //    //Add weighted read score to all clades whose mutation matches with read 
-    //    if (clade_list.size() != selected_clades.size()) {
-    //        for (auto cl: clade_list)
-    //            clade_score[cl] += ((float)pow(2.0, max_mut) / pow(2.0, clade_list.size()));
-    //    }
-    //    clade_list.clear();
-    //    rm_itr++;
-    //}
-
-    //double sum = 0.0;
-    //auto cls_itr = clade_score.begin();
-    //while (cls_itr != clade_score.end()) {
-    //    //double score = log2(cls_itr->second) / selected_clades[cls_itr->first].size();
-    //    double score = (cls_itr->second) / selected_clades[cls_itr->first].size();
-    //    sum += score;
-    //    cls_itr++;
-    //}
-    //cls_itr = clade_score.begin();
-    //while (cls_itr != clade_score.end()) {
-    //    printf("\nCLADE: %s, score: %f, mutations: %ld, Abundance: %f", cls_itr->first.c_str(), (cls_itr->second) / selected_clades[cls_itr->first].size(), selected_clades[cls_itr->first].size(), ((cls_itr->second) / (selected_clades[cls_itr->first].size() * sum)));
-    //    cls_itr++;
-    //}
 
     auto sc_ptr = selected_clades.begin();
     while (sc_ptr != selected_clades.end()) {
