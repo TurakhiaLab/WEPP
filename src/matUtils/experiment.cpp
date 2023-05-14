@@ -1429,41 +1429,43 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
     
     //Compute node_score
     if (check_node == NULL) {
-        //VERIFY
-        //Check to ensure every read has its corresponding sample as its most parsimonious position
-        std::string target = rp->read;
-        size_t pos = target.find("_READ");
-        target.erase(pos);
-        bool found = false;
-        int idx, i;
-        for (i = 0; i < (int)min_par.idx_list.size(); i++) {
-            idx = min_par.idx_list[i];
-            if (dfs[idx]->identifier == target) {
-                found = true;
-                break;
-            }
-        }
-        if ((!found) || (min_par.par_list[0].size())) {
-            if (found) {
-                for (auto mut: min_par.par_list[i])
-                    fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-                fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
-                for (auto mut: rp->mutations)
-                    fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-            }
-            else {
-                fprintf(stderr, "Sample not Found !!! \n");
-                auto clade = get_clade(T, T.get_node(target));
-                fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
-                fprintf(stderr, "mut pos: ");
-                for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
-                    for (auto mut: anc->mutations)
-                        fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
+        //VERIFY only if searching for nodes with zero parsimony score
+        if (!par_score_lim) {
+            //Check to ensure every read has its corresponding sample as its most parsimonious position
+            std::string target = rp->read;
+            size_t pos = target.find("_READ");
+            target.erase(pos);
+            bool found = false;
+            int idx, i;
+            for (i = 0; i < (int)min_par.idx_list.size(); i++) {
+                idx = min_par.idx_list[i];
+                if (dfs[idx]->identifier == target) {
+                    found = true;
+                    break;
                 }
-                fprintf(stderr, "\n");
             }
-            fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
-            std::cout << "\n";
+            if ((!found) || (min_par.par_list[0].size())) {
+                if (found) {
+                    for (auto mut: min_par.par_list[i])
+                        fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+                    fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
+                    for (auto mut: rp->mutations)
+                        fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+                }
+                else {
+                    fprintf(stderr, "Sample not Found !!! \n");
+                    auto clade = get_clade(T, T.get_node(target));
+                    fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
+                    fprintf(stderr, "mut pos: ");
+                    for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
+                        for (auto mut: anc->mutations)
+                            fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
+                    }
+                    fprintf(stderr, "\n");
+                }
+                fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
+                std::cout << "\n";
+            }
         }
     
         //Keeping tab on weighted read score being mapped to each parsimonious node
@@ -1513,8 +1515,10 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
         min_par.par_list.clear();
         for (auto n_idx: min_par.idx_list) {
             auto node = dfs[n_idx];
-            if (node == check_node)
+            if (node == check_node) {
+                min_par.idx_list.clear();
                 return 1;
+            }
         }
         min_par.idx_list.clear();
         return 0;
