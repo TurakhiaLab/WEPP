@@ -51,7 +51,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = false;
+    bool old_vcf = true;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -1260,7 +1260,7 @@ void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::N
 }
 
 
-int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, const std::unordered_map<std::string, std::vector<MAT::Mutation>> &selected_clades, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const bool clade_select, const int par_score_lim) {
+int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, const std::unordered_map<std::string, double> &selected_clades, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const bool clade_select, const int par_score_lim) {
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
     //Checking all nodes of the tree
@@ -1489,8 +1489,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             for (auto n_idx: min_par.idx_list) {
                 auto node = dfs[n_idx];
                 auto curr_clade = get_clade(T, node);
-                auto itr = selected_clades.find(curr_clade);
-                if (itr != selected_clades.end()) {
+                if (selected_clades.find(curr_clade) != selected_clades.end()) {
                     par_score_next = 0;
                     //Give score to parsimonious node: Score -> 1/N^2
                     double score = (1.0 / pow(min_par.idx_list.size(), 2.0));
@@ -1526,9 +1525,9 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples) {
    //GREEDY ALGORITHM for getting Lineages
     timer.Start();
-    int top_n = 10, remaining_read_thresh = (int)read_map.size() * 0.001;
-    std::unordered_map<std::string, std::vector<MAT::Mutation>> selected_clades;
-    std::unordered_map<std::string, double> clade_score;
+    int top_n = 10, m_dist_thresh = 8, remaining_read_thresh = (int)read_map.size() * 0.01;
+    double score_thresh = 0.75;
+    std::unordered_map<std::string, double> selected_clades;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
     std::vector<int> remaining_reads;
     
@@ -1571,11 +1570,8 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             if (abs(top_n_node_score[0].second - top_n_itr->second) < 1e-9) {
                 //Store the clades corresponding to top scoring node
                 auto curr_clade = get_clade(T, top_n_itr->first);
-                if (selected_clades.find(curr_clade) == selected_clades.end()) {
-                    std::vector<MAT::Mutation> m;
-                    selected_clades.insert({curr_clade, m});
-                    clade_score.insert({curr_clade, 0.0});
-                }
+                if (selected_clades.find(curr_clade) == selected_clades.end())
+                    selected_clades.insert({curr_clade, 0.0});
                 //Remove mapped reads from remaining_reads
                 std::vector<int> remove_reads;
                 using my_mutex_t = tbb::queuing_mutex;
@@ -1625,11 +1621,10 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         sc_ptr++;
     }
 
-    fprintf(stderr, "PEAK Detection starts!!!\n\n");
-
+    fprintf(stderr,"Lineage search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
+    
     //Greedy Peak Detection
-    int m_dist_thresh = 8; 
-    double score_thresh = 0.75;
+    timer.Start();
     top_n = 100;
     std::vector<std::pair<MAT::Node*, double>> peak_node_score;
     //Initializing remaining_reads
@@ -1706,24 +1701,12 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     top_n_peak_cmp_itr++;
                     continue;
                 }
-                //Calculate branch distance if scores of both nodes are not equal
-                if (abs(top_n_itr->second - top_n_peak_cmp_itr->second) < 1e-9 ) {
+                //Don't consider peaks within mutation distance limit and less than peak threshold
+                int m_dist = mutation_distance(curr_node, cmp_node);
+                if ((m_dist > m_dist_thresh) && (top_n_peak_cmp_itr->second >= (score_thresh * top_score)))
                     peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
-                    if (top_n_itr->first != top_n_peak_cmp_itr->first) {
-                        int m_dist = mutation_distance(curr_node, cmp_node);
-                        if (m_dist > m_dist_thresh)
-                            peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
-                        else 
-                            peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
-                    }
-                }
-                else {
-                    int m_dist = mutation_distance(curr_node, cmp_node);
-                    if (m_dist > m_dist_thresh)
-                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
-                    else
-                        peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
-                }
+                else
+                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
                 top_n_peak_cmp_itr++;
             }
             //Only add unique leaf nodes in peak_node_score with score >= score_thresh * top_score
@@ -1801,7 +1784,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         printf("Node: %s, Closest_node: %s, Ref_clade: %s, closest_clade: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), ref_clade.c_str(), best_clade.c_str(), min_dist);
     }
 
-    fprintf(stderr,"Analysis algorithms took %ld min\n\n", (timer.Stop() / (60 * 1000)));
+    fprintf(stderr,"Peak Finding took %ld min\n\n", (timer.Stop() / (60 * 1000)));
 }
 
 
