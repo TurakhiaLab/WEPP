@@ -1527,14 +1527,14 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 
 
 void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples) {
-   //GREEDY ALGORITHM for getting Lineages
     timer.Start();
-    int top_n = 10, m_dist_thresh = 8, remaining_read_thresh = (int)read_map.size() * 0.01;
+    int top_n = 10, m_dist_thresh = 8, remaining_read_thresh = (int)read_map.size() * 0.005;
     double score_thresh = 0.75;
     std::unordered_map<std::string, double> selected_clades;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
     std::vector<int> remaining_reads;
     
+    //GREEDY ALGORITHM for getting Lineages
     //Initializing remaining_reads
     auto itr = read_map.begin();
     while (itr != read_map.end()) {
@@ -1666,7 +1666,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                             });
         node_score.clear();
 
-        //Get a leaf top node not seen before 
+        //Get a top node not seen before 
         std::vector<bool> peak_vec(top_n_node_score.size(), true);
         auto top_n_itr = top_n_node_score.begin();
         while (top_n_itr != top_n_node_score.end()) {
@@ -1677,8 +1677,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     break;
                 p_itr++;
             }
-            //Check if leaf
-            if ((top_n_itr->first->is_leaf()) && (p_itr == peak_node_score.end())) 
+            if (p_itr == peak_node_score.end())
                 break;
             // Skip for peak consideration if node not leaf or seen in pervious iteration
             peak_vec[top_n_itr - top_n_node_score.begin()] = false;
@@ -1690,8 +1689,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         while (top_n_itr != top_n_node_score.end()) {
             //Peak Finding
             auto curr_node = top_n_itr->first;
-            if (!(curr_node->is_leaf()))
-                peak_vec[top_n_itr - top_n_node_score.begin()] = false;
             if (!peak_vec[top_n_itr - top_n_node_score.begin()]) {
                 top_n_itr++;
                 continue;
@@ -1699,8 +1696,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             auto top_n_peak_cmp_itr = top_n_itr + 1;
             while (top_n_peak_cmp_itr != top_n_node_score.end()) {
                 auto cmp_node = top_n_peak_cmp_itr->first;
-                if (!(cmp_node->is_leaf()))
-                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
                 if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
                     top_n_peak_cmp_itr++;
                     continue;
@@ -1713,7 +1708,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
                 top_n_peak_cmp_itr++;
             }
-            //Only add unique leaf nodes in peak_node_score with score >= score_thresh * top_score
+            //Only add unique nodes in peak_node_score with score >= score_thresh * top_score
             auto p_itr = peak_node_score.begin();
             while (p_itr != peak_node_score.end()) {
                 if (p_itr->first == curr_node)
@@ -1755,7 +1750,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     }
                 }
                 remove_reads.clear();
-                fprintf(stderr,"Peak Node: %s\n", (*top_n_itr).first->identifier.c_str());
             }
             else if (top_n_itr->second < (score_thresh * top_score))
                 break;
@@ -1764,7 +1758,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         
         top_n_node_score.clear();
         top_n_node_score.resize(top_n);
-        fprintf(stderr, "\n");
     }
 
     for (auto n_s: peak_node_score) {
@@ -1772,6 +1765,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         printf("PEAK score = %f, Node: %s, Clade: %s\n", n_s.second, n_s.first->identifier.c_str(), clade.c_str());
     }
 
+    //Verify Recovery of Input Samples
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
         auto ref_clade = get_clade(T, T.get_node(sample));
