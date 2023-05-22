@@ -20,10 +20,23 @@ vcf_file = open(vcf_file, "r")
 vcf_lines = vcf_file.readlines()
 vcf_file.close()
 
+header_line = ""
 # Get list of sample names from VCF file header
-header_line = vcf_lines[3].strip()
+for line in vcf_lines:
+    if line.startswith("#CHROM"):
+        header_line = line
+        break
+
 headers = header_line.split("\t")
 sample_names = headers[9:]
+
+# Save all the sample named in a file
+with open("./intermediate_files/sample_names.txt","w") as f:
+    for j in range(len(sample_names) - 1):
+        f.write(sample_names[j] + ',')
+    
+    f.write(sample_names[len(sample_names) - 1])
+    f.close()
 
 # Create dictionary to store mutated sequences
 mutated_seqs = {}
@@ -40,6 +53,9 @@ for sample_index in range(len(sample_names)):
         pos = int(vcf_fields[1])
         ref_base = vcf_fields[3]
         alt_base = vcf_fields[4]
+        if "," in alt_base:
+            alt_base = alt_base.split(",")[0]
+
         gt = vcf_fields[9+sample_index]
 
         # Check if sample is mutated at current position
