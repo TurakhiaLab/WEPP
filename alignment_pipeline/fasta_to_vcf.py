@@ -16,6 +16,11 @@ with open(reference, "r") as ref_file:
 num_samples = 0
 aligned_reads = []
 
+sample_names = []
+with open("./intermediate_files/sample_names.txt","r") as f:
+    sample_names = f.readline().split(",")
+    f.close()
+
 with open(input_file, "r") as read_file:
     read_lines = read_file.readlines()
     # Count the number of samples by counting the number of lines that start with ">"
@@ -41,7 +46,8 @@ with open(output_file, "w") as vcf_file:
     vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t")
 
     for i in range(num_samples):
-        vcf_file.write("Sample" + str(i+1) + "\t")
+        vcf_file.write(sample_names[i] + "\t")
+
     vcf_file.write("\n")
 
     # Iterate through the reference sequence and aligned fasta in parallel
