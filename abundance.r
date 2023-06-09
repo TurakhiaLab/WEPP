@@ -7,7 +7,7 @@ start_time <- Sys.time()
 setwd("/home/AD.UCSD.EDU/pgangwar/usher")
 #file_name <- "my_vcf_mismatch_matrix.csv"
 file_name <- "test.csv"
-alpha <- 0.005
+alpha <- 0.0000001
 read_len <- 150
 
 ## READ the Input file
@@ -46,9 +46,9 @@ em <- function(prob, prob_read_from_haplotype) {
       #Iteration on Column
       for (j in 1:mat_dimensions[2])
         weighted_row_sum <- weighted_row_sum + ((prob_read_from_haplotype[,j,i]) * prob[j])
-      prob_new[k] <- prob_new[k] + (prob_read_from_haplotype[,k,i] /  weighted_row_sum)
+      prob_new[k] <- prob_new[k] + ((prob_read_from_haplotype[,k,i] * prob[k])/  weighted_row_sum)
     }
-    prob_new[k] <- ((prob_new[k] * prob[k]) / mat_dimensions[3])
+    prob_new[k] <- (prob_new[k] / mat_dimensions[3])
   }
   return(prob_new)
 }
@@ -60,7 +60,7 @@ prob0 <- runif(num_hap)
 prob0 <- prob0 / sum(prob0)
 prob_read_from_haplotype <- (alpha^mismatch_matrix) * ((1-alpha)^(read_len-mismatch_matrix))
 
-f1 <- squarem(par = prob0, fixptfn = em, objfn = loglik, control = list(tol = 1.e-08), prob_read_from_haplotype = prob_read_from_haplotype)
+f1 <- fpiter(par = prob0, fixptfn = em, objfn = loglik, control = list(tol = 1.e-08), prob_read_from_haplotype = prob_read_from_haplotype)
 #Normalize the results
 f1$par <- f1$par / sum(f1$par) 
 print(f1$par)
