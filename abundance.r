@@ -1,5 +1,7 @@
-library("SQUAREM")
-library(turboEM)
+suppressPackageStartupMessages({
+  library("SQUAREM")
+  library(turboEM)
+})
 
 ## Start measuring time
 start_time <- Sys.time()
@@ -7,8 +9,8 @@ start_time <- Sys.time()
 ## INITIALIZE the variables
 setwd("/home/AD.UCSD.EDU/pgangwar/usher")
 #file_name <- "my_vcf_mismatch_matrix.csv"
-file_name <- "test_new.csv"
-alpha <- 0.0000001
+file_name <- "test.csv"
+alpha <- 0.005
 read_len <- 150
 
 ## READ the Input file
@@ -49,8 +51,6 @@ prob0 <- prob0 / sum(prob0)
 # Calculate prob_read_from_haplotype outside the EM algorithm loop
 prob_read_from_haplotype <- (alpha^mismatch_matrix) * ((1-alpha)^(read_len-mismatch_matrix))
 
-
-#f1 <- fpiter(par = prob0, fixptfn = em, objfn = loglik, control = list(tol = 1.e-08), prob_read_from_haplotype = prob_read_from_haplotype)
 f1 <- turboem(
   par = prob0, fixptfn = em, objfn = loglik, method = "squarem", 
   prob_read_from_haplotype = prob_read_from_haplotype, parallel = F,
@@ -60,9 +60,12 @@ f1 <- turboem(
   )
 )
 
-##Normalize the results
-##f1$par <- f1$par / sum(f1$par) 
-pars(f1)
+#Normalize the results with absolute values
+f1$par <- abs(f1$par)
+f1$par <- f1$par / sum(f1$par)
+# Convert the result to a single column
+result <- matrix(f1$par, nrow = length(f1$par), ncol = 1)
+print(result)
 
 # Stop measuring time
 print(Sys.time() - start_time)
