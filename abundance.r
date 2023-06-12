@@ -60,8 +60,8 @@ f1 <- turboem(
   )
 )
 
-#Normalize the results with absolute values
-f1$par <- abs(f1$par)
+# Replace negative values with zero
+f1$par[f1$par < 0] <- pmax(f1$par[f1$par < 0], 0)
 f1$par <- f1$par / sum(f1$par)
 # Convert the result to a single column
 result <- matrix(f1$par, nrow = length(f1$par), ncol = 1)
