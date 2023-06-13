@@ -58,9 +58,13 @@ void read_vcf(uint32_t, const MAT::Tree &, const std::vector<MAT::Node*> &, std:
 
 int place_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<MAT::Node*> &, std::vector<int> &, const int);
 
-void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &);
+void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &, const std::string &, const std::string &);
 
 bool check_peaks_neighbourhood (const MAT::Node*, const std::vector<MAT::Node*> &, const int);
 int mutation_distance(const MAT::Node*, const MAT::Node*);
 void update_unique_mutations(const MAT::Node*, std::vector<std::pair<MAT::Mutation, bool>> &, std::vector<MAT::Mutation> &, std::vector<MAT::Mutation> &, bool);
 std::string get_clade(const MAT::Tree &, MAT::Node*);
+
+void generate_EM_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::vector<MAT::Node*> &, const std::string &);
+void generate_regression_abundance_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::string &, const std::string &);
+bool compare_mutations(const MAT::Mutation &, const MAT::Mutation &);

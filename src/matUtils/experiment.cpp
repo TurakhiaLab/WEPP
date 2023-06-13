@@ -98,6 +98,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::string vcf_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.vcf";
     std::string depth_filename_reads_freyja = dir_prefix + vm["write-vcf"].as<std::string>() + "_reads_freyja.depth";
     std::string mismatch_matrix_file = dir_prefix + vm["write-vcf"].as<std::string>() + "_mismatch_matrix.csv";
+    std::string barcode_file = dir_prefix + vm["write-vcf"].as<std::string>() + "_barcode.csv";
+    std::string read_abundance_vcf = dir_prefix + vm["write-vcf"].as<std::string>() + "_abundance.vcf";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -1157,7 +1159,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::vector<std::string> vcf_samples;
     read_sample_vcf(vcf_samples, vcf_filename_samples);
     read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
-    analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file);
+    analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
 }
 
 void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
@@ -1513,9 +1515,9 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 }
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &mismatch_matrix_file) {
+void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &mismatch_matrix_file, const std::string &barcode_file, const std::string &read_abundance_vcf) {
     timer.Start();
-    int top_n = 25, m_dist_thresh = 4, remaining_read_thresh = (int)read_map.size() * 0.0025;
+    int top_n = 25, m_dist_thresh = 2, remaining_read_thresh = (int)read_map.size() * 0.0025;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
     std::vector<MAT::Node*> peak_nodes_dummy, peak_nodes;
     std::vector<int> remaining_reads, mismatch_vector_dummy;
@@ -1667,134 +1669,10 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         }
         printf("Node: %s, Closest_node: %s, Ref_clade: %s, closest_clade: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), ref_clade.c_str(), best_clade.c_str(), min_dist);
     }
-    fprintf(stderr,"Mutation Distance Verification took %ld sec\n\n", (timer.Stop() / 1000));
+    fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
 
-//////////////////////////////////
-    ////TEST
-    //std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> peak_mut_map;
-    ////Create a map of peak node mutations 
-    //for (auto pk: peak_nodes) {
-    //    std::vector<MAT::Mutation> mut_list;
-    //    for (auto anc: T.rsearch(pk->identifier, true)) {
-    //        for (auto c_mut: anc->mutations) {
-    //            auto m_itr = mut_list.begin();
-    //            while (m_itr != mut_list.end()) {
-    //                if (m_itr->position == c_mut.position)
-    //                    break;
-    //                m_itr++;
-    //            }
-    //            if (m_itr == mut_list.end())
-    //                mut_list.emplace_back(c_mut);
-    //        }
-    //    }
-    //    //Remove mutations where ref_nuc is same as mut_nuc -> Back Mutation
-    //    auto m_itr = mut_list.begin();
-    //    while (m_itr != mut_list.end()) {
-    //        if (m_itr->mut_nuc == m_itr->ref_nuc)
-    //            m_itr = mut_list.erase(m_itr);
-    //        else
-    //            m_itr++;
-    //    }
-    //    peak_mut_map.insert({pk, mut_list});
-    //    mut_list.clear();
-    //}
-
-    ////Remove the mutations that are common to other peak nodes
-    //auto peak_mut_itr = peak_mut_map.begin();
-    //while (peak_mut_itr != peak_mut_map.end()) {
-    //    std::vector<int> common_mut_list;
-    //    auto next_peak_itr = std::next(peak_mut_itr, 1);
-    //    //Iterating through rest of peak nodes
-    //    while (next_peak_itr != peak_mut_map.end()) {
-    //        //Iterating though mutations of curr peak;
-    //        auto ref_mut_itr = peak_mut_itr->second.begin();
-    //        while (ref_mut_itr != peak_mut_itr->second.end()) {
-    //            //Iterating though mutations of rest of peaks;
-    //            auto cmp_mut_itr = next_peak_itr->second.begin();
-    //            while (cmp_mut_itr != next_peak_itr->second.end()) {
-    //                if ((ref_mut_itr->position == cmp_mut_itr->position) && (ref_mut_itr->mut_nuc == cmp_mut_itr->mut_nuc)) {
-    //                    auto common_mut_ptr = std::find(common_mut_list.begin(), common_mut_list.end(), ref_mut_itr->position);
-    //                    if (common_mut_ptr == common_mut_list.end())
-    //                        common_mut_list.emplace_back(ref_mut_itr->position);
-    //                    next_peak_itr->second.erase(cmp_mut_itr);
-    //                    break;
-    //                }
-    //                else 
-    //                    cmp_mut_itr++;
-    //            }
-    //            ref_mut_itr++;
-    //        }
-    //        next_peak_itr++;
-    //    }
-    //    //Remove the common muts from curr peak node
-    //    for (auto mut_pos: common_mut_list) {
-    //        auto ref_mut_itr = peak_mut_itr->second.begin();
-    //        while (ref_mut_itr != peak_mut_itr->second.end()) {
-    //            if (ref_mut_itr->position == mut_pos)
-    //                ref_mut_itr = peak_mut_itr->second.erase(ref_mut_itr);
-    //            else
-    //                ref_mut_itr++;
-    //        }
-    //    }
-    //    peak_mut_itr++;
-    //}
-
-    //////Print unique mutations
-    //peak_mut_itr = peak_mut_map.begin();
-    //while (peak_mut_itr != peak_mut_map.end()) {
-    //    printf("HAP: %s, Mutations: %d, MUT: ", peak_mut_itr->first->identifier.c_str(), (int)peak_mut_itr->second.size());
-    //    auto ref_mut_itr = peak_mut_itr->second.begin();
-    //    while (ref_mut_itr != peak_mut_itr->second.end()) {
-    //        printf("%c%d%c,", MAT::get_nuc(ref_mut_itr->par_nuc), ref_mut_itr->position, MAT::get_nuc(ref_mut_itr->mut_nuc));
-    //        ref_mut_itr++;
-    //    }
-    //    printf("\n");
-    //    peak_mut_itr++;
-    //}
-////////////////////////////
-
-    //Write MISMATCH File for Abundance Estimation
-    timer.Start();
-    std::unordered_map<int, std::vector<int>> mismatch_matrix;
-    std::ofstream outfile_mismatch_matrix(mismatch_matrix_file, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_mismatch_matrix;
-    if (mismatch_matrix_file.find(".gz\0") != std::string::npos) {
-            outbuf_mismatch_matrix.push(boost::iostreams::gzip_compressor());
-    }
-    outbuf_mismatch_matrix.push(outfile_mismatch_matrix);
-    std::ostream mismatch_file(&outbuf_mismatch_matrix);
-
-    //Parallel_for loop for each remaining read
-    using my_mutex_t = tbb::queuing_mutex;
-    my_mutex_t my_mutex;
-    static tbb::affinity_partitioner ap;
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
-        [&](tbb::blocked_range<size_t> k) {
-            for (size_t i = k.begin(); i < k.end(); ++i) {
-                std::vector<int> mismatch_vector(peak_nodes.size(), -1);
-                auto read_id = read_map.find(i)->second;
-                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes, mismatch_vector, 0);
-                node_score.clear();
-                my_mutex_t::scoped_lock my_lock{my_mutex};
-                mismatch_matrix.insert({i, mismatch_vector});
-            }
-        },
-    ap);
-    
-    auto m_itr = mismatch_matrix.begin();
-    while (m_itr != mismatch_matrix.end()) {
-        auto m_element = m_itr->second;
-        for (int i = 0; i < (int)m_element.size(); i++) {
-            if (i)
-                mismatch_file << ",";
-            mismatch_file << m_element[i];
-        }
-        mismatch_file << "\n";
-        m_itr++;
-    }
-    boost::iostreams::close(outbuf_mismatch_matrix);
-    outfile_mismatch_matrix.close();
-    fprintf(stderr,"Mismatch matrix file writing took %ld min\n\n", (timer.Stop() / (60*1000)));
+    generate_regression_abundance_data(T, peak_nodes, read_map, barcode_file, read_abundance_vcf);
+    //generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
 }
 
 
@@ -1894,4 +1772,246 @@ std::string get_clade(const MAT::Tree &T, MAT::Node* n) {
             return clade;
     }
     return "";
+}
+
+//Generate EM based estimate algorithm data
+void generate_EM_data(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<MAT::Node*> &peak_nodes, const std::string &mismatch_matrix_file) {
+    //Write MISMATCH File for Abundance Estimation using EM algorithm
+    timer.Start();
+    std::unordered_map<int, std::vector<int>> mismatch_matrix;
+    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
+    std::ofstream outfile_mismatch_matrix(mismatch_matrix_file, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_mismatch_matrix;
+    if (mismatch_matrix_file.find(".gz\0") != std::string::npos) {
+            outbuf_mismatch_matrix.push(boost::iostreams::gzip_compressor());
+    }
+    outbuf_mismatch_matrix.push(outfile_mismatch_matrix);
+    std::ostream mismatch_file(&outbuf_mismatch_matrix);
+
+    //Parallel_for loop for each remaining read
+    using my_mutex_t = tbb::queuing_mutex;
+    my_mutex_t my_mutex;
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                std::vector<int> mismatch_vector(peak_nodes.size(), -1);
+                auto read_id = read_map.find(i)->second;
+                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes, mismatch_vector, 0);
+                node_score.clear();
+                my_mutex_t::scoped_lock my_lock{my_mutex};
+                mismatch_matrix.insert({i, mismatch_vector});
+            }
+        },
+    ap);
+    
+    auto m_itr = mismatch_matrix.begin();
+    while (m_itr != mismatch_matrix.end()) {
+        auto m_element = m_itr->second;
+        for (int i = 0; i < (int)m_element.size(); i++) {
+            if (i)
+                mismatch_file << ",";
+            mismatch_file << m_element[i];
+        }
+        mismatch_file << "\n";
+        m_itr++;
+    }
+    boost::iostreams::close(outbuf_mismatch_matrix);
+    outfile_mismatch_matrix.close();
+    fprintf(stderr,"Mismatch matrix file writing took %ld min\n\n", (timer.Stop() / (60*1000)));
+}
+
+//Generate regression based estimate algorithm data
+void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MAT::Node*> &peak_nodes, const std::unordered_map<int, struct read_info*> &read_map, const std::string &barcode_file, const std::string &read_abundance_vcf) {
+    timer.Start();
+
+    //Get Mutations of Peaks for lineage estimation
+    std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> peak_mut_map;
+    //Create a map of peak node mutations 
+    for (auto pk: peak_nodes) {
+        std::vector<MAT::Mutation> mut_list;
+        for (auto anc: T.rsearch(pk->identifier, true)) {
+            for (auto c_mut: anc->mutations) {
+                //Only consider the mutation closest to root at a site
+                auto m_itr = mut_list.begin();
+                while (m_itr != mut_list.end()) {
+                    if (m_itr->position == c_mut.position)
+                        break;
+                    m_itr++;
+                }
+                if (m_itr == mut_list.end())
+                    mut_list.emplace_back(c_mut);
+            }
+        }
+        //Remove mutations where ref_nuc is same as mut_nuc -> Back Mutation
+        auto m_itr = mut_list.begin();
+        while (m_itr != mut_list.end()) {
+            if (m_itr->mut_nuc == m_itr->ref_nuc)
+                m_itr = mut_list.erase(m_itr);
+            else
+                m_itr++;
+        }
+        peak_mut_map.insert({pk, mut_list});
+        mut_list.clear();
+    }
+
+    //Remove the mutations that are common to all peak nodes
+    auto ref_pk_itr = peak_mut_map.begin();
+    //Iterating though mutations of ref_peak;
+    auto ref_mut_itr = ref_pk_itr->second.begin();
+    while (ref_mut_itr != ref_pk_itr->second.end()) {
+        int common_mut_count = 1;
+        //Iterating through rest of peak nodes
+        auto peak_itr = std::next(ref_pk_itr,1);
+        while (peak_itr != peak_mut_map.end()) {
+            //Iterating though mutations of rest of peaks;
+            auto cmp_mut_itr = peak_itr->second.begin();
+            while (cmp_mut_itr != peak_itr->second.end()) {
+                if ((cmp_mut_itr->position == ref_mut_itr->position) && (cmp_mut_itr->mut_nuc == ref_mut_itr->mut_nuc)) {
+                    common_mut_count++;
+                    break;
+                }
+                cmp_mut_itr++;
+            }
+            peak_itr++;
+        }
+        //Remove common mutation across all peaks
+        if (common_mut_count == (int)peak_mut_map.size()) {
+            //Iterating through rest of peak nodes
+            peak_itr = std::next(ref_pk_itr,1);
+            while (peak_itr != peak_mut_map.end()) {
+                //Iterating though mutations of rest of peaks;
+                auto cmp_mut_itr = peak_itr->second.begin();
+                while (cmp_mut_itr != peak_itr->second.end()) {
+                    if ((cmp_mut_itr->position == ref_mut_itr->position) && (cmp_mut_itr->mut_nuc == ref_mut_itr->mut_nuc)) {
+                        peak_itr->second.erase(cmp_mut_itr);
+                        break;
+                    }
+                    cmp_mut_itr++;    
+                }
+                peak_itr++;
+            }
+            //Erase mutation in ref peak as well
+            ref_mut_itr = ref_pk_itr->second.erase(ref_mut_itr);
+        }
+        else 
+            ref_mut_itr++;
+    }
+
+    //Initialize the buffers for writing files
+    std::ofstream outfile_barcode(barcode_file, std::ios::out | std::ios::binary);
+    std::ofstream outfile_vcf(read_abundance_vcf, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_barcode, outbuf_vcf;
+    if (barcode_file.find(".gz\0") != std::string::npos) {
+            outbuf_barcode.push(boost::iostreams::gzip_compressor());
+    }
+    if (read_abundance_vcf.find(".gz\0") != std::string::npos) {
+            outbuf_vcf.push(boost::iostreams::gzip_compressor());
+    }
+    outbuf_barcode.push(outfile_barcode);
+    outbuf_vcf.push(outfile_vcf);
+    std::ostream barcode(&outbuf_barcode);
+    std::ostream vcf(&outbuf_vcf);
+
+    //Storing unique mutations in a vector
+    std::vector<MAT::Mutation> peak_mut_list;
+    auto peak_mut_itr = peak_mut_map.begin();
+    while (peak_mut_itr != peak_mut_map.end()) {
+        //Iterating through mutations of current peak
+        auto mut_itr = peak_mut_itr->second.begin();
+        while (mut_itr != peak_mut_itr->second.end()) {
+            //Only add unique mutations to the list
+            auto pm_itr = peak_mut_list.begin();
+            while (pm_itr != peak_mut_list.end()) {
+                if ((pm_itr->position == mut_itr->position) && (pm_itr->mut_nuc == mut_itr->mut_nuc))
+                    break;
+                pm_itr++;                
+            }
+            if (pm_itr == peak_mut_list.end())
+                peak_mut_list.emplace_back(*mut_itr);
+            mut_itr++;
+        }
+        peak_mut_itr++;
+    }
+
+    std::sort(peak_mut_list.begin(), peak_mut_list.end(), compare_mutations);
+    //Writing the header mutations
+    std::string barcode_print, vcf_print;
+    for (auto mut: peak_mut_list) {
+        barcode_print += ",";
+        barcode_print += MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
+        //Calculate AF
+        int total_reads = 0;
+        int match_reads = 0;
+        auto rm_itr = read_map.begin();
+        while (rm_itr != read_map.end()) {
+            if ((mut.position >= rm_itr->second->start) && (mut.position <= rm_itr->second->end)) {
+                total_reads++;
+                for (auto read_mut: rm_itr->second->mutations) {
+                    if ((read_mut.position == mut.position) && (read_mut.mut_nuc == mut.mut_nuc)) {
+                        match_reads++;
+                        break;
+                    }
+                }
+            }
+            rm_itr++;
+        }
+        float af = (float)match_reads / (float)total_reads;
+        vcf_print += "NC_045512v2\t" + std::to_string(mut.position) + "\t" + MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc) + "\t" + MAT::get_nuc(mut.par_nuc) + "\t" + MAT::get_nuc(mut.mut_nuc) + "\t.\t.\tAF=";
+        vcf_print += std::to_string(af) + "\n";
+    } 
+    barcode << barcode_print;
+    vcf << vcf_print;
+    barcode_print.clear();
+    vcf_print.clear();
+
+    //Writing peak mutations
+    peak_mut_itr = peak_mut_map.begin();
+    while (peak_mut_itr != peak_mut_map.end()) {
+        barcode_print += "\n";
+        barcode_print += peak_mut_itr->first->identifier.c_str();
+        std::vector<int> mut_idx_list;
+        //Iterating through mutations of this peak
+        auto mut_itr = peak_mut_itr->second.begin();
+        while (mut_itr != peak_mut_itr->second.end()) {
+            //Search for mutation in the list
+            auto pm_itr = peak_mut_list.begin();
+            while (pm_itr != peak_mut_list.end()) {
+                if ((pm_itr->position == mut_itr->position) && (pm_itr->mut_nuc == mut_itr->mut_nuc))
+                    break;
+                pm_itr++;                
+            }
+            mut_idx_list.emplace_back((int)(pm_itr - peak_mut_list.begin()));
+            mut_itr++;
+        }
+        //Sort the mutation indexes
+        std::sort(mut_idx_list.begin(), mut_idx_list.end());
+        int idx = 0;
+        for (auto m_idx: mut_idx_list) {
+            while (idx < m_idx) {
+                barcode_print += ",0.0";
+                idx++;
+            }
+            if (idx == m_idx) {
+                barcode_print += ",1.0";
+                idx++;
+            }
+        }
+        while (idx < (int)peak_mut_list.size()) {
+            barcode_print += ",0.0";
+            idx++;
+        }
+        mut_idx_list.clear();
+        barcode << barcode_print;
+        barcode_print.clear();
+        peak_mut_itr++;
+    }
+        
+    fprintf(stderr,"Barcode file writing took %ld sec\n\n", (timer.Stop() / 1000));
+}
+
+
+//Comparing mutations for sorting a vector 
+bool compare_mutations(const MAT::Mutation &a, const MAT::Mutation &b) {
+    return a.position < b.position;
 }
