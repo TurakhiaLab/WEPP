@@ -1672,7 +1672,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
 
     generate_regression_abundance_data(T, peak_nodes, read_map, barcode_file, read_abundance_vcf);
-    //generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
+    generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
 }
 
 
@@ -1913,8 +1913,23 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
     std::ostream barcode(&outbuf_barcode);
     std::ostream vcf(&outbuf_vcf);
 
-    //Storing unique mutations in a vector
+    //Add unique mutations captured from read_vcf first
     std::vector<MAT::Mutation> peak_mut_list;
+    auto rm_itr = read_map.begin();
+    while (rm_itr != read_map.end()) {
+        for (auto read_mut: rm_itr->second->mutations) {
+            auto pm_itr = peak_mut_list.begin();
+            while (pm_itr != peak_mut_list.end()) {
+                if ((pm_itr->position == read_mut.position) && (pm_itr->mut_nuc == read_mut.mut_nuc))
+                    break;
+                pm_itr++;
+            }
+            if (pm_itr == peak_mut_list.end())
+                peak_mut_list.emplace_back(read_mut);
+        }
+        rm_itr++;
+    }
+    //Storing unique mutations from the peak nodes
     auto peak_mut_itr = peak_mut_map.begin();
     while (peak_mut_itr != peak_mut_map.end()) {
         //Iterating through mutations of current peak
@@ -1956,7 +1971,9 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
             }
             rm_itr++;
         }
-        float af = (float)match_reads / (float)total_reads;
+        float af = 0.0;
+        if (total_reads > 0)
+            af = (float)match_reads / (float)total_reads;
         vcf_print += "NC_045512v2\t" + std::to_string(mut.position) + "\t" + MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc) + "\t" + MAT::get_nuc(mut.par_nuc) + "\t" + MAT::get_nuc(mut.mut_nuc) + "\t.\t.\tAF=";
         vcf_print += std::to_string(af) + "\n";
     } 
