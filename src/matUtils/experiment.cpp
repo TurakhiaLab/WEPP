@@ -1952,6 +1952,7 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
     std::sort(peak_mut_list.begin(), peak_mut_list.end(), compare_mutations);
     //Writing the header mutations
     std::string barcode_print, vcf_print;
+    vcf_print += "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
     for (auto mut: peak_mut_list) {
         barcode_print += ",";
         barcode_print += MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
