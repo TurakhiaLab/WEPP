@@ -2007,16 +2007,16 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
         int idx = 0;
         for (auto m_idx: mut_idx_list) {
             while (idx < m_idx) {
-                barcode_print += ",0.0";
+                barcode_print += ",0";
                 idx++;
             }
             if (idx == m_idx) {
-                barcode_print += ",1.0";
+                barcode_print += ",1";
                 idx++;
             }
         }
         while (idx < (int)peak_mut_list.size()) {
-            barcode_print += ",0.0";
+            barcode_print += ",0";
             idx++;
         }
         mut_idx_list.clear();
