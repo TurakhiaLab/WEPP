@@ -46,16 +46,6 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> aligned_reads;
     std::vector<std::string> sample_names;
 
-    std::ifstream sample_names_file("./intermediate_files/sample_names.txt");
-    if (!sample_names_file.is_open()) {
-        std::cout << "Error opening sample names file" << std::endl;
-        return 1;
-    }
-
-    std::getline(sample_names_file, line);
-    sample_names = split(line, ',');
-    sample_names_file.close();
-
     std::ifstream read_file(input_file);
     std::vector<std::string> read_lines;
 
@@ -68,16 +58,19 @@ int main(int argc, char* argv[]) {
         read_lines.push_back(line);
         if (line[0] == '>') {
             num_samples++;
+            sample_names.push_back(line.substr(1));
         } else {
             aligned_reads.push_back(line);
         }
     }
+    
     read_file.close();
 
     std::string ref_seq;
     std::string chromosome_name;
 
-    for (const auto& line : ref_lines) {
+    for (std::vector<std::string>::const_iterator it = ref_lines.begin(); it != ref_lines.end(); ++it) {
+        const std::string& line = *it;
         if (line[0] == '>') {
             chromosome_name = line.substr(1);
         } else {
@@ -113,11 +106,13 @@ int main(int argc, char* argv[]) {
 
         if (mismatch) {
             std::set<char> mutations;
-            for (const auto& index : mismatch_indices) {
+            for (std::vector<int>::const_iterator it = mismatch_indices.begin(); it != mismatch_indices.end(); ++it) {
+                int index = *it;
                 mutations.insert(aligned_reads[index][i]);
             }
 
-            for (const auto& mutation : mutations) {
+            for (std::set<char>::const_iterator it = mutations.begin(); it != mutations.end(); ++it) {
+                char mutation = *it;
                 vcf_file << chromosome_name << "\t";
                 vcf_file << i + 1 << "\t";
                 char ref = ref_seq[i];
