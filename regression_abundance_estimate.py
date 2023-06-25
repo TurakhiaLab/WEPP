@@ -1,6 +1,7 @@
 import csv
 import numpy as np
 import cvxpy as cp
+import copy
 
 def read_csv_file(file_path):
     with open(file_path, 'r') as file:
@@ -28,8 +29,47 @@ def read_vcf_file(file_path):
     return af_values
 
 
-def solve_abundance(peak_mut_matrix, peak_nodes, read_values, eps):
-    # set up and solve demixing problem
+def write_vcf_file(file_path, mut_peak, peak_nodes, mutations):
+    with open(file_path, 'w') as file:
+        file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
+        file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{}\n".format("\t".join(peak_nodes)))
+        for i, mutation in enumerate(mutations):
+            file.write("NC_045512v2\t{}\t{}\t{}\t{}\t.\t.\t.\t.\t".format(mutation[1:-1], mutation, mutation[0], mutation[-1]))
+            file.write("\t".join(str(int(present)) for present in mut_peak[i]))
+            file.write("\n")
+
+
+def add_mutations_to_haplotypes(A, sol, b): 
+    ref_cost = np.linalg.norm(A.astype('float64') @ sol - b, 1)
+    A_copy = np.copy(A)
+    residual = abs(A_copy.astype('float64') @ sol - b)
+    sorted_sites = np.argsort(residual)[::-1] 
+    peak_indices = []
+    for site in sorted_sites:
+        peak_idx = -1
+        for i in range(len(A_copy[site])):
+            #Only add mutation to haplotype where it is absent
+            if not int(A_copy[site, i]):
+                A_copy[site, i] = 1
+                curr_cost = np.linalg.norm(A_copy.astype('float64') @ sol - b, 1)
+                if (abs(curr_cost - ref_cost) > 1e-9) and (curr_cost < ref_cost):
+                    ref_cost = copy.deepcopy(curr_cost)
+                    peak_idx = i
+                #Bring the original mutation back
+                A_copy[site, i] = 0
+        if peak_idx >= 0:
+            #Change the mutation in haplotype bringing the biggest change
+            A_copy[site, peak_idx] = 1
+            #Add unique peak indexes in the list
+            if peak_idx not in peak_indices:
+                peak_indices.append(peak_idx)
+    
+    return A_copy, peak_indices
+
+
+def solve_abundance(peak_mut_matrix, read_values, peak_nodes, mutations):
+    #Setting the variables for the regression problem
+    eps = 1e-3
     A = np.array(np.array(peak_mut_matrix).T)
     b = np.array(read_values)
     x = cp.Variable(A.shape[1])
@@ -38,21 +78,45 @@ def solve_abundance(peak_mut_matrix, peak_nodes, read_values, eps):
     prob = cp.Problem(cp.Minimize(cost), constraints)
     prob.solve(verbose=False)
     sol = x.value
-    # extract lineages with non-negligible abundance
+    #Make the proportion to be 0 for anything < eps
     sol[sol < eps] = 0
+    #Removing peaks that are < 0 in abundance
+    peak_idx_remove = np.where(sol == 0)[0]
+    A_new = np.delete(A, peak_idx_remove, axis = 1)
+    peak_nodes_new = [val for i, val in enumerate(peak_nodes) if i not in peak_idx_remove]
+
+    #Adding peaks that were modified to reduce cost
+    A_hap_modified, peak_idx_add = add_mutations_to_haplotypes(A, sol, b)
+    A_new = np.concatenate((A_new, A_hap_modified[:, peak_idx_add]), axis = 1)
+    peak_nodes_new += ["NEW_" + peak_nodes[idx] for idx in peak_idx_add]
+    peak_nodes_new = [peak + "_READ_0_29902" for peak in peak_nodes_new]
+
+    #Remove rows with all zeros
+    A_new = A_new.astype(int)
+    zero_rows = np.all(A_new == 0, axis=1)
+    mut_idx_remove = np.where(zero_rows)[0]
+    A_new = np.delete(A_new, mut_idx_remove, axis=0)
+    mutations_new = [val for i, val in enumerate(mutations) if i not in mut_idx_remove]
+
+    #Write VCF
+    vcf_file = "my_vcf_haplotypes.vcf"
+    write_vcf_file(vcf_file, A_new, peak_nodes_new, mutations_new)
+
+    #if np.array_equal(A, A_hap_modified):
+    #    print("No New Haplotype found!!!")
     return sol
+
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
 mutations, peak_nodes, peak_mut_matrix = read_csv_file(barcode_file_path)
 mutations = mutations[1:]
 
-vcf_file = 'Freyja_test.vcf'
+vcf_file = 'my_vcf_abundance.vcf'
 af_values = read_vcf_file(vcf_file)
 
-
 #Solving abundance
-abundances = solve_abundance(peak_mut_matrix, peak_nodes, af_values, 1e-3)
+abundances = solve_abundance(peak_mut_matrix, af_values, peak_nodes, mutations)
 
-for i in range(len(peak_nodes)):
-    print(peak_nodes[i], abundances[i])
+#for i in range(len(peak_nodes)):
+#    print(peak_nodes[i], abundances[i])
