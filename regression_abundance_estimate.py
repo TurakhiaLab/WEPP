@@ -33,10 +33,26 @@ def write_vcf_file(file_path, mut_peak, peak_nodes, mutations):
     with open(file_path, 'w') as file:
         file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
         file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{}\n".format("\t".join(peak_nodes)))
-        for i, mutation in enumerate(mutations):
-            file.write("NC_045512v2\t{}\t{}\t{}\t{}\t.\t.\t.\t.\t".format(mutation[1:-1], mutation, mutation[0], mutation[-1]))
-            file.write("\t".join(str(int(present)) for present in mut_peak[i]))
+        i = 0
+        while i < len(mutations):
+            same_pos_list = []
+            peak_presence = copy.deepcopy(mut_peak[i]) 
+            mut_string = mutations[i][-1]
+            vcf_string = "NC_045512v2\t" + mutations[i][1:-1] + "\t" + mutations[i]
+            for j in range(len(mutations[i+1:])):
+                if mutations[i+1+j][1:-1] == mutations[i][1:-1]:
+                    same_pos_list.append(i+1+j)
+            for idx in same_pos_list:
+                vcf_string += "," + mutations[idx]
+                mut_string += "," + mutations[idx][-1]
+                for k in range(len(mut_peak[i])):
+                    if mut_peak[idx][k] == 1:
+                        peak_presence[k] = idx - i + 1
+            vcf_string += "\t" + mutations[i][0] + "\t" + mut_string + "\t.\t.\t.\t.\t"
+            file.write(vcf_string)
+            file.write("\t".join(str(int(present)) for present in peak_presence))
             file.write("\n")
+            i += 1 + len(same_pos_list)
 
 
 def add_mutations_to_haplotypes(A, sol, b): 
