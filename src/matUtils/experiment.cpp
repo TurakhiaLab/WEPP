@@ -1160,6 +1160,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     read_sample_vcf(vcf_samples, vcf_filename_samples);
     read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
     analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
+    read_vcf(num_threads, T, dfs, read_map, "my_vcf_haplotypes.vcf");
 }
 
 void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
@@ -1551,21 +1552,29 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                             {
                                 return l.second > r.second;
                             });
-        node_score.clear();
 
         //Find top node not seen before
         std::vector<bool> peak_vec(top_n_node_score.size(), true);
+        bool break_loop = false;
         auto top_n_itr = top_n_node_score.begin();
         //Find top_node that is NOT present in neighborhood of peak_nodes
         while (top_n_itr != top_n_node_score.end()) {
-            bool present = check_peaks_neighbourhood(top_n_itr->first, peak_nodes, m_dist_thresh);
+            bool present = check_peaks_neighbourhood(T, top_n_itr->first, peak_nodes, m_dist_thresh);
             if (!present)
                 break;
             peak_vec[top_n_itr - top_n_node_score.begin()] = false;
             top_n_itr++;
+            if ((top_n_itr - top_n_node_score.begin()) == (int)node_score.size()) {
+                break_loop = true;
+                break;
+            }
         }
+        node_score.clear();
+        //Stop the iterative loop if no unique peak if found
+        if (break_loop)
+            break;
+
         auto top_score = top_n_itr->second;
-        
         //Find the reads not mapped to the best nodes
         while (top_n_itr != top_n_node_score.end()) {
             //Peak Finding
@@ -1573,7 +1582,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
             //Only add unique nodes in peak_nodes with score == top_score
             if (abs(top_score - top_n_itr->second) < 1e-9) {
                 //Check if curr_node does not lie in neighborhood of any node seen in current iterarion or previous
-                bool present = check_peaks_neighbourhood(curr_node, peak_nodes, m_dist_thresh);
+                bool present = check_peaks_neighbourhood(T, curr_node, peak_nodes, m_dist_thresh);
                 if ((peak_vec[top_n_itr - top_n_node_score.begin()]) && (!present)) {
                     peak_nodes.emplace_back(curr_node);
                     //Remove mapped reads from remaining_reads
@@ -1634,7 +1643,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     continue;
                 }
                 //Don't consider peaks within mutation distance limit 
-                int m_dist = mutation_distance(curr_node, cmp_node);
+                int m_dist = mutation_distance(T, curr_node, cmp_node);
                 if (m_dist > m_dist_thresh)
                     peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
                 else
@@ -1660,7 +1669,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         auto best_clade = ref_clade;
         auto best_node = T.get_node(sample);
         for (auto n_s: peak_nodes) {
-            int curr_dist = mutation_distance(n_s, T.get_node(sample));
+            int curr_dist = mutation_distance(T, n_s, T.get_node(sample));
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
                 best_clade = get_clade(T, n_s);
@@ -1677,10 +1686,10 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
 
 
 //Function to check if current node is in neighbourhood of peak nodes
-bool check_peaks_neighbourhood (const MAT::Node* N, const std::vector<MAT::Node*> &peak_nodes, const int m_dist_thresh) {
+bool check_peaks_neighbourhood (const MAT::Tree &T, const MAT::Node* N, const std::vector<MAT::Node*> &peak_nodes, const int m_dist_thresh) {
     for (auto pn: peak_nodes) {
         //Return false if the Node lies within mutation distance limit 
-        int m_dist = mutation_distance(pn, N);
+        int m_dist = mutation_distance(T, pn, N);
         if (m_dist <= m_dist_thresh)
             return true;
     }
@@ -1688,79 +1697,59 @@ bool check_peaks_neighbourhood (const MAT::Node* N, const std::vector<MAT::Node*
 }
 
 //Function to calculation distance between two nodes
-int mutation_distance(const MAT::Node* N1, const MAT::Node* N2) {
-    if (N1 == N2)
-        return 0;
-    std::vector<std::pair<MAT::Mutation, bool>> mutation_list;
-    std::vector<MAT::Mutation> removed_muts, dont_remove_muts;
-    while (N1->level > N2->level) {
-        update_unique_mutations(N1, mutation_list, removed_muts, dont_remove_muts, 0);
-        N1 = N1->parent;
-    } 
-    while (N1->level < N2->level) {
-        update_unique_mutations(N2, mutation_list, removed_muts, dont_remove_muts, 1);
-        N2 = N2->parent;
+int mutation_distance(const MAT::Tree &T, const MAT::Node* N1, const MAT::Node* N2) {
+    std::vector<MAT::Mutation> node1_mutations, node2_mutations;
+    for (auto anc: T.rsearch(N1->identifier, true)) { //Checking all ancestors of a node
+        for (auto mut: anc->mutations) {
+            auto n1_itr = node1_mutations.begin();
+            while (n1_itr != node1_mutations.end()) {
+                if (n1_itr->position == mut.position)
+                    break;
+                n1_itr++;
+            }
+            if (n1_itr == node1_mutations.end())
+                node1_mutations.emplace_back(mut);
+        }
     }
-    while (N1->parent != N2->parent) {
-        update_unique_mutations(N1, mutation_list, removed_muts, dont_remove_muts, 0);
-        update_unique_mutations(N2, mutation_list, removed_muts, dont_remove_muts, 1);
-        N1 = N1->parent;
-        N2 = N2->parent;
+    for (auto anc: T.rsearch(N2->identifier, true)) { //Checking all ancestors of a node
+        for (auto mut: anc->mutations) {
+            auto n2_itr = node2_mutations.begin();
+            while (n2_itr != node2_mutations.end()) {
+                if (n2_itr->position == mut.position)
+                    break;
+                n2_itr++;
+            }
+            if (n2_itr == node2_mutations.end())
+                node2_mutations.emplace_back(mut);
+        }
     }
-    update_unique_mutations(N1, mutation_list, removed_muts, dont_remove_muts, 0);
-    update_unique_mutations(N2, mutation_list, removed_muts, dont_remove_muts, 1);
-    return (int)mutation_list.size();
+
+    std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
+    std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
+    auto n1_itr = node1_mutations.begin();
+    while (n1_itr != node1_mutations.end()) {
+        bool found_both = false;
+        auto n2_itr = node2_mutations.begin();
+        while (n2_itr != node2_mutations.end()) {
+            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
+                node2_mutations.erase(n2_itr);
+                found_both = true;
+                break;
+            }
+            else if (n2_itr->position == n1_itr->position) {
+                node2_mutations.erase(n2_itr);
+                break;
+            }
+            n2_itr++;
+        }
+        if (found_both)
+            n1_itr = node1_mutations.erase(n1_itr);
+        else
+            n1_itr++;
+    }
+    return (int)(node1_mutations.size() + node2_mutations.size());
 }
 
-void update_unique_mutations(const MAT::Node* N, std::vector<std::pair<MAT::Mutation, bool>> &mutation_list, std::vector<MAT::Mutation> &removed_muts, std::vector<MAT::Mutation> &dont_remove_muts, bool is_N2) {
-    //Iterating through mutations of Node N
-    for (auto mut: N->mutations) {
-        //If present in removed (common mutation) then don't check for this mutation
-        auto rm_itr = removed_muts.begin();
-        while (rm_itr != removed_muts.end()) {
-            if (rm_itr->position == mut.position)
-                break;
-            rm_itr++;
-        }
-        if (rm_itr != removed_muts.end())
-            continue;
-        //Iterating through mutations already stored in mutation_list
-        auto mut_itr = mutation_list.begin();
-        while (mut_itr != mutation_list.end()) {
-            if ((mut_itr->first.position == mut.position) && (mut_itr->first.mut_nuc == mut.mut_nuc)) {
-                //Don't remove if different mutation is found near leaf node
-                auto dr_itr = dont_remove_muts.begin();
-                while (dr_itr != dont_remove_muts.end()) {
-                    if (dr_itr->position == mut.position)
-                        break;
-                    dr_itr++;
-                }
-                if (dr_itr == dont_remove_muts.end()) {
-                    mutation_list.erase(mut_itr);
-                    removed_muts.emplace_back(mut_itr->first);
-                }
-                break;
-            }
-            else if (mut_itr->first.position == mut.position) {
-                //If different mutation is near leaf of other node then can't remove. Should belong to other node
-                if (mut_itr->second != is_N2) {
-                    auto dr_itr = dont_remove_muts.begin();
-                    while (dr_itr != dont_remove_muts.end()) {
-                        if (dr_itr->position == mut.position)
-                            break;
-                        dr_itr++;
-                    }
-                    if (dr_itr == dont_remove_muts.end())
-                        dont_remove_muts.emplace_back(mut_itr->first);
-                }
-                break;
-            }
-            mut_itr++;
-        }
-        if (mut_itr == mutation_list.end())
-            mutation_list.emplace_back(std::pair(mut, is_N2));
-    }
-}
 
 //Get the clade name
 std::string get_clade(const MAT::Tree &T, MAT::Node* n) {
