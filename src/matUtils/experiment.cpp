@@ -1723,13 +1723,28 @@ int mutation_distance(const MAT::Tree &T, const MAT::Node* N1, const MAT::Node* 
                 node2_mutations.emplace_back(mut);
         }
     }
+    //Remove Back Mutations
+    auto n1_itr = node1_mutations.begin();
+    while (n1_itr != node1_mutations.end()) {
+        if (n1_itr->ref_nuc == n1_itr->mut_nuc)
+            n1_itr = node1_mutations.erase(n1_itr);
+        else
+            n1_itr++;
+    }
+    auto n2_itr = node2_mutations.begin();
+    while (n2_itr != node2_mutations.end()) {
+        if (n2_itr->ref_nuc == n2_itr->mut_nuc)
+            n2_itr = node2_mutations.erase(n2_itr);
+        else
+            n2_itr++;
+    }
 
     std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
     std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
-    auto n1_itr = node1_mutations.begin();
+    n1_itr = node1_mutations.begin();
     while (n1_itr != node1_mutations.end()) {
         bool found_both = false;
-        auto n2_itr = node2_mutations.begin();
+        n2_itr = node2_mutations.begin();
         while (n2_itr != node2_mutations.end()) {
             if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
                 node2_mutations.erase(n2_itr);
