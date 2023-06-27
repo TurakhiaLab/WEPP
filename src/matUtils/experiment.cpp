@@ -231,8 +231,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
             //sample_read->read = node->identifier + "_" + boost::lexical_cast<std::string>(rand_val) + "_READ_" + boost::lexical_cast<std::string>(i); 
             int start_coord = (rand_val - ((read_length / 2) + (read_length % 2)));
             int end_coord = (rand_val + (read_length / 2)) - 1;
-            if (start_coord < 0)
-                start_coord = 0; 
+            if (start_coord < 1)
+                start_coord = 1; 
             if (end_coord >= (int(ref_seq.size())))
                 end_coord = (int(ref_seq.size())) - 1;
             sample_read->read = node->identifier + "_READ_" + boost::lexical_cast<std::string>(start_coord) + "_" + boost::lexical_cast<std::string>(end_coord); 
@@ -242,7 +242,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
             time = clock();
             srand(int(time));
             for (int pos = (rand_val - ((read_length / 2) + (read_length % 2))); pos < (rand_val + (read_length / 2)); pos ++) {
-                if ((pos >= 0) && (pos < (int(ref_seq.size())))) {
+                if ((pos > 0) && (pos < (int(ref_seq.size())))) {
                     read_positions.emplace_back(pos);
                     double rndDouble = (double)rand() / RAND_MAX;
                     if (rndDouble < (read_error[0])) {             
