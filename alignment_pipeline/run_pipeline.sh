@@ -1,3 +1,5 @@
+# This uses the code in local_alignment.cpp, which is an implementation of the Smith-Waterman algorithm.
+
 # Take in 3 required arguments + 1 optional argument
 # 1. Path to the reference FASTA
 # 2. Path to the reads, VCF
@@ -62,9 +64,11 @@ echo "Converting FASTA to VCF"
 time ./fasta_to_vcf reads_aligned.fasta $reference_fasta $output_vcf
 echo ""
 
-# Remove the intermediate files
-rm -f reads.fasta reads_aligned.fasta
-
 # Print location where output VCF was written
 echo "Output VCF written to $output_vcf"
 
+# Print alignment rate
+python calculate_alignment_rate.py reads_aligned.fasta differences.txt
+
+# Remove the intermediate files
+# rm -f reads.fasta reads_aligned.fasta
