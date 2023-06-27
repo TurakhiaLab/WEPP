@@ -36,11 +36,13 @@ int main(int argc, char* argv[]) {
     vcf_file_stream.close();
 
     std::string header_line = "";
+    size_t first_variant_line = vcf_lines.size();
     // Get list of sample names from VCF file header
     for (size_t i = 0; i < vcf_lines.size(); i++) {
         const std::string& line = vcf_lines[i];
         if (line.find("#CHROM") == 0) {
             header_line = line;
+            first_variant_line = i;
             break;
         }
     }
@@ -57,27 +59,35 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> sample_names(headers.begin() + 9, headers.end());
 
-    // Create a directory called intermediate_files if it does not exist
-    system("mkdir -p ./intermediate_files");
-
-    // Save all the sample names in a file
-    std::ofstream sample_names_file("./intermediate_files/sample_names.txt");
-    for (size_t j = 0; j < sample_names.size() - 1; j++) {
-        sample_names_file << sample_names[j] << ',';
-    }
-    sample_names_file << sample_names[sample_names.size() - 1];
-    sample_names_file.close();
-
     // Create dictionary to store mutated sequences
     std::map<std::string, std::string> mutated_seqs;
 
     // Loop through each sample in VCF file
     for (size_t sample_index = 0; sample_index < sample_names.size(); sample_index++) {
         const std::string& sample_name = sample_names[sample_index];
-        std::vector<char> mutated_seq(ref_seq.begin(), ref_seq.end());
+
+        int start_position = 0;
+        int end_position = 0;
+
+        // check if there are two underscores in the sample name
+        if (sample_name.find('_', sample_name.find('_') + 1) == std::string::npos) {
+            // std::cout << "Sample name " << sample_name << " does not have two underscores" << std::endl;
+            start_position = 0;
+            end_position = ref_seq.end() - ref_seq.begin();
+        }
+        else {
+            // std::cout << "Sample name " << sample_name << " has two underscores" << std::endl;
+            // Now, isolate the start and end positions; the sample name is of the form <sample Name>_READ_<start position>_<end position>
+            start_position = std::stoi(sample_name.substr(sample_name.find('_', sample_name.find('_') + 1) + 1, sample_name.find('_', sample_name.find('_', sample_name.find('_') + 1) + 1) - sample_name.find('_', sample_name.find('_') + 1) - 1)) - 1;
+            end_position = std::stoi(sample_name.substr(sample_name.find('_', sample_name.find('_', sample_name.find('_') + 1) + 1) + 1));
+            
+        }
+
+        // Now, initialize the mutated read to be the reference sequence, from the start position to the end position
+        std::vector<char> mutated_seq(ref_seq.begin() + start_position, ref_seq.begin() + end_position);
 
         // Loop through each variant row in VCF file for the current sample
-        for (size_t i = 4; i < vcf_lines.size(); i++) {
+        for (size_t i = first_variant_line + 1; i < vcf_lines.size(); i++) {
             const std::string& vcf_line = vcf_lines[i];
             std::vector<std::string> vcf_fields;
             start_pos = 0;
@@ -99,11 +109,13 @@ int main(int argc, char* argv[]) {
 
             const std::string& gt = vcf_fields[9 + sample_index];
 
-            // Check if sample is mutated at current position
-            if (gt == "1") {
+            // Check if sample is mutated at current position and if the position is within the sample's region
+            if (gt == "1" && pos >= start_position && pos <= end_position) {
                 // Check that reference base at current position matches expected base
-                if (mutated_seq[pos - 1] == ref_base[0]) {
-                    mutated_seq[pos - 1] = alt_base[0];
+                // need to shift pos to account for start position of sample
+                
+                if (mutated_seq[pos - start_position - 1] == ref_base[0]) {
+                    mutated_seq[pos - start_position - 1] = alt_base[0];
                 } else {
                     std::cout << "Reference base (" << ref_base << ") does not match at position " << pos
                               << " for sample " << sample_name << std::endl;
