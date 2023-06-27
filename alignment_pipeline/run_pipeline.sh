@@ -39,6 +39,9 @@ fi
 # Remove the output VCF if it already exists
 rm -f $3
 
+# Remove intermediate files if they already exist
+rm -f reads.fasta reads_aligned.fasta
+
 # Read in the arguments
 reference_fasta=$1
 reads_vcf=$2
@@ -49,12 +52,15 @@ echo "Running the pipeline"
 
 echo "Converting VCF to FASTA"
 time ./vcf_to_fasta $reads_vcf $reference_fasta reads.fasta
+echo ""
 
 echo "Aligning reads to reference"
 time ./local_alignment $reference_fasta reads.fasta reads_aligned.fasta
+echo ""
 
 echo "Converting FASTA to VCF"
 time ./fasta_to_vcf reads_aligned.fasta $reference_fasta $output_vcf
+echo ""
 
 # Remove the intermediate files
 rm -f reads.fasta reads_aligned.fasta
