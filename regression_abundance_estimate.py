@@ -10,11 +10,14 @@ def read_csv_file(file_path):
         mutations = next(csv_reader)  # Store headers separately
         haplotypes = []
         hap_mut_matrix = []
+        
         for row in csv_reader:
-            haplotypes.append(row[0])
             hap_mut_matrix.append(row[1:])
-        # Convert to NumPy array of integers
+            haplotypes.append(row[0])
+        
+        #Convert to NumPy array of integers
         hap_mut_matrix = np.array([[int(elem) for elem in row] for row in hap_mut_matrix])
+
     return mutations, haplotypes, hap_mut_matrix
 
 
@@ -22,11 +25,13 @@ def read_vcf_file(file_path):
     with open(vcf_file, 'r') as file:
         vcf_reader = csv.reader(file, delimiter='\t')
         af_values = []
+
         for row in vcf_reader:
             if not row[0].startswith('#'):  # Skip header rows
                 info_field = row[-1]
                 af_value = info_field.split(';')[0].split('=')[1]
                 af_values.append(float(af_value))
+    
     return np.array(af_values)
 
 
@@ -34,6 +39,7 @@ def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
         file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
         file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{}\n".format("\t".join(haplotypes)))
+        
         i = 0
         while i < len(mutations):
             same_pos_list = []
@@ -67,6 +73,7 @@ def add_mutations_to_haplotypes(A, x_val, b):
     A_copy = np.copy(A)
     ref_cost = np.linalg.norm(A @ x_val - b, 1)
     sol = x_val
+
     while True:
         hap_idx = -1
         residual = abs(A_copy @ sol - b)
@@ -86,6 +93,7 @@ def add_mutations_to_haplotypes(A, x_val, b):
                 ref_cost = copy.deepcopy(curr_cost)
                 hap_idx = i
                 sol = curr_sol
+        
         #Check if cost could be reduced 
         if hap_idx >= 0:
             #Add the hap_idx column at the end of A_copy
@@ -96,12 +104,13 @@ def add_mutations_to_haplotypes(A, x_val, b):
             if A_copy.shape == A.shape:
                 print("No Haplotype added!!!")
             break
+
     return A_copy, np.abs(sol)
 
 
 def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
     #Setting the variables for the regression problem
-    eps = 1e-3
+    eps = 1e-2
     A = hap_mut_matrix.T
     orig_sol = cp_solve(A, read_af)
     
@@ -148,7 +157,21 @@ af_values = read_vcf_file(vcf_file)
 #Solving abundance
 new_haplotypes, new_abundances, abundances = solve_abundance(hap_mut_matrix, af_values, haplotypes, mutations)
 
-print("HAPLOTYPE ABUNDANCE(new and old):")
+#Abundance of lineages
+lineages = {}
+for i, hap in enumerate(haplotypes):
+    split_parts = hap.split('_')
+    #Extract the part after the last '_'
+    if split_parts[-1] not in lineages:
+        lineages[split_parts[-1]] = abundances[i]
+    else:
+        lineages[split_parts[-1]] += abundances[i]
+print("LINEAGE ABUNDANCE:")
+for lin, abun in lineages.items():
+    print(lin, abun)
+
+#Abundance of haplotypes
+print("\nHAPLOTYPE ABUNDANCE(Initial + New):")
 for i in range(len(new_haplotypes)):
     print(new_haplotypes[i], new_abundances[i])
 
