@@ -1160,7 +1160,6 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     read_sample_vcf(vcf_samples, vcf_filename_samples);
     read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
     analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
-    read_vcf(num_threads, T, dfs, read_map, "my_vcf_haplotypes.vcf");
 }
 
 void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
@@ -1681,7 +1680,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
 
     generate_regression_abundance_data(T, peak_nodes, read_map, barcode_file, read_abundance_vcf);
-    generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
+    //generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
 }
 
 
@@ -1991,7 +1990,7 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
     peak_mut_itr = peak_mut_map.begin();
     while (peak_mut_itr != peak_mut_map.end()) {
         barcode_print += "\n";
-        barcode_print += peak_mut_itr->first->identifier.c_str();
+        barcode_print += peak_mut_itr->first->identifier + "_" + get_clade(T, peak_mut_itr->first);
         std::vector<int> mut_idx_list;
         //Iterating through mutations of this peak
         auto mut_itr = peak_mut_itr->second.begin();
