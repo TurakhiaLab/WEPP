@@ -1,4 +1,65 @@
-#include "src/matUtils/experiment.hpp"
+#include "experiment.hpp"
+
+po::variables_map parse_post_processing_command(po::parsed_options parsed) {
+    po::variables_map vm;
+    po::options_description conv_desc("post_processing options");
+    conv_desc.add_options()
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("output-directory,o", po::value<std::string>()->default_value("./"),
+     "Write output files to the target directory. Default is current directory.")
+    ("read-vcf,v", po::value<std::string>()->default_value(""),
+     "Output VCF file representing selected subtree. Default is full tree")
+    ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try {
+        po::store(po::command_line_parser(opts)
+                  .options(conv_desc)
+                  .run(), vm);
+        po::notify(vm);
+    } catch(std::exception &e) {
+        std::cerr << conv_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
+
+//Function to calculation distance between two nodes
+int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
+    std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
+    std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
+    auto n1_itr = node1_mutations.begin();
+    while (n1_itr != node1_mutations.end()) {
+        bool found_both = false;
+        auto n2_itr = node2_mutations.begin();
+        while (n2_itr != node2_mutations.end()) {
+            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
+                node2_mutations.erase(n2_itr);
+                found_both = true;
+                break;
+            }
+            else if (n2_itr->position == n1_itr->position) {
+                node2_mutations.erase(n2_itr);
+                break;
+            }
+            n2_itr++;
+        }
+        if (found_both)
+            n1_itr = node1_mutations.erase(n1_itr);
+        else
+            n1_itr++;
+    }
+    return (int)(node1_mutations.size() + node2_mutations.size());
+}
 
 void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)read_map.size());
@@ -40,10 +101,16 @@ void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct r
     }
 }
 
-void simulate_and_place_reads (po::parsed_options parsed) {
+void post_processing(po::parsed_options parsed) {
+    po::variables_map vm = parse_post_processing_command(parsed);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string dir_prefix = vm["output-directory"].as<std::string>();
+    std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
+    std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
+    
     // Load input MAT and uncondense tree
     MAT::Tree T;
-    T = MAT::load_mutation_annotated_tree("public-2021-05-31.all.masked.nextclade.pangolin.pb");
+    T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
 
     //Depth first expansion to get all nodes in the tree and 
@@ -53,152 +120,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     //Checking how close are input samples with peaks
     std::unordered_map<int, struct read_info*> read_map;
     std::vector<std::string> vcf_samples;
-    read_sample_vcf(vcf_samples, "my_vcf_samples.vcf");
-    read_vcf(T, dfs, read_map, "my_vcf_haplotypes.vcf");
+    read_sample_vcf(vcf_samples, sample_vcf_filename);
+    read_vcf(T, dfs, read_map, hap_vcf_filename);
     compute_distance(T, read_map, vcf_samples);
-}
-
-void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
-    boost::filesystem::ifstream fileHandler(vcf_filename_samples);
-    std::string s;
-    while (getline(fileHandler, s)) {
-        std::vector<std::string> words;
-        MAT::string_split(s, words);
-        if (words.size() > 1) {
-            if (words[1] == "POS") {
-                for (int j=9; j < (int)words.size(); j++)
-                    vcf_samples.emplace_back(words[j]);
-            }
-        }
-    }
-}
-
-void read_vcf(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
-    // Boost library used to stream the contents of the input VCF file
-    // Store the header information from VCF
-    timer.Start();
-    std::vector<int> missing_idx;
-    std::vector<struct read_info*> read_ids;
-    std::string s;
-    boost::filesystem::ifstream fileHandler(vcf_filename_reads);
-    bool header_found = false;
-    while (getline(fileHandler, s)) {
-        std::vector<std::string> words;
-        MAT::string_split(s, words);
-        if (words.size() > 1) {
-            if (words[1] == "POS") {
-                header_found = true;
-                for (int j=9; j < (int)words.size(); j++) {
-                    struct read_info * rp = new struct read_info;
-                    rp->read = words[j];
-                    std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                    std::smatch match;
-                    if (std::regex_search(words[j], match, rgx)) {
-                        rp->start = std::stoi(match[1]);
-                        rp->end = std::stoi(match[2]);
-                    }
-                    read_ids.emplace_back(rp);
-                    missing_idx.emplace_back(j);
-                }
-            }
-            else if (header_found) {
-                std::vector<std::string> alleles;
-                alleles.clear();
-                MAT::string_split(words[4], ',', alleles);
-                int k = 0;
-                while (k < (int)missing_idx.size()) {
-                    size_t j = missing_idx[k];
-                    auto iter = read_ids.begin();
-                    std::advance(iter, k);
-                    if (iter != read_ids.end()) {
-                        read_map.insert({k, (*iter)});
-                        MAT::Mutation m;
-                        m.chrom = words[0];
-                        m.position = std::stoi(words[1]);
-                        if (std::stoi(words[j]) > int(alleles.size())) {
-                            fprintf(stderr, "\n\nPosition: %d, k = %d,\n", m.position, k);
-                            fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
-                        }
-                        m.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                        assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
-                        m.par_nuc = m.ref_nuc;
-                        // Alleles such as '.' should be treated as missing
-                        // data. if the word is numeric, it is an index to one
-                        // of the alleles
-                        if (isdigit(words[j][0])) {
-                            int allele_id = std::stoi(words[j]);
-                            if (allele_id > 0) {
-                                std::string allele = alleles[allele_id-1];
-                                if (allele[0] == 'N') {
-                                    m.is_missing = true;
-                                    m.mut_nuc = MAT::get_nuc_id('N');
-                                } else {
-                                    auto nuc = MAT::get_nuc_id(allele[0]);
-                                    if (nuc == MAT::get_nuc_id('N')) {
-                                        m.is_missing = true;
-                                    } else {
-                                        m.is_missing = false;
-                                    }
-                                    m.mut_nuc = nuc;
-                                }
-                                (*iter)->mutations.emplace_back(m);
-                            }
-                        } else {
-                            m.is_missing = true;
-                            m.mut_nuc = MAT::get_nuc_id('N');
-                            (*iter)->mutations.emplace_back(m);
-                        }
-                    } 
-                    k++;
-                }
-            }
-        }
-    }
-
-    fprintf(stderr,"read VCF parsed in %ld sec\n\n", (timer.Stop() / 1000));   
-}
-
-//Function to calculation distance between two nodes
-int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
-    std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
-    std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
-    auto n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        bool found_both = false;
-        auto n2_itr = node2_mutations.begin();
-        while (n2_itr != node2_mutations.end()) {
-            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-                node2_mutations.erase(n2_itr);
-                found_both = true;
-                break;
-            }
-            else if (n2_itr->position == n1_itr->position) {
-                node2_mutations.erase(n2_itr);
-                break;
-            }
-            n2_itr++;
-        }
-        if (found_both)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
-    }
-    return (int)(node1_mutations.size() + node2_mutations.size());
-}
-
-//Get the clade name
-std::string get_clade(const MAT::Tree &T, MAT::Node* n) {
-    //Checking all ancestors of a node to get clade
-    for (auto anc: T.rsearch(n->identifier, true)) {  
-        //Don't consider the clades that start with numbers {Different clade naming}
-        auto clade = anc->clade_annotations[1];
-        if(clade != "")
-            return clade;
-    }
-    return "";
-}
-
-//Comparing mutations for sorting a vector 
-bool compare_mutations(const MAT::Mutation &a, const MAT::Mutation &b) {
-    return a.position < b.position;
 }
