@@ -34,7 +34,6 @@ def read_vcf_file(file_path):
     
     return np.array(af_values)
 
-
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
         file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
@@ -69,10 +68,19 @@ def cp_solve(A, b):
     prob.solve(verbose=False)
     return x.value
 
-def add_mutations_to_haplotypes(A, x_val, b): 
+def add_mutations_to_haplotypes(A, x_val, b, haplotypes): 
     A_copy = np.copy(A)
     ref_cost = np.linalg.norm(A @ x_val - b, 1)
     sol = x_val
+    hap_new = copy.deepcopy(haplotypes)
+    hap_added = 0
+    
+    #Removing haplotypes that are < 0 in abundance
+    sol[sol < eps] = 0
+    hap_idx_remove = np.where(sol == 0)[0]
+    sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
+    A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
+    hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
 
     while True:
         hap_idx = -1
@@ -89,7 +97,7 @@ def add_mutations_to_haplotypes(A, x_val, b):
             #Removing the last column that was added
             A_copy = A_copy[:, :-1]
             #Update the ref_cost on passing convergence condition
-            if ((ref_cost - curr_cost) > (0.0333 * ref_cost)):
+            if ((ref_cost - curr_cost) > (thresh * ref_cost)):
                 ref_cost = copy.deepcopy(curr_cost)
                 hap_idx = i
                 sol = curr_sol
@@ -98,37 +106,34 @@ def add_mutations_to_haplotypes(A, x_val, b):
         if hap_idx >= 0:
             #Add the hap_idx column at the end of A_copy
             A_copy = np.concatenate((A_copy, A_copy[:, hap_idx][:, np.newaxis]), axis=1)
+            # Invert the mutation in current haplotype
             A_copy[site, -1] = 1 - A_copy[site, hap_idx]
+            hap_added += 1
+            hap_new = np.append(hap_new, f"NEW_{hap_added}")
+            
+            #Removing haplotypes that are < 0 in abundance
+            sol[sol < eps] = 0
+            hap_idx_remove = np.where(sol == 0)[0]
+            sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
+            A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
+            hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
             #print(f'Site: {site}, Hap: {hap_idx}, cost: {ref_cost}')
         else:
-            if A_copy.shape == A.shape:
-                print("No Haplotype added!!!")
+            if not hap_added:
+                print("No Haplotype added!!!\n")
             break
 
-    return A_copy, np.abs(sol)
-
+    return A_copy, np.abs(sol), hap_new
 
 def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
     #Setting the variables for the regression problem
-    eps = 1e-2
     A = hap_mut_matrix.T
     orig_sol = cp_solve(A, read_af)
+    #Make the proportion to be 0 for anything < eps
+    orig_sol[orig_sol < eps] = 0
     
     #Add new haplotype names
-    A_new, sol = add_mutations_to_haplotypes(A, np.abs(orig_sol), read_af)
-    hap_new = copy.deepcopy(haplotypes)
-    for i in range(A_new.shape[1] - A.shape[1]):
-        hap_new = np.append(hap_new, f"NEW_{i+1}")
-    hap_new = [hap + "_READ_1_29902" for hap in hap_new]
-
-    #Make the proportion to be 0 for anything < eps
-    sol[sol < eps] = 0
-    orig_sol[orig_sol < eps] = 0
-    #Removing haplotypes that are < 0 in abundance
-    hap_idx_remove = np.where(sol == 0)[0]
-    A_new = np.delete(A_new, hap_idx_remove, axis = 1)
-    hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
-    sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
+    A_new, sol, hap_new = add_mutations_to_haplotypes(A, np.abs(orig_sol), read_af, haplotypes)
     
     #Remove rows with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A_new == 0, axis=1)
@@ -145,6 +150,8 @@ def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
 
 # Start time
 start_time = time.time()
+eps = 1e-2
+thresh = 0.04
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
@@ -166,9 +173,11 @@ for i, hap in enumerate(haplotypes):
         lineages[split_parts[-1]] = abundances[i]
     else:
         lineages[split_parts[-1]] += abundances[i]
+
 print("LINEAGE ABUNDANCE:")
 for lin, abun in lineages.items():
-    print(lin, abun)
+    if abun:
+        print(lin, abun)
 
 #Abundance of haplotypes
 print("\nHAPLOTYPE ABUNDANCE(Initial + New):")
@@ -176,5 +185,4 @@ for i in range(len(new_haplotypes)):
     print(new_haplotypes[i], new_abundances[i])
 
 # End time
-end_time = time.time()
-print(f"\nElapsed time: {end_time - start_time} seconds")
+print(f"\nElapsed time: {time.time() - start_time} seconds")
