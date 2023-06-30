@@ -47,6 +47,8 @@ int main (int argc, char** argv) {
         extract_main(parsed);
     } else if (cmd == "place_read") { 
         simulate_and_place_reads(parsed);
+    } else if (cmd == "post_processing") { 
+        post_processing(parsed);
     } else if (cmd == "annotate") {
         annotate_main(parsed);
     } else if (cmd == "uncertainty") {

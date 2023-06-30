@@ -1158,7 +1158,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     tbb::concurrent_hash_map<MAT::Node*, double> node_score;
     std::vector<std::string> vcf_samples;
     read_sample_vcf(vcf_samples, vcf_filename_samples);
-    read_vcf(num_threads, T, dfs, read_map, vcf_filename_reads);
+    read_vcf(T, dfs, read_map, vcf_filename_reads);
     analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
 }
 
@@ -1177,7 +1177,7 @@ void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vc
     }
 }
 
-void read_vcf(uint32_t num_threads, const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
+void read_vcf(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
     // Store the header information from VCF
     timer.Start();
