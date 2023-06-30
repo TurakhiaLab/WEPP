@@ -2,18 +2,16 @@ export PATH=$PATH:$PWD/build
 cd build
 make -j
 cd ../
-matUtils place_read -T 8 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.1.198 -d 1 -v my_vcf -r 150 -w 20 -e 0 -s 2 -f test/NC_045512v2.fa
-#grep "Clade:" read_info | cut -d ' ' -f 4 | sort -h | uniq
+matUtils place_read -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.160,B.1.177.7,B.1.429,P.1,B.42,R.1,B.33  -d 0.2,0.15,0.15,0.15,0.1,0.05,0.2 -v my_vcf -r 150 -w 20 -e 0 -s 100 -f test/NC_045512v2.fa
 
+python regression_abundance_estimate.py
+#Change Makefile in build to includ post_processing.cpp
+#Change build.make in build/CMakeFiles/matUtils.dir/build.make to includ post_processing.cpp
+matUtils post_processing -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v my_vcf
 
-#matUtils place_read -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.1.117 -d 1 -v my_vcf -r 150 -w 20 -e 0 -s 2 -f test/NC_045512v2.fa
-#vi -d  my_vcf_samples.vcf my_vcf_reads.vcf
-
-
-#matUtils place_read -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.1.207 -d 1 -v my_vcf -r 150 -w 1500 -s 2 -e 0 -f test/NC_045512v2.fa
-#matUtils extract -i public-2021-05-31.all.masked.nextclade.pangolin.pb -c 'B.1.1.207' -v ref_vcf.vcf
-###vi -d my_vcf_samples.vcf my_vcf_reads.vcf
-#vi -d ref_vcf.vcf my_vcf_samples.vcf
-###matUtils place_read -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l AP.1 -d 1  -v my_vcf.vcf 
-
-#matUtils extract -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v samples.vcf
+#cp my_vcf_reads_freyja.* ../Freyja/
+#cd ../Freyja/
+#conda activate freyja-env
+#source run.sh 
+#conda deactivate
+#cd -
