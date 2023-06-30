@@ -1,4 +1,4 @@
-#include "experiment.hpp"
+#include "post_processing.hpp"
 
 po::variables_map parse_post_processing_command(po::parsed_options parsed) {
     po::variables_map vm;
@@ -33,32 +33,28 @@ po::variables_map parse_post_processing_command(po::parsed_options parsed) {
     return vm;
 }
 
-//Function to calculation distance between two nodes
-int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
-    std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
-    std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
-    auto n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        bool found_both = false;
-        auto n2_itr = node2_mutations.begin();
-        while (n2_itr != node2_mutations.end()) {
-            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-                node2_mutations.erase(n2_itr);
-                found_both = true;
-                break;
-            }
-            else if (n2_itr->position == n1_itr->position) {
-                node2_mutations.erase(n2_itr);
-                break;
-            }
-            n2_itr++;
-        }
-        if (found_both)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
-    }
-    return (int)(node1_mutations.size() + node2_mutations.size());
+void post_processing(po::parsed_options parsed) {
+    po::variables_map vm = parse_post_processing_command(parsed);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string dir_prefix = vm["output-directory"].as<std::string>();
+    std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
+    std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
+    
+    // Load input MAT and uncondense tree
+    MAT::Tree T;
+    T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    T.uncondense_leaves();
+
+    //Depth first expansion to get all nodes in the tree and 
+    // comparison with given lineage to get all nodes of the required lineage 
+    std::vector<MAT::Node*> dfs = T.depth_first_expansion(T.root); 
+    
+    //Checking how close are input samples with peaks
+    std::unordered_map<int, struct read_info*> read_map;
+    std::vector<std::string> vcf_samples;
+    read_sample_vcf(vcf_samples, sample_vcf_filename);
+    read_vcf(T, dfs, read_map, hap_vcf_filename);
+    compute_distance(T, read_map, vcf_samples);
 }
 
 void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
@@ -101,26 +97,30 @@ void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct r
     }
 }
 
-void post_processing(po::parsed_options parsed) {
-    po::variables_map vm = parse_post_processing_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string dir_prefix = vm["output-directory"].as<std::string>();
-    std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
-    std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
-    
-    // Load input MAT and uncondense tree
-    MAT::Tree T;
-    T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    T.uncondense_leaves();
-
-    //Depth first expansion to get all nodes in the tree and 
-    // comparison with given lineage to get all nodes of the required lineage 
-    std::vector<MAT::Node*> dfs = T.depth_first_expansion(T.root); 
-    
-    //Checking how close are input samples with peaks
-    std::unordered_map<int, struct read_info*> read_map;
-    std::vector<std::string> vcf_samples;
-    read_sample_vcf(vcf_samples, sample_vcf_filename);
-    read_vcf(T, dfs, read_map, hap_vcf_filename);
-    compute_distance(T, read_map, vcf_samples);
+//Function to calculation distance between two nodes
+int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
+    std::sort(node1_mutations.begin(), node1_mutations.end(), compare_mutations);
+    std::sort(node2_mutations.begin(), node2_mutations.end(), compare_mutations);
+    auto n1_itr = node1_mutations.begin();
+    while (n1_itr != node1_mutations.end()) {
+        bool found_both = false;
+        auto n2_itr = node2_mutations.begin();
+        while (n2_itr != node2_mutations.end()) {
+            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
+                node2_mutations.erase(n2_itr);
+                found_both = true;
+                break;
+            }
+            else if (n2_itr->position == n1_itr->position) {
+                node2_mutations.erase(n2_itr);
+                break;
+            }
+            n2_itr++;
+        }
+        if (found_both)
+            n1_itr = node1_mutations.erase(n1_itr);
+        else
+            n1_itr++;
+    }
+    return (int)(node1_mutations.size() + node2_mutations.size());
 }

@@ -6,6 +6,7 @@
 #include "introduce.hpp"
 #include "version.hpp"
 #include "experiment.hpp"
+#include "post_processing.hpp"
 
 Timer timer;
 
