@@ -64,7 +64,6 @@ void analyze_reads(const MAT::Tree &, const std::vector<MAT::Node*> &, const std
 
 bool check_peaks_neighbourhood (const MAT::Tree &, const MAT::Node*, const std::vector<MAT::Node*> &, const int);
 int mutation_distance(const MAT::Tree &, const MAT::Node*, const MAT::Node*);
-int mutation_distance(std::vector<MAT::Mutation>, std::vector<MAT::Mutation>);
 std::string get_clade(const MAT::Tree &, MAT::Node*);
 
 void generate_EM_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::vector<MAT::Node*> &, const std::string &);
