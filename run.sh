@@ -5,8 +5,6 @@ cd ../
 matUtils place_read -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.160,B.1.177.7,B.1.429,P.1,B.42,R.1,B.33  -d 0.2,0.15,0.15,0.15,0.1,0.05,0.2 -v my_vcf -r 150 -w 20 -e 0 -s 100 -f test/NC_045512v2.fa
 
 python regression_abundance_estimate.py
-#Change Makefile in build to includ post_processing.cpp
-#Change build.make in build/CMakeFiles/matUtils.dir/build.make to includ post_processing.cpp
 matUtils post_processing -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v my_vcf
 
 #cp my_vcf_reads_freyja.* ../Freyja/
