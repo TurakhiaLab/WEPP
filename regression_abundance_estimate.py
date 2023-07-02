@@ -20,7 +20,6 @@ def read_csv_file(file_path):
 
     return mutations, haplotypes, hap_mut_matrix
 
-
 def read_vcf_file(file_path):
     with open(vcf_file, 'r') as file:
         vcf_reader = csv.reader(file, delimiter='\t')
@@ -174,7 +173,7 @@ for i, hap in enumerate(haplotypes):
     else:
         lineages[split_parts[-1]] += abundances[i]
 
-print("LINEAGE ABUNDANCE:")
+print("\nLINEAGE ABUNDANCE (REGRESSION):")
 for lin, abun in lineages.items():
     if abun:
         print(lin, abun)
