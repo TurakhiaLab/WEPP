@@ -1660,6 +1660,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     remaining_reads.clear();
     fprintf(stderr,"Peak search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
     
+    printf("MUTATION DISTANCE ORIG:\n"); 
     //Verify Recovery of Input Samples
     timer.Start();
     for (auto sample: vcf_samples) {
@@ -1680,7 +1681,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
 
     generate_regression_abundance_data(T, peak_nodes, read_map, barcode_file, read_abundance_vcf);
-    //generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
+    generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
 }
 
 
@@ -1790,6 +1791,7 @@ void generate_EM_data(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, co
     }
     outbuf_mismatch_matrix.push(outfile_mismatch_matrix);
     std::ostream mismatch_file(&outbuf_mismatch_matrix);
+    std::string file_write;
 
     //Parallel_for loop for each remaining read
     using my_mutex_t = tbb::queuing_mutex;
@@ -1807,18 +1809,39 @@ void generate_EM_data(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, co
             }
         },
     ap);
+
+    //Write the header containing peak nodes and corresponding lineages
+    for (int i = 0; i < (int)peak_nodes.size(); i++) {
+        if (i)
+            file_write += "," + peak_nodes[i]->identifier + "_" + get_clade(T, peak_nodes[i]);
+        else
+            file_write += peak_nodes[i]->identifier + "_" + get_clade(T, peak_nodes[i]);
+    } 
+    file_write += "\n";
     
     auto m_itr = mismatch_matrix.begin();
     while (m_itr != mismatch_matrix.end()) {
         auto m_element = m_itr->second;
-        for (int i = 0; i < (int)m_element.size(); i++) {
-            if (i)
-                mismatch_file << ",";
-            mismatch_file << m_element[i];
+        int zero_count = 0;
+        //Only write the vectos where atleast one 1 is present
+        for (auto m: m_element) {
+            if (!m)
+                zero_count++;
+            else 
+                break;
         }
-        mismatch_file << "\n";
+        if (zero_count < (int)m_element.size()) {
+            for (int i = 0; i < (int)m_element.size(); i++) {
+                if (i)
+                    file_write += "," + std::to_string(m_element[i]);
+                else 
+                    file_write += std::to_string(m_element[i]);
+            }
+            file_write += "\n";
+        }
         m_itr++;
     }
+    mismatch_file << file_write;
     boost::iostreams::close(outbuf_mismatch_matrix);
     outfile_mismatch_matrix.close();
     fprintf(stderr,"Mismatch matrix file writing took %ld min\n\n", (timer.Stop() / (60*1000)));

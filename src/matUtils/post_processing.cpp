@@ -59,6 +59,7 @@ void post_processing(po::parsed_options parsed) {
 
 void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)read_map.size());
+    printf("\nMUTATION DISTANCE NEW:\n");
     //Get Mutations of samples
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
