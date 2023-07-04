@@ -139,6 +139,7 @@ def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
     mut_idx_remove = np.where(zero_rows)[0]
     A_new = np.delete(A_new, mut_idx_remove, axis=0)
     mutations_new = [val for i, val in enumerate(mutations) if i not in mut_idx_remove]
+    hap_new = [hap + "_READ_1_29903" for hap in hap_new]
 
     #Write VCF
     vcf_file = "my_vcf_haplotypes.vcf"
