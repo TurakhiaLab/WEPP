@@ -59,6 +59,11 @@ def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
             file.write("\n")
             i += 1 + len(same_pos_list)
 
+def write_csv_file(data, file_path):
+    with open(file_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(data)
+
 def cp_solve(A, b):
     x = cp.Variable(A.shape[1])
     cost = cp.norm(A @ x - b, 1)
@@ -174,15 +179,16 @@ for i, hap in enumerate(haplotypes):
     else:
         lineages[split_parts[-1]] += abundances[i]
 
-print("\nLINEAGE ABUNDANCE (REGRESSION):")
+print("\nLINEAGE ABUNDANCE (ORIG):")
 for lin, abun in lineages.items():
     if abun:
         print(lin, abun)
 
-#Abundance of haplotypes
-print("\nHAPLOTYPE ABUNDANCE(Initial + New):")
-for i in range(len(new_haplotypes)):
-    print(new_haplotypes[i], new_abundances[i])
+#Write abundance of haplotypes in csv
+csv_write_header = ['Haplotype', 'Abundance']
+csv_write_data = np.vstack((new_haplotypes, new_abundances)).T
+csv_write_data = np.vstack((csv_write_header, csv_write_data))
+write_csv_file(csv_write_data, "my_vcf_hap_abundance.csv")
 
 # End time
 print(f"\nElapsed time: {time.time() - start_time} seconds")
