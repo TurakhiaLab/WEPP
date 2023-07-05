@@ -294,6 +294,56 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     return leaves_to_keep;
 }
 
+std::vector<std::string> get_within_distance(MAT::Tree* T, std::string sample_id, uint32_t max_distance) {
+    // get all samples that are within a certain mutation distance from sample_id
+    MAT::Node* node = T->get_node(sample_id);
+    if (node == NULL) {
+        fprintf(stderr, "ERROR: %s is not present in the tree!\n", sample_id.c_str() );
+        return {};
+    }
+
+    struct NodeDist {
+        MAT::Node* node;
+        uint32_t num_mut;
+
+        NodeDist(MAT::Node* n, uint32_t d) {
+            node = n;
+            num_mut = d;
+        }
+
+        inline bool operator< (const NodeDist& n) const {
+            return ((*this).num_mut < n.num_mut);
+        }
+    };
+
+    std::vector<NodeDist> node_distances;
+    for (auto anc: T->rsearch(sample_id, true)) {
+        uint32_t dist = 0;
+        for (auto l: T->get_leaves(anc->identifier)) {
+            for (auto a: T->rsearch(l->identifier, true)) {
+                if (a == anc) {
+                    break;
+                }
+                dist += a->mutations.size();
+            }
+
+            if (dist <= max_distance) {
+                node_distances.emplace_back(NodeDist(l, dist));
+            }
+        }
+    }
+
+    std::sort(node_distances.begin(), node_distances.end());
+
+    std::vector<std::string> leaves_within_distance;
+    for (auto n: node_distances) {
+        leaves_within_distance.emplace_back(n.node->identifier);
+    }
+
+    return leaves_within_distance;
+}
+
+
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations) {
     //for each sample in samples_to_check, this function rsearches along that samples history in the tree
     //if any of the ancestors have greater than max_mutations mutations, then it breaks and marks that sample as a toss

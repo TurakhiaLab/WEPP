@@ -269,7 +269,30 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     // we can iterate over the vector of reads and for each read, we can iterate over the vector of misread positions and check if the position is present in the read
     // if it is, then we add the mutation to the vector of mutations for the sample
 
-    
+    std::vector<std::vector<MAT::Mutation>> node_mutations;
+    for (int i = 0; i < (int)dfs.size(); i++) {
+        std::vector<MAT::Mutation> node_mut;
+        node_mutations.emplace_back(node_mut);
+    }
+
+    for (int i = 0; i < (int)sample_read_list.size(); i++) {
+        auto sample_read = sample_read_list[i];
+        for (int j = 0; j < (int)misread_pos.size(); j++) {
+            auto misread = misread_pos[j];
+            if (misread->read == sample_read->read) {
+                auto node = T.get_node(sample_read->sample->identifier);
+                auto node_mut = node_mutations[node->dfs_idx];
+                MAT::Mutation m;
+                m.chrom = ref_header;
+                m.position = misread->pos;
+                m.ref_nuc = MAT::get_nuc_id(ref_seq[misread->pos]);
+                m.par_nuc = m.ref_nuc;
+                m.mut_nuc = MAT::get_nuc_id('N');
+                node_mut.emplace_back(m);
+                node_mutations[node->dfs_idx] = node_mut;
+            }
+        }
+    }
 
     // for each node, the back mutations should be removed (i.e. those mutations where the base of the node is the same as the base of the reference)
     // we can iterate over the vector of mutations and remove those where the base is the same as the reference
@@ -309,7 +332,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
 
     for (int i = 0; i < (int)sample_read_list.size(); i++) {
         auto sample_read = sample_read_list[i];
-        auto read_mutations = node_mutations[T.get_node(sample_read->sample->identifier)->dfs_index];
+        auto read_mutations = node_mutations[T.get_node(sample_read->sample->identifier)->dfs_idx];
         std::vector<int> read_mutations_vector;
         for (int j = 0; j < (int)read_mutations.size(); j++) {
             auto read_mut = read_mutations[j];

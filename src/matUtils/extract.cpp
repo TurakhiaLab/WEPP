@@ -33,6 +33,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Select samples which have a total path length (number of mutations different from reference) less than or equal to P.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
+
+    ("within-distance,dist", po::value<std::string>()->default_value(""),
+    "Select a sample ID and the samples within a certain distance of it, formatted as sample:distance. E.g. -dist sample_1:50 gets sample 1 and the samples within 50 mutations of it as a subtree.")
+
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
      "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
     ("set-size,z", po::value<size_t>()->default_value(0),
@@ -140,6 +144,9 @@ void extract_main (po::parsed_options parsed) {
     std::string input_samples_file = vm["samples"].as<std::string>();
     std::string whitelist_samples_file = vm["whitelist"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
+
+    std::string within_distance = vm["within-distance"].as<std::string>();
+
     std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
@@ -417,7 +424,34 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         } else {
             samples = sample_intersect(samples, nk_samples);
         }
+    } 
+
+    fprintf(stderr, "Check within dist\n");
+
+    if (within_distance != "") {
+        fprintf(stderr, "Check within dist\n");
+        auto split_point = within_distance.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -dist argument. Requires input in the form of 'sample_id:distance' to get samples within distance of sample_id\n");
+            exit(1);
+        }
+
+        sample_id = within_distance.substr(0, split_point);
+        std::string wdstr = within_distance.substr(split_point+1, within_distance.size() - split_point);
+        int wd = std::stoi(wdstr);
+        if (wd <= 0) {
+            fprintf(stderr, "ERROR: Invalid distance. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto wd_samples = get_within_distance(&T, sample_id, wd);
+        assert ( wd_samples.size() > 0 ) ;
+        if (samples.size() == 0) {
+            samples = wd_samples;
+        } else {
+            samples = sample_intersect(samples, wd_samples);
+        }
     }
+
     if (internal_choice != "") {
         auto ic_samples = T.get_leaves_ids(internal_choice);
         if (samples.size() == 0) {
