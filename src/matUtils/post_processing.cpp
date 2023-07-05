@@ -39,6 +39,7 @@ void post_processing(po::parsed_options parsed) {
     std::string dir_prefix = vm["output-directory"].as<std::string>();
     std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
     std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
+    std::string hap_csv_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_hap_abundance.csv";
     
     // Load input MAT and uncondense tree
     MAT::Tree T;
@@ -52,8 +53,11 @@ void post_processing(po::parsed_options parsed) {
     //Checking how close are input samples with peaks
     std::unordered_map<int, struct read_info*> read_map;
     std::vector<std::string> vcf_samples;
+    std::unordered_map<std::string, double> hap_abun_map;
     read_sample_vcf(vcf_samples, sample_vcf_filename);
     read_vcf(T, dfs, read_map, hap_vcf_filename);
+    read_csv(hap_abun_map, hap_csv_filename);
+    compute_abundance(T, read_map, hap_abun_map);
     compute_distance(T, read_map, vcf_samples);
 }
 
@@ -124,4 +128,61 @@ int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MA
             n1_itr++;
     }
     return (int)(node1_mutations.size() + node2_mutations.size());
+}
+
+//Function to read csv containing abundance of haplotypes
+void read_csv(std::unordered_map<std::string, double>& hap_abun_map, const std::string hap_csv_filename) {
+    std::ifstream file(hap_csv_filename);
+    if (!file.is_open()) {
+        std::cout << "Failed to open the csv file" << std::endl;
+        return;
+    }
+
+    std::string line;
+    bool isFirstLine = true;  // To skip the header
+
+    while (std::getline(file, line)) {
+        if (isFirstLine) {
+            isFirstLine = false;
+            continue;  // Skip the header line
+        }
+
+        std::istringstream iss(line);
+        std::string key, value;
+        std::getline(iss, key, ',');
+        std::getline(iss, value, ',');
+        hap_abun_map[key] = std::stod(value);
+    }
+    file.close();
+}
+
+//Computes Lineage Abundance
+void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct read_info*> &read_map, const std::unordered_map<std::string, double>& hap_abun_map) {
+    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
+    tbb::concurrent_hash_map<std::string, double> lineage_score;
+    std::vector<MAT::Node*> peak_nodes_dummy, dfs = T.depth_first_expansion(T.root); ;
+    std::vector<int> mismatch_vector_dummy;
+    
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                auto read_id = read_map.find(i)->second;
+                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, hap_abun_map, lineage_score, 0);
+            }
+        },
+    ap);
+
+    double total_score = 0.0;
+    auto ls_itr = lineage_score.begin();
+    while (ls_itr != lineage_score.end()) {
+        total_score += ls_itr->second;
+        ls_itr++;
+    }
+    printf("LINEAGE ABUNDANCE (New Peaks)\n");
+    ls_itr = lineage_score.begin();
+    while (ls_itr != lineage_score.end()) {
+        printf("Lineage: %s, Abundance: %f\n", ls_itr->first.c_str(), (ls_itr->second) / total_score);
+        ls_itr++;
+    }
 }
