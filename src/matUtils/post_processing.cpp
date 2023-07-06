@@ -179,10 +179,10 @@ void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct 
         total_score += ls_itr->second;
         ls_itr++;
     }
-    printf("LINEAGE ABUNDANCE (New Peaks)\n");
+    printf("\nLINEAGE ABUNDANCE (New Peaks)\n");
     ls_itr = lineage_score.begin();
     while (ls_itr != lineage_score.end()) {
-        printf("Lineage: %s, Abundance: %f\n", ls_itr->first.c_str(), (ls_itr->second) / total_score);
+        printf("Lineage: %s, Abundance: %f\n", ls_itr->first.c_str(), ls_itr->second / total_score);
         ls_itr++;
     }
 }
