@@ -1540,7 +1540,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 
 void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &mismatch_matrix_file, const std::string &barcode_file, const std::string &read_abundance_vcf) {
     timer.Start();
-    int top_n = 25, m_dist_thresh = 2, remaining_read_thresh = (int)read_map.size() * 0.0025;
+    int top_n = 25, m_dist_thresh = 2;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
     std::vector<MAT::Node*> peak_nodes_dummy, peak_nodes;
     std::vector<int> remaining_reads, mismatch_vector_dummy;
@@ -1554,7 +1554,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         remaining_reads.emplace_back(itr->first);
         itr++;
     }
-    while ((int)remaining_reads.size() > remaining_read_thresh) {
+    while ((int)remaining_reads.size() > 0) {
         //Calculating node score for remaining reads
         static tbb::affinity_partitioner ap;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
