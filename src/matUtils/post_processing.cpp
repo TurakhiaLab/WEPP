@@ -1,8 +1,6 @@
 #include "post_processing.hpp"
 
 po::variables_map parse_post_processing_command(po::parsed_options parsed) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     po::variables_map vm;
     po::options_description conv_desc("post_processing options");
     conv_desc.add_options()
@@ -12,7 +10,6 @@ po::variables_map parse_post_processing_command(po::parsed_options parsed) {
      "Write output files to the target directory. Default is current directory.")
     ("read-vcf,v", po::value<std::string>()->default_value(""),
      "Output VCF file representing selected subtree. Default is full tree")
-    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -43,9 +40,7 @@ void post_processing(po::parsed_options parsed) {
     std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
     std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
     std::string hap_csv_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_hap_abundance.csv";
-    uint32_t num_threads = vm["threads"].as<uint32_t>();
-
-    tbb::task_scheduler_init init(num_threads);
+    std::string hap_clade_csv_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_hap_clade.csv";
 
     // Load input MAT and uncondense tree
     MAT::Tree T;
@@ -60,10 +55,12 @@ void post_processing(po::parsed_options parsed) {
     std::unordered_map<int, struct read_info*> read_map;
     std::vector<std::string> vcf_samples;
     std::unordered_map<std::string, double> hap_abun_map;
+    std::unordered_map<std::string, std::string> hap_clade_map;
     read_sample_vcf(vcf_samples, sample_vcf_filename);
     read_vcf(T, dfs, read_map, hap_vcf_filename);
     read_csv(hap_abun_map, hap_csv_filename);
-    compute_abundance(T, read_map, hap_abun_map);
+    read_csv(hap_clade_map, hap_clade_csv_filename);
+    compute_abundance(T, read_map, hap_abun_map, hap_clade_map);
     compute_distance(T, read_map, vcf_samples);
 }
 
@@ -162,33 +159,54 @@ void read_csv(std::unordered_map<std::string, double>& hap_abun_map, const std::
     file.close();
 }
 
-//Computes Lineage Abundance
-void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct read_info*> &read_map, const std::unordered_map<std::string, double>& hap_abun_map) {
-    tbb::concurrent_hash_map<MAT::Node*, double> node_score;
-    tbb::concurrent_hash_map<std::string, double> lineage_score;
-    std::vector<MAT::Node*> peak_nodes_dummy, dfs = T.depth_first_expansion(T.root); ;
-    std::vector<int> mismatch_vector_dummy;
-    
-    static tbb::affinity_partitioner ap;
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
-        [&](tbb::blocked_range<size_t> k) {
-            for (size_t i = k.begin(); i < k.end(); ++i) {
-                auto read_id = read_map.find(i)->second;
-                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, hap_abun_map, lineage_score, 0);
-            }
-        },
-    ap);
-
-    double total_score = 0.0;
-    auto ls_itr = lineage_score.begin();
-    while (ls_itr != lineage_score.end()) {
-        total_score += ls_itr->second;
-        ls_itr++;
+//Function to read csv containing lineage of haplotypes
+void read_csv(std::unordered_map<std::string, std::string>& hap_clade_map, const std::string hap_clade_csv_filename) {
+    std::ifstream file(hap_clade_csv_filename);
+    if (!file.is_open()) {
+        std::cout << "Failed to open the csv file" << std::endl;
+        return;
     }
+
+    std::string line;
+    bool isFirstLine = true;  // To skip the header
+
+    while (std::getline(file, line)) {
+        if (isFirstLine) {
+            isFirstLine = false;
+            continue;  // Skip the header line
+        }
+
+        std::istringstream iss(line);
+        std::string key, value;
+        std::getline(iss, key, ',');
+        std::getline(iss, value, ',');
+        hap_clade_map[key] = value;
+    }
+    file.close();
+}
+
+//Computes Lineage Abundance
+void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct read_info*> &read_map, const std::unordered_map<std::string, double>& hap_abun_map, const std::unordered_map<std::string, std::string>& hap_clade_map) {
+    std::unordered_map<std::string, double> clade_abun_map; 
+    //Iterate through haplotype-abundance map
+    auto h_abun_itr = hap_abun_map.begin();
+    while (h_abun_itr != hap_abun_map.end()) {
+        //Find the haplotype in haplotype-clade map 
+        auto h_clade_itr = hap_clade_map.find(h_abun_itr->first);
+        //Insert the clade in clade-abundance map if not present
+        auto c_abun_itr = clade_abun_map.find(h_clade_itr->second);
+        if (c_abun_itr == clade_abun_map.end())
+            clade_abun_map.insert({h_clade_itr->second, h_abun_itr->second});
+        //Else add the value to the map element
+        else 
+            clade_abun_map[h_clade_itr->second] += h_abun_itr->second;
+        h_abun_itr++;
+    }
+
     printf("\nLINEAGE ABUNDANCE (New Peaks)\n");
-    ls_itr = lineage_score.begin();
-    while (ls_itr != lineage_score.end()) {
-        printf("Lineage: %s, Abundance: %f\n", ls_itr->first.c_str(), ls_itr->second / total_score);
-        ls_itr++;
+    auto c_abun_itr = clade_abun_map.begin();
+    while (c_abun_itr != clade_abun_map.end()) {
+        printf("%s: %f\n", c_abun_itr->first.c_str(), c_abun_itr->second);
+        c_abun_itr++;
     }
 }

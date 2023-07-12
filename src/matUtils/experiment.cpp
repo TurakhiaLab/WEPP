@@ -51,7 +51,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = false;
+    bool old_vcf = true;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -1263,7 +1263,7 @@ void read_vcf(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unord
 }
 
 
-int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<MAT::Node*> &peak_nodes, std::vector<int> &mismatch_vector, const std::unordered_map<std::string, double> &hap_abun_map, tbb::concurrent_hash_map<std::string, double> &lineage_score, const int par_score_lim) {
+int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<MAT::Node*> &peak_nodes, std::vector<int> &mismatch_vector, const int par_score_lim) {
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
     int peak_count = 0;
@@ -1486,86 +1486,59 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
     
     //Compute node_score
     if (check_node == NULL) {
-        //For computing Lineage Abundance
-        if (!hap_abun_map.empty()) {
-            std::vector<std::string> clade_list;
-            for (auto n_idx: min_par.idx_list) {
-                auto node = dfs[n_idx];
-                auto clade = get_clade(T, node);
-                auto itr = std::find(clade_list.begin(), clade_list.end(), clade);
-                if (itr == clade_list.end())
-                    clade_list.emplace_back(clade);
-            }
-            double score = hap_abun_map.find(rp->read)->second / clade_list.size();
-            for (auto clade: clade_list) {
-                tbb::concurrent_hash_map<std::string, double>::accessor ac;
-                auto created = lineage_score.insert(ac, std::make_pair(clade, score));
-                if (!created)
-                    ac->second += score;
-                ac.release();
-            }
-            fprintf(stderr, "HAP: %s, EPPs: %d, Clades: %d, Par: %d\n", rp->read.c_str(), (int)min_par.idx_list.size(), (int)clade_list.size(), (int)min_par.par_list[0].size());
-            for (auto idx: min_par.idx_list) {
-                auto clade = get_clade(T, dfs[idx]);
-                printf("%s\t%s\t%s\n", rp->read.c_str(), dfs[idx]->identifier.c_str(), clade.c_str());
-            }
-            return 0;
-        }
-        else {
-            //VERIFY only if searching for nodes with zero parsimony score
-            if (!par_score_lim) {
-                //Check to ensure every read has its corresponding sample as its most parsimonious position
-                std::string target = rp->read;
-                size_t pos = target.find("_READ");
-                target.erase(pos);
-                bool found = false;
-                int idx, i;
-                for (i = 0; i < (int)min_par.idx_list.size(); i++) {
-                    idx = min_par.idx_list[i];
-                    if (dfs[idx]->identifier == target) {
-                        found = true;
-                        break;
-                    }
-                }
-                if ((!found) || (min_par.par_list[0].size())) {
-                    if (found) {
-                        for (auto mut: min_par.par_list[i])
-                            fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-                        fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
-                        for (auto mut: rp->mutations)
-                            fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
-                    }
-                    else {
-                        fprintf(stderr, "Sample not Found !!! \n");
-                        auto clade = get_clade(T, T.get_node(target));
-                        fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
-                        fprintf(stderr, "mut pos: ");
-                        for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
-                            for (auto mut: anc->mutations)
-                                fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
-                        }
-                        fprintf(stderr, "\n");
-                    }
-                    fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
-                    std::cout << "\n";
+        //VERIFY only if searching for nodes with zero parsimony score
+        if (!par_score_lim) {
+            //Check to ensure every read has its corresponding sample as its most parsimonious position
+            std::string target = rp->read;
+            size_t pos = target.find("_READ");
+            target.erase(pos);
+            bool found = false;
+            int idx, i;
+            for (i = 0; i < (int)min_par.idx_list.size(); i++) {
+                idx = min_par.idx_list[i];
+                if (dfs[idx]->identifier == target) {
+                    found = true;
+                    break;
                 }
             }
-            //Keeping tab on weighted read score being mapped to each parsimonious node
-            min_par.par_list.clear();
-            // In absence of specific clades, add scores to nodes
-            //Give score to parsimonious node: Score -> 1/N^2
-            double score = (1.0 / pow(min_par.idx_list.size(), 2));
-            for (auto n_idx: min_par.idx_list) {
-                auto node = dfs[n_idx];
-                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-                auto created = node_score.insert(ac, std::make_pair(node, score));
-                if (!created)
-                    ac->second += score;
-                ac.release();
+            if ((!found) || (min_par.par_list[0].size())) {
+                if (found) {
+                    for (auto mut: min_par.par_list[i])
+                        fprintf(stderr, "Parsimony Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+                    fprintf(stderr, "Sample: %s \n", dfs[idx]->identifier.c_str());
+                    for (auto mut: rp->mutations)
+                        fprintf(stderr, "Read mut Pos: %d, mut: %c \n", mut.position, MAT::get_nuc(mut.mut_nuc));
+                }
+                else {
+                    fprintf(stderr, "Sample not Found !!! \n");
+                    auto clade = get_clade(T, T.get_node(target));
+                    fprintf(stderr, "Target: %s, Clade: %s\n", target.c_str(), clade.c_str());
+                    fprintf(stderr, "mut pos: ");
+                    for (auto anc: T.rsearch(target, true)) { //Checking all ancestors of a node to get clade 
+                        for (auto mut: anc->mutations)
+                            fprintf(stderr, "%c%d%c, ", MAT::get_nuc(mut.ref_nuc), mut.position, MAT::get_nuc(mut.mut_nuc));
+                    }
+                    fprintf(stderr, "\n");
+                }
+                fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
+                std::cout << "\n";
             }
-            min_par.idx_list.clear();
-            return 0;
         }
+        //Keeping tab on weighted read score being mapped to each parsimonious node
+        min_par.par_list.clear();
+        // In absence of specific clades, add scores to nodes
+        //Give score to parsimonious node: Score -> 1/N^2
+        double score = (1.0 / pow(min_par.idx_list.size(), 2));
+        for (auto n_idx: min_par.idx_list) {
+            auto node = dfs[n_idx];
+            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+            auto created = node_score.insert(ac, std::make_pair(node, score));
+            if (!created)
+                ac->second += score;
+            ac.release();
+        }
+        min_par.idx_list.clear();
+        return 0;
     }
     //Check if given node is present in parsimonious list of read
     else {
@@ -1589,8 +1562,6 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
     std::vector<MAT::Node*> peak_nodes_dummy, peak_nodes;
     std::vector<int> remaining_reads, mismatch_vector_dummy;
-    std::unordered_map<std::string, double> hap_abun_map_dummy;
-    tbb::concurrent_hash_map<std::string, double> lineage_score_dummy;
     
     //GREEDY ALGORITHM for getting Lineages
     //Initializing remaining_reads
@@ -1607,7 +1578,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 for (size_t i = k.begin(); i < k.end(); ++i) {
                     int rm_idx = remaining_reads[i];
                     auto read_id = read_map.find(rm_idx)->second;
-                    place_reads(T, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, hap_abun_map_dummy, lineage_score_dummy, 0);
+                    place_reads(T, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
                 }
             },
         ap);
@@ -1667,7 +1638,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                             for (size_t i = k.begin(); i < k.end(); ++i) {
                                 int rm_idx = remaining_reads[i];
                                 auto read_id = read_map.find(rm_idx)->second;
-                                int read_present = place_reads(T, dfs, read_id, curr_node, node_score, peak_nodes_dummy, mismatch_vector_dummy, hap_abun_map_dummy, lineage_score_dummy, 0);
+                                int read_present = place_reads(T, dfs, read_id, curr_node, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
                                 node_score.clear();
                                 //Read contains current node -> REMOVE
                                 if (read_present) {
@@ -1874,7 +1845,7 @@ void generate_EM_data(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, co
             for (size_t i = k.begin(); i < k.end(); ++i) {
                 std::vector<int> mismatch_vector(peak_nodes.size(), -1);
                 auto read_id = read_map.find(i)->second;
-                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes, mismatch_vector, hap_abun_map_dummy, lineage_score_dummy, 0);
+                place_reads(T, dfs, read_id, NULL, node_score, peak_nodes, mismatch_vector, 0);
                 node_score.clear();
                 my_mutex_t::scoped_lock my_lock{my_mutex};
                 mismatch_matrix.insert({i, mismatch_vector});
