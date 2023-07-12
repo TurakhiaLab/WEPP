@@ -1385,7 +1385,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
         }
 
-        //Updating the parsimony score of peak nodes
+        //Updating the parsimony score of peak nodes for EM algorithm
         auto curr_node = dfs[i];
         for (int j = 0; j < (int)peak_nodes.size(); j++) {
             if (peak_nodes[j] == curr_node) {
@@ -1397,36 +1397,77 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
         }
 
-        //Checking min_parsimony
-        int new_min_par = -1; 
-        // If best_par_score is empty and curr_par_score >= limit -> CHANGE
-        if ((!(min_par.par_list.size())) && ((int)curr_node_par_mut.size() >= par_score_lim))
-            new_min_par = 1;
-        // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
-        else if ((curr_node_par_mut.size() < min_par.par_list[0].size()) && ((int)curr_node_par_mut.size() >= par_score_lim))
-            new_min_par = 1;
-        // If cur_par_score == best_par_score -> APPEND
-        else if (curr_node_par_mut.size() == min_par.par_list[0].size())
-            new_min_par = 0;
+        bool placed_child = false;
+        //Place as a sibling if common_node_mut is not empty
+        if (common_node_mut.size()) {
+            //Checking min_parsimony
+            int new_min_par = -1; 
+            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+            if ((min_par.par_list.empty()) && ((int)curr_node_par_mut.size() >= par_score_lim))
+                new_min_par = 1;
+            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+            else if ((curr_node_par_mut.size() < min_par.par_list[0].size()) && ((int)curr_node_par_mut.size() >= par_score_lim))
+                new_min_par = 1;
+            // If cur_par_score == best_par_score -> APPEND
+            else if (curr_node_par_mut.size() == min_par.par_list[0].size())
+                new_min_par = 0;
         
-        if (new_min_par == 1) {
-            min_par.idx_list.clear();
-            min_par.par_list.clear();
-            min_par.idx_list.emplace_back(i);
-            min_par.par_list.emplace_back(curr_node_par_mut);
+            if (new_min_par == 1) {
+                min_par.idx_list.clear();
+                min_par.par_list.clear();
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
+            else if (new_min_par == 0) {
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }   
         }
-        else if (new_min_par == 0) {
-            min_par.idx_list.emplace_back(i);
-            min_par.par_list.emplace_back(curr_node_par_mut);
-        }
+        //Place as a child if current node is not a leaf node
+        else if (!curr_node->is_leaf()) {
+            placed_child = true;
+            //Updating parsimony to be stored as a child
+            for (auto uniq_mut: uniq_curr_node_mut) {
+                //Just reverse mut_nuc and par_nuc and add it to parsimony
+                int8_t temp = uniq_mut.par_nuc;
+                uniq_mut.par_nuc = uniq_mut.mut_nuc;
+                uniq_mut.mut_nuc = temp;
+                curr_node_par_mut.emplace_back(uniq_mut);
+            }
+            //Checking min_parsimony
+            int new_min_par = -1; 
+            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+            if ((min_par.par_list.empty()) && ((int)curr_node_par_mut.size() >= par_score_lim))
+                new_min_par = 1;
+            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+            else if ((curr_node_par_mut.size() < min_par.par_list[0].size()) && ((int)curr_node_par_mut.size() >= par_score_lim))
+                new_min_par = 1;
+            // If cur_par_score == best_par_score -> APPEND
+            else if (curr_node_par_mut.size() == min_par.par_list[0].size())
+                new_min_par = 0;
+        
+            if (new_min_par == 1) {
+                min_par.idx_list.clear();
+                min_par.par_list.clear();
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
+            else if (new_min_par == 0) {
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
 
-        //Updating parsimony to be stored as a child
-        for (auto uniq_mut: uniq_curr_node_mut) {
-            //Just reverse mut_nuc and par_nuc and add it to parsimony
-            int8_t temp = uniq_mut.par_nuc;
-            uniq_mut.par_nuc = uniq_mut.mut_nuc;
-            uniq_mut.mut_nuc = temp;
-            curr_node_par_mut.emplace_back(uniq_mut);
+        }
+        //Only update if not placed as child
+        if (!placed_child) {
+            //Updating parsimony to be stored as a child
+            for (auto uniq_mut: uniq_curr_node_mut) {
+                //Just reverse mut_nuc and par_nuc and add it to parsimony
+                int8_t temp = uniq_mut.par_nuc;
+                uniq_mut.par_nuc = uniq_mut.mut_nuc;
+                uniq_mut.mut_nuc = temp;
+                curr_node_par_mut.emplace_back(uniq_mut);
+            }
         }
 
         //Updating curr_node_mut for having read as child
@@ -1465,7 +1506,8 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
             fprintf(stderr, "HAP: %s, EPPs: %d, Clades: %d, Par: %d\n", rp->read.c_str(), (int)min_par.idx_list.size(), (int)clade_list.size(), (int)min_par.par_list[0].size());
             for (auto idx: min_par.idx_list) {
-                printf("%s\t%s\n", rp->read.c_str(), dfs[idx]->identifier.c_str());
+                auto clade = get_clade(T, dfs[idx]);
+                printf("%s\t%s\t%s\n", rp->read.c_str(), dfs[idx]->identifier.c_str(), clade.c_str());
             }
             return 0;
         }
