@@ -51,7 +51,7 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
 }
 
 void simulate_and_place_reads (po::parsed_options parsed) {
-    bool old_vcf = true;
+    bool old_vcf = false;
     //main argument for the complex extract command
     //uses included code from multiple modules
     //specifically, the modules select, describe, convert, and filter support this command
@@ -1300,7 +1300,6 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                            while (!((itr->position == par_node_mut.position) && (itr->mut_nuc == par_node_mut.mut_nuc) && (itr->ref_nuc == par_node_mut.ref_nuc))) {
                                 itr++; 
                            }
-                           common_node_mut.emplace_back(par_node_mut);
                            curr_node_par_mut.erase(itr);
                            //Did not work because == not defined for MAT::Mutation
                            //curr_node_par_mut.erase(std::remove(curr_node_par_mut.begin(), curr_node_par_mut.end(), par_node_mut), curr_node_par_mut.end());
@@ -1319,16 +1318,26 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                 //Not found in parent parsimony
                 for (auto read_mut: rp->mutations) {
                     if (read_mut.position == node_mut.position) {
-                        //Mutation found in read, add to common_node_mut
-                        if (read_mut.mut_nuc == node_mut.mut_nuc)
-                            common_node_mut.emplace_back(read_mut);
-                        //read_mut is 'N', add to common_node_mut
-                        else if (read_mut.mut_nuc == 0b1111)
-                            common_node_mut.emplace_back(read_mut);
-                        //If mutation is different
+                        //If different mutation on non-root node, add in unique mutations
+                        if (i) {
+                            //read_mut is NOT 'N' and NOT same as node_mut
+                            if ((read_mut.mut_nuc != node_mut.mut_nuc) && (read_mut.mut_nuc != 0b1111)) {
+                                struct MAT::Mutation new_mut;
+                                new_mut.position = read_mut.position;
+                                new_mut.ref_nuc = read_mut.ref_nuc;
+                                //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
+                                new_mut.par_nuc = read_mut.mut_nuc;
+                                new_mut.mut_nuc = node_mut.mut_nuc;
+                                uniq_curr_node_mut.emplace_back(new_mut);
+                            }
+                        }
+                        //For ROOT node
                         else {
-                            //For root, handle the mutation as child of current node. 
-                            if (!i) {
+                            //Mutation found in read OR read_mut is 'N', add to common_node_mut
+                            if ((read_mut.mut_nuc == node_mut.mut_nuc) || (read_mut.mut_nuc == 0b1111))
+                                common_node_mut.emplace_back(read_mut);
+                            //If mutation is different, handle the mutation as child of current node. 
+                            else {
                                 struct MAT::Mutation new_mut;
                                 new_mut.position = read_mut.position;
                                 new_mut.ref_nuc = read_mut.ref_nuc;
@@ -1337,16 +1346,6 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                                 curr_node_par_mut.emplace_back(new_mut);
                                 //Placing it in common_mut so don't add this mut again
                                 common_node_mut.emplace_back(new_mut);
-                            }
-                            //Otherwise, handle it as sibling of current node, i.e. add as uniq mutation
-                            //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
-                            else {
-                                struct MAT::Mutation new_mut;
-                                new_mut.position = read_mut.position;
-                                new_mut.ref_nuc = read_mut.ref_nuc;
-                                new_mut.par_nuc = read_mut.mut_nuc;
-                                new_mut.mut_nuc = node_mut.mut_nuc;
-                                uniq_curr_node_mut.emplace_back(new_mut);
                             }
                         }
                         found = true;
@@ -1361,7 +1360,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
         } 
 
-        //Adding only unseen read_mut to node parsimony for root node
+        //Adding only unseen read_mut to node parsimony for ROOT node
         if (!i) {
             for (auto read_mut: rp->mutations) {
                 bool present = false;
@@ -1463,7 +1462,10 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                     ac->second += score;
                 ac.release();
             }
-            //fprintf(stderr, "READ: %s, EPPs: %d, Clades: %d, Par: %d\n", rp->read.c_str(), (int)min_par.idx_list.size(), (int)clade_list.size(), (int)min_par.par_list[0].size());
+            fprintf(stderr, "HAP: %s, EPPs: %d, Clades: %d, Par: %d\n", rp->read.c_str(), (int)min_par.idx_list.size(), (int)clade_list.size(), (int)min_par.par_list[0].size());
+            for (auto idx: min_par.idx_list) {
+                printf("%s\t%s\n", rp->read.c_str(), dfs[idx]->identifier.c_str());
+            }
             return 0;
         }
         else {
