@@ -1,6 +1,8 @@
 #include "post_processing.hpp"
 
 po::variables_map parse_post_processing_command(po::parsed_options parsed) {
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     po::variables_map vm;
     po::options_description conv_desc("post_processing options");
     conv_desc.add_options()
@@ -10,6 +12,7 @@ po::variables_map parse_post_processing_command(po::parsed_options parsed) {
      "Write output files to the target directory. Default is current directory.")
     ("read-vcf,v", po::value<std::string>()->default_value(""),
      "Output VCF file representing selected subtree. Default is full tree")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -40,7 +43,10 @@ void post_processing(po::parsed_options parsed) {
     std::string sample_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_samples.vcf";
     std::string hap_vcf_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_haplotypes.vcf";
     std::string hap_csv_filename = dir_prefix + vm["read-vcf"].as<std::string>() + "_hap_abundance.csv";
-    
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    tbb::task_scheduler_init init(num_threads);
+
     // Load input MAT and uncondense tree
     MAT::Tree T;
     T = MAT::load_mutation_annotated_tree(input_mat_filename);
