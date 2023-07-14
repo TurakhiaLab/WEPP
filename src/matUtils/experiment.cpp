@@ -1295,7 +1295,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                 for (auto par_node_mut: curr_node_par_mut) {
                     if (par_node_mut.position == node_mut.position) {
                         //mut_nuc matches => remove mutation from parsimony
-                        if(par_node_mut.mut_nuc == node_mut.mut_nuc) {
+                        if ((par_node_mut.mut_nuc == node_mut.mut_nuc) || (par_node_mut.mut_nuc == 0b1111)) {
                            auto itr = curr_node_par_mut.begin();
                            while (!((itr->position == par_node_mut.position) && (itr->mut_nuc == par_node_mut.mut_nuc) && (itr->ref_nuc == par_node_mut.ref_nuc))) {
                                 itr++; 
@@ -1319,16 +1319,16 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                 //Not found in parent parsimony
                 for (auto read_mut: rp->mutations) {
                     if (read_mut.position == node_mut.position) {
-                        //Mutation found in read, add to common_node_mut
-                        if (read_mut.mut_nuc == node_mut.mut_nuc)
-                            common_node_mut.emplace_back(read_mut);
-                        //read_mut is 'N', add to common_node_mut
-                        else if (read_mut.mut_nuc == 0b1111)
-                            common_node_mut.emplace_back(read_mut);
-                        //If mutation is different
-                        else {
-                            //For root, handle the mutation as child of current node. 
-                            if (!i) {
+                        //For root 
+                        if (!i) {
+                            //Mutation found in read, add to common_node_mut
+                            if (read_mut.mut_nuc == node_mut.mut_nuc)
+                                common_node_mut.emplace_back(read_mut);
+                            //read_mut is 'N', add to common_node_mut
+                            else if (read_mut.mut_nuc == 0b1111)
+                                common_node_mut.emplace_back(read_mut);
+                            //If mutation is different, handle the mutation as child of current node
+                            else {
                                 struct MAT::Mutation new_mut;
                                 new_mut.position = read_mut.position;
                                 new_mut.ref_nuc = read_mut.ref_nuc;
@@ -1338,16 +1338,17 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                                 //Placing it in common_mut so don't add this mut again
                                 common_node_mut.emplace_back(new_mut);
                             }
-                            //Otherwise, handle it as sibling of current node, i.e. add as uniq mutation
-                            //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
-                            else {
-                                struct MAT::Mutation new_mut;
-                                new_mut.position = read_mut.position;
-                                new_mut.ref_nuc = read_mut.ref_nuc;
-                                new_mut.par_nuc = read_mut.mut_nuc;
-                                new_mut.mut_nuc = node_mut.mut_nuc;
-                                uniq_curr_node_mut.emplace_back(new_mut);
-                            }
+                        }
+                        //Otherwise, if mut_nuc is same it would have been detcted above in parent parsimony check
+                        //At this step assume the mut_nuc is different and add it as a uniq mutation
+                        //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
+                        else {
+                            struct MAT::Mutation new_mut;
+                            new_mut.position = read_mut.position;
+                            new_mut.ref_nuc = read_mut.ref_nuc;
+                            new_mut.par_nuc = read_mut.mut_nuc;
+                            new_mut.mut_nuc = node_mut.mut_nuc;
+                            uniq_curr_node_mut.emplace_back(new_mut);
                         }
                         found = true;
                         break;
@@ -1366,15 +1367,15 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             for (auto read_mut: rp->mutations) {
                 bool present = false;
                 //Check if mut present in common_node_mut
-                auto itr = common_node_mut.begin();
-                while (itr != common_node_mut.end()) {
-                    if (itr->position == read_mut.position) {
-                        if (itr->mut_nuc != read_mut.mut_nuc)
-                            std::cout << "common_node mut does not match read_mut!!!" << "\n";
+                auto c_itr = common_node_mut.begin();
+                while (c_itr != common_node_mut.end()) {
+                    if (c_itr->position == read_mut.position) {
+                        if (c_itr->mut_nuc != read_mut.mut_nuc)
+                            fprintf(stderr,"common_node mut does not match read_mut!!!\n");
                         present = true;
                         break;
                     }
-                    itr++;
+                    c_itr++;
                 }
                 if (present)
                     continue;
@@ -1385,21 +1386,11 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
         }
 
-        //Updating the parsimony score of peak nodes for EM algorithm
-        auto curr_node = dfs[i];
-        for (int j = 0; j < (int)peak_nodes.size(); j++) {
-            if (peak_nodes[j] == curr_node) {
-                mismatch_vector[j] = (int)curr_node_par_mut.size();
-                peak_count++;
-                if (peak_count == (int)peak_nodes.size())
-                    return 0;
-                break;
-            }
-        }
 
         bool placed_child = false;
+        auto curr_node = dfs[i];
         //Place as a sibling if common_node_mut is not empty
-        if (common_node_mut.size()) {
+        if ((common_node_mut.size()) && (!curr_node->is_root())) {
             //Checking min_parsimony
             int new_min_par = -1; 
             // If best_par_score is empty and curr_par_score >= limit -> CHANGE
@@ -1423,7 +1414,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                 min_par.par_list.emplace_back(curr_node_par_mut);
             }   
         }
-        //Place as a child if current node is not a leaf node
+        //Place as a child if current node is not a leaf node or ROOT node
         else if (!curr_node->is_leaf()) {
             placed_child = true;
             //Updating parsimony to be stored as a child
@@ -1458,6 +1449,18 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             }
 
         }
+
+        //Updating the parsimony score of peak nodes for EM algorithm
+        for (int j = 0; j < (int)peak_nodes.size(); j++) {
+            if (peak_nodes[j] == curr_node) {
+                mismatch_vector[j] = (int)curr_node_par_mut.size();
+                peak_count++;
+                if (peak_count == (int)peak_nodes.size())
+                    return 0;
+                break;
+            }
+        }
+
         //Only update if not placed as child
         if (!placed_child) {
             //Updating parsimony to be stored as a child
@@ -1492,11 +1495,12 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
             std::string target = rp->read;
             size_t pos = target.find("_READ");
             target.erase(pos);
+            auto target_p = T.get_node(target)->parent->identifier;
             bool found = false;
             int idx, i;
             for (i = 0; i < (int)min_par.idx_list.size(); i++) {
                 idx = min_par.idx_list[i];
-                if (dfs[idx]->identifier == target) {
+                if ((dfs[idx]->identifier == target) || (dfs[idx]->identifier == target_p)) {
                     found = true;
                     break;
                 }
