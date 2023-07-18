@@ -1162,6 +1162,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
 }
 
+
 void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
     boost::filesystem::ifstream fileHandler(vcf_filename_samples);
     std::string s;
@@ -1176,6 +1177,7 @@ void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vc
         }
     }
 }
+
 
 void read_vcf(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
@@ -1631,7 +1633,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                     peak_nodes.emplace_back(curr_node);
                     //Remove mapped reads from remaining_reads
                     auto clade = get_clade(T, curr_node);
-                    printf("PEAK Node: %s, Clade: %s\n", curr_node->identifier.c_str(), clade.c_str());
+                    //printf("PEAK Node: %s, Clade: %s\n", curr_node->identifier.c_str(), clade.c_str());
                     std::vector<int> remove_reads;
                     using my_mutex_t = tbb::queuing_mutex;
                     my_mutex_t my_mutex;
@@ -1699,10 +1701,11 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         top_n_node_score.clear();
         top_n_node_score.resize(top_n);
         peak_vec.clear();
-        std::cout << "\n";
+        //std::cout << "\n";
     }
-    std::cout << "\nRemaining reads: " << remaining_reads.size() << "\n";
+    //std::cout << "\nRemaining reads: " << remaining_reads.size() << "\n";
     remaining_reads.clear();
+    printf("\nInital PEAK nodes: %d\n", (int)peak_nodes.size());
     fprintf(stderr,"Peak search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
     
     printf("MUTATION DISTANCE ORIG:\n"); 
@@ -1710,23 +1713,23 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
     timer.Start();
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
-        auto ref_clade = get_clade(T, T.get_node(sample));
-        auto best_clade = ref_clade;
+        //auto ref_clade = get_clade(T, T.get_node(sample));
+        //auto best_clade = ref_clade;
         auto best_node = T.get_node(sample);
         for (auto n_s: peak_nodes) {
             int curr_dist = mutation_distance(T, n_s, T.get_node(sample));
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
-                best_clade = get_clade(T, n_s);
+                //best_clade = get_clade(T, n_s);
                 best_node = n_s;
             }
         }
-        printf("Node: %s, Closest_node: %s, Ref_clade: %s, closest_clade: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), ref_clade.c_str(), best_clade.c_str(), min_dist);
+        printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), min_dist);
     }
     fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
 
     generate_regression_abundance_data(T, peak_nodes, read_map, barcode_file, read_abundance_vcf);
-    generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
+    //generate_EM_data(T, dfs, read_map, peak_nodes, mismatch_matrix_file);
 }
 
 
@@ -1740,6 +1743,7 @@ bool check_peaks_neighbourhood (const MAT::Tree &T, const MAT::Node* N, const st
     }
     return false;
 }
+
 
 //Function to calculation distance between two nodes
 int mutation_distance(const MAT::Tree &T, const MAT::Node* N1, const MAT::Node* N2) {
