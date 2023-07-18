@@ -61,36 +61,16 @@ void post_processing(po::parsed_options parsed) {
     read_csv(hap_abun_map, hap_csv_filename);
     read_csv(hap_clade_map, hap_clade_csv_filename);
     compute_abundance(T, read_map, hap_abun_map, hap_clade_map);
-    compute_distance(T, read_map, vcf_samples);
+    compute_distance(T, dfs, read_map, vcf_samples);
 }
 
-void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
+void compute_distance(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)read_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Get Mutations of samples
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
-        std::vector<MAT::Mutation> sample_mutations;
-        for (auto anc: T.rsearch(sample, true)) { //Checking all ancestors of a node
-            for (auto mut: anc->mutations) {
-                auto sm_itr = sample_mutations.begin();
-                while (sm_itr != sample_mutations.end()) {
-                    if (sm_itr->position == mut.position)
-                        break;
-                    sm_itr++;
-                }
-                if (sm_itr == sample_mutations.end())
-                    sample_mutations.emplace_back(mut);
-            }
-        }
-        //Remove Back-Mutations
-        auto sm_itr = sample_mutations.begin();
-        while (sm_itr != sample_mutations.end()) {
-            if (sm_itr->ref_nuc == sm_itr->mut_nuc)
-                sm_itr = sample_mutations.erase(sm_itr);
-            else
-                sm_itr++;
-        }
+        auto sample_mutations = get_mutations(T, sample);
         std::string best_node = "";
         auto itr = read_map.begin();
         while (itr != read_map.end()) {
@@ -102,6 +82,47 @@ void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct r
             itr++;
         }
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node.c_str(), min_dist);
+    }
+
+    //Samples' avg mut distance from other haplotypes of lineage
+    printf("\n\nINTRA-LINEAGE AVG MUTATION DISTANCE:\n");
+    for (auto sample: vcf_samples) {
+        std::vector<MAT::Node*> hap_list;
+        //Find all haplotypes of the lineage
+        auto curr_clade = get_clade(T, T.get_node(sample));
+        for (auto n: dfs) {
+            if (n->clade_annotations[1] == curr_clade) {
+                std::queue<MAT::Node*> remaining_nodes;
+                remaining_nodes.push(n);
+                while (remaining_nodes.size() > 0) {
+                    MAT::Node* curr_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    if ((curr_node->clade_annotations[1] == "") || (curr_node->clade_annotations[1] == curr_clade)) {
+                        if (curr_node->children.size() == 0)
+                            hap_list.emplace_back(curr_node);
+                        else {
+                            for (auto c: curr_node->children) {
+                                remaining_nodes.push(c);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        //Compute Intra-lineage mutation distance
+        double avg_distance = 0.0;
+        auto sample_mutations = get_mutations(T, sample);
+        for (auto hap: hap_list) {
+            std::string hap_name = hap->identifier;
+            if (hap_name != sample) {
+                auto hap_mutations = get_mutations(T, hap_name);
+                avg_distance += mutation_distance(sample_mutations, hap_mutations);
+            }
+        }
+        avg_distance /= (int)hap_list.size() - 1;
+        hap_list.clear();
+        printf("Node: %s, avg_mutation_distance: %f\n", sample.c_str(), avg_distance);
     }
 }
 
@@ -209,4 +230,30 @@ void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct 
         printf("%s: %f\n", c_abun_itr->first.c_str(), c_abun_itr->second);
         c_abun_itr++;
     }
+}
+
+//Getting all mutations of a haplotype
+std::vector<MAT::Mutation> get_mutations(const MAT::Tree& T, const std::string sample) {
+    std::vector<MAT::Mutation> sample_mutations;
+    for (auto anc: T.rsearch(sample, true)) { //Checking all ancestors of a node
+        for (auto mut: anc->mutations) {
+            auto sm_itr = sample_mutations.begin();
+            while (sm_itr != sample_mutations.end()) {
+                if (sm_itr->position == mut.position)
+                    break;
+                sm_itr++;
+            }
+            if (sm_itr == sample_mutations.end())
+                sample_mutations.emplace_back(mut);
+        }
+    }
+    //Remove Back-Mutations
+    auto sm_itr = sample_mutations.begin();
+    while (sm_itr != sample_mutations.end()) {
+        if (sm_itr->ref_nuc == sm_itr->mut_nuc)
+            sm_itr = sample_mutations.erase(sm_itr);
+        else
+            sm_itr++;
+    }
+    return sample_mutations;
 }
