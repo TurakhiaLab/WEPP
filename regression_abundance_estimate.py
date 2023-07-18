@@ -156,7 +156,7 @@ def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
 # Start time
 start_time = time.time()
 eps = 1e-2
-thresh = 0.04
+thresh = 0.01
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
