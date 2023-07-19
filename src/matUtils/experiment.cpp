@@ -2029,7 +2029,7 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
     std::sort(peak_mut_list.begin(), peak_mut_list.end(), compare_mutations);
     //Writing the header mutations
     std::string barcode_print, vcf_print;
-    vcf_print += "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    vcf_print += "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tDEPTH\n";
     for (auto mut: peak_mut_list) {
         barcode_print += ",";
         barcode_print += MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
@@ -2053,7 +2053,7 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
         if (total_reads > 0)
             af = (float)match_reads / (float)total_reads;
         vcf_print += "NC_045512v2\t" + std::to_string(mut.position) + "\t" + MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc) + "\t" + MAT::get_nuc(mut.par_nuc) + "\t" + MAT::get_nuc(mut.mut_nuc) + "\t.\t.\tAF=";
-        vcf_print += std::to_string(af) + "\n";
+        vcf_print += std::to_string(af) + "\t" + std::to_string(total_reads) + "\n";
     } 
     barcode << barcode_print;
     vcf << vcf_print;

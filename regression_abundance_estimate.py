@@ -24,14 +24,16 @@ def read_vcf_file(file_path):
     with open(vcf_file, 'r') as file:
         vcf_reader = csv.reader(file, delimiter='\t')
         af_values = []
+        depth_values = []
 
         for row in vcf_reader:
             if not row[0].startswith('#'):  # Skip header rows
-                info_field = row[-1]
-                af_value = info_field.split(';')[0].split('=')[1]
+                af_field = row[-2]
+                af_value = af_field.split(';')[0].split('=')[1]
                 af_values.append(float(af_value))
+                depth_values.append(int(row[-1])+1)
     
-    return np.array(af_values)
+    return np.array(af_values), np.log2(depth_values)
 
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
@@ -64,17 +66,23 @@ def write_csv_file(data, file_path):
         writer = csv.writer(file)
         writer.writerows(data)
 
-def cp_solve(A, b):
+def cp_solve(A, b, d):
     x = cp.Variable(A.shape[1])
-    cost = cp.norm(A @ x - b, 1)
+    # Perform element-wise multiplication with broadcasting
+    weighted_A =  A * d[:, np.newaxis]
+    weighted_b = b * d
+    cost = cp.norm(weighted_A @ x - weighted_b, 1)
     constraints = [sum(x) == 1, x >= 0]
     prob = cp.Problem(cp.Minimize(cost), constraints)
     prob.solve(verbose=False)
     return x.value
 
-def add_mutations_to_haplotypes(A, x_val, b, haplotypes): 
+def add_mutations_to_haplotypes(A, x_val, b, d, haplotypes): 
     A_copy = np.copy(A)
-    ref_cost = np.linalg.norm(A @ x_val - b, 1)
+    # Perform element-wise multiplication with broadcasting
+    weighted_A =  A * d[:, np.newaxis]
+    weighted_b = b * d
+    ref_cost = np.linalg.norm(weighted_A @ x_val - weighted_b, 1)
     sol = x_val
     hap_new = copy.deepcopy(haplotypes)
     hap_added = 0
@@ -88,7 +96,9 @@ def add_mutations_to_haplotypes(A, x_val, b, haplotypes):
 
     while True:
         hap_idx = -1
-        residual = abs(A_copy @ sol - b)
+        # Perform element-wise multiplication with broadcasting
+        weighted_A_copy =  A_copy * d[:, np.newaxis]
+        residual = abs(weighted_A_copy @ sol - weighted_b)
         site = np.argmax(residual)
         for i, val in enumerate(A_copy[site]):
             #Copy the column at the end of the array and add the mutation there
@@ -96,8 +106,10 @@ def add_mutations_to_haplotypes(A, x_val, b, haplotypes):
             # Invert the mutation in current haplotype
             A_copy[site, -1] = 1 - val
             #Find the new value of x
-            curr_sol = cp_solve(A_copy, b)
-            curr_cost = np.linalg.norm(A_copy @ curr_sol - b, 1)
+            curr_sol = cp_solve(A_copy, b, d)
+            # Perform element-wise multiplication with broadcasting
+            weighted_A_copy =  A_copy * d[:, np.newaxis]
+            curr_cost = np.linalg.norm(weighted_A_copy @ curr_sol - weighted_b, 1)
             #Removing the last column that was added
             A_copy = A_copy[:, :-1]
             #Update the ref_cost on passing convergence condition
@@ -129,15 +141,15 @@ def add_mutations_to_haplotypes(A, x_val, b, haplotypes):
 
     return A_copy, np.abs(sol), hap_new
 
-def solve_abundance(hap_mut_matrix, read_af, haplotypes, mutations):
+def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
     #Setting the variables for the regression problem
     A = hap_mut_matrix.T
-    orig_sol = cp_solve(A, read_af)
+    orig_sol = cp_solve(A, read_af, depth_values)
     #Make the proportion to be 0 for anything < eps
     orig_sol[orig_sol < eps] = 0
     
     #Add new haplotype names
-    A_new, sol, hap_new = add_mutations_to_haplotypes(A, np.abs(orig_sol), read_af, haplotypes)
+    A_new, sol, hap_new = add_mutations_to_haplotypes(A, np.abs(orig_sol), read_af, depth_values, haplotypes)
     
     #Remove rows with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A_new == 0, axis=1)
@@ -164,10 +176,10 @@ mutations, haplotypes, hap_mut_matrix = read_csv_file(barcode_file_path)
 mutations = mutations[1:]
 
 vcf_file = 'my_vcf_abundance.vcf'
-af_values = read_vcf_file(vcf_file)
+af_values, depth_values = read_vcf_file(vcf_file)
 
 #Solving abundance
-new_haplotypes, new_abundances, abundances = solve_abundance(hap_mut_matrix, af_values, haplotypes, mutations)
+new_haplotypes, new_abundances, abundances = solve_abundance(hap_mut_matrix, af_values, depth_values, haplotypes, mutations)
 
 #Abundance of lineages
 lineages = {}
