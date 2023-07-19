@@ -75,19 +75,15 @@ def cp_solve(A, b, d):
     constraints = [sum(x) == 1, x >= 0]
     prob = cp.Problem(cp.Minimize(cost), constraints)
     prob.solve(verbose=False)
-    return x.value
+    return x.value, cost.value
 
-def add_mutations_to_haplotypes(A, x_val, b, d, haplotypes): 
+def add_mutations_to_haplotypes(A, b, d, haplotypes): 
     A_copy = np.copy(A)
-    # Perform element-wise multiplication with broadcasting
-    weighted_A =  A * d[:, np.newaxis]
-    weighted_b = b * d
-    ref_cost = np.linalg.norm(weighted_A @ x_val - weighted_b, 1)
-    sol = x_val
     hap_new = copy.deepcopy(haplotypes)
     hap_added = 0
     
     #Removing haplotypes that are < 0 in abundance
+    sol, ref_cost = cp_solve(A, b, d)
     sol[sol < eps] = 0
     hap_idx_remove = np.where(sol == 0)[0]
     sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
@@ -98,7 +94,7 @@ def add_mutations_to_haplotypes(A, x_val, b, d, haplotypes):
         hap_idx = -1
         # Perform element-wise multiplication with broadcasting
         weighted_A_copy =  A_copy * d[:, np.newaxis]
-        residual = abs(weighted_A_copy @ sol - weighted_b)
+        residual = abs(weighted_A_copy @ sol - b*d)
         site = np.argmax(residual)
         for i, val in enumerate(A_copy[site]):
             #Copy the column at the end of the array and add the mutation there
@@ -106,10 +102,7 @@ def add_mutations_to_haplotypes(A, x_val, b, d, haplotypes):
             # Invert the mutation in current haplotype
             A_copy[site, -1] = 1 - val
             #Find the new value of x
-            curr_sol = cp_solve(A_copy, b, d)
-            # Perform element-wise multiplication with broadcasting
-            weighted_A_copy =  A_copy * d[:, np.newaxis]
-            curr_cost = np.linalg.norm(weighted_A_copy @ curr_sol - weighted_b, 1)
+            curr_sol, curr_cost = cp_solve(A_copy, b, d)
             #Removing the last column that was added
             A_copy = A_copy[:, :-1]
             #Update the ref_cost on passing convergence condition
@@ -144,12 +137,12 @@ def add_mutations_to_haplotypes(A, x_val, b, d, haplotypes):
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
     #Setting the variables for the regression problem
     A = hap_mut_matrix.T
-    orig_sol = cp_solve(A, read_af, depth_values)
+    orig_sol, _ = cp_solve(A, read_af, depth_values)
     #Make the proportion to be 0 for anything < eps
     orig_sol[orig_sol < eps] = 0
-    
+
     #Add new haplotype names
-    A_new, sol, hap_new = add_mutations_to_haplotypes(A, np.abs(orig_sol), read_af, depth_values, haplotypes)
+    A_new, sol, hap_new = add_mutations_to_haplotypes(A, read_af, depth_values, haplotypes)
     
     #Remove rows with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A_new == 0, axis=1)
