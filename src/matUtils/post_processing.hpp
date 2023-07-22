@@ -8,10 +8,10 @@ void read_csv(std::unordered_map<std::string, std::string> &, const std::string)
 
 int mutation_distance(std::vector<MAT::Mutation>, std::vector<MAT::Mutation>);
 
-void compute_distance(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::vector<std::string> &);
+void compute_distance(const MAT::Tree &, const std::unordered_map<int, struct read_info*> &, const std::vector<std::string> &);
 
 void post_processing(po::parsed_options);
 
-void compute_abundance(const MAT::Tree &, const std::unordered_map<int, struct read_info*> &, const std::unordered_map<std::string, double> &, const std::unordered_map<std::string, std::string> &);
+void compute_abundance(const std::unordered_map<std::string, double> &, const std::unordered_map<std::string, std::string> &);
 
 std::vector<MAT::Mutation> get_mutations(const MAT::Tree&, const std::string);

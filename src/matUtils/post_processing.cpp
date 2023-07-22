@@ -47,24 +47,20 @@ void post_processing(po::parsed_options parsed) {
     T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
 
-    //Depth first expansion to get all nodes in the tree and 
-    // comparison with given lineage to get all nodes of the required lineage 
-    std::vector<MAT::Node*> dfs = T.depth_first_expansion(T.root); 
-    
     //Checking how close are input samples with peaks
     std::unordered_map<int, struct read_info*> read_map;
     std::vector<std::string> vcf_samples;
     std::unordered_map<std::string, double> hap_abun_map;
     std::unordered_map<std::string, std::string> hap_clade_map;
     read_sample_vcf(vcf_samples, sample_vcf_filename);
-    read_vcf(T, dfs, read_map, hap_vcf_filename);
+    read_vcf(read_map, hap_vcf_filename);
     read_csv(hap_abun_map, hap_csv_filename);
     read_csv(hap_clade_map, hap_clade_csv_filename);
-    compute_abundance(T, read_map, hap_abun_map, hap_clade_map);
-    compute_distance(T, dfs, read_map, vcf_samples);
+    compute_abundance(hap_abun_map, hap_clade_map);
+    compute_distance(T, read_map, vcf_samples);
 }
 
-void compute_distance(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
+void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)read_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Get Mutations of samples
@@ -84,6 +80,9 @@ void compute_distance(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, co
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node.c_str(), min_dist);
     }
 
+    //Depth first expansion to get all nodes in the tree and 
+    std::vector<MAT::Node*> dfs = T.depth_first_expansion(T.root); 
+    
     //Samples' avg mut distance from other haplotypes of lineage
     printf("\n\nINTRA-LINEAGE AVG MUTATION DISTANCE:\n");
     for (auto sample: vcf_samples) {
@@ -207,7 +206,7 @@ void read_csv(std::unordered_map<std::string, std::string>& hap_clade_map, const
 }
 
 //Computes Lineage Abundance
-void compute_abundance(const MAT::Tree& T, const std::unordered_map<int, struct read_info*> &read_map, const std::unordered_map<std::string, double>& hap_abun_map, const std::unordered_map<std::string, std::string>& hap_clade_map) {
+void compute_abundance(const std::unordered_map<std::string, double>& hap_abun_map, const std::unordered_map<std::string, std::string>& hap_clade_map) {
     std::unordered_map<std::string, double> clade_abun_map; 
     //Iterate through haplotype-abundance map
     auto h_abun_itr = hap_abun_map.begin();

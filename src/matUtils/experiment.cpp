@@ -8,6 +8,8 @@ po::variables_map parse_place_read_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]")
+    ("ref-mat,j", po::value<std::string>()->required(),
+     "Ref mutation-annotated tree file [REQUIRED]")
     ("output-directory,o", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
     ("write-vcf,v", po::value<std::string>()->default_value(""),
@@ -57,6 +59,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     //specifically, the modules select, describe, convert, and filter support this command
     po::variables_map vm = parse_place_read_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string ref_mat_filename = vm["ref-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
 
     std::string cmd_lineage = vm["lineage"].as<std::string>();
@@ -120,15 +123,18 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     fprintf(stderr, "Ref Seq size: %ld\n", ref_seq.size()); 
     //std::cout << read_error[0] << "\n";
 
-    fprintf(stderr, "\nLoading input MAT file %s.\n", input_mat_filename.c_str());
+    fprintf(stderr, "\nLoading input MAT files %s and %s.\n", input_mat_filename.c_str(), ref_mat_filename.c_str());
 
     // Load input MAT and uncondense tree
-    MAT::Tree T;
-    if (input_mat_filename.find(".pb\0") != std::string::npos) {
+    MAT::Tree T, T_ref;
+    if ((input_mat_filename.find(".pb\0") != std::string::npos) || (ref_mat_filename.find(".pb\0") != std::string::npos)) {
         T = MAT::load_mutation_annotated_tree(input_mat_filename);
+        T_ref = MAT::load_mutation_annotated_tree(ref_mat_filename);
         T.uncondense_leaves();
-    } else if (input_mat_filename.find(".json\0") != std::string::npos) {
+        T_ref.uncondense_leaves();
+    } else if ((input_mat_filename.find(".json\0") != std::string::npos) || (ref_mat_filename.find(".json\0") != std::string::npos)) {
         T = load_mat_from_json(input_mat_filename);
+        T_ref = load_mat_from_json(ref_mat_filename);
     } else {
         fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
         exit(1);
@@ -1158,8 +1164,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     tbb::concurrent_hash_map<MAT::Node*, double> node_score;
     std::vector<std::string> vcf_samples;
     read_sample_vcf(vcf_samples, vcf_filename_samples);
-    read_vcf(T, dfs, read_map, vcf_filename_reads);
-    analyze_reads(T, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
+    read_vcf(read_map, vcf_filename_reads);
+    analyze_reads(T, T_ref, dfs, read_map, node_score, vcf_samples, mismatch_matrix_file, barcode_file, read_abundance_vcf);
 }
 
 
@@ -1179,7 +1185,7 @@ void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vc
 }
 
 
-void read_vcf(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
+void read_vcf(std::unordered_map<int, struct read_info*> &read_map, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
     // Store the header information from VCF
     timer.Start();
@@ -1562,7 +1568,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 }
 
 
-void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &mismatch_matrix_file, const std::string &barcode_file, const std::string &read_abundance_vcf) {
+void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector<MAT::Node*> &dfs, const std::unordered_map<int, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &mismatch_matrix_file, const std::string &barcode_file, const std::string &read_abundance_vcf) {
     timer.Start();
     int top_n = 25, m_dist_thresh = 2;
     std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
@@ -1584,7 +1590,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 for (size_t i = k.begin(); i < k.end(); ++i) {
                     int rm_idx = remaining_reads[i];
                     auto read_id = read_map.find(rm_idx)->second;
-                    place_reads(T, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
+                    place_reads(T_ref, dfs, read_id, NULL, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
                 }
             },
         ap);
@@ -1610,6 +1616,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 break;
             peak_vec[top_n_itr - top_n_node_score.begin()] = false;
             top_n_itr++;
+            //If reach node_score.size() limit then quit
             if ((top_n_itr - top_n_node_score.begin()) == (int)node_score.size()) {
                 break_loop = true;
                 break;
@@ -1632,7 +1639,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                 if ((peak_vec[top_n_itr - top_n_node_score.begin()]) && (!present)) {
                     peak_nodes.emplace_back(curr_node);
                     //Remove mapped reads from remaining_reads
-                    auto clade = get_clade(T, curr_node);
+                    //auto clade = get_clade(T, curr_node);
                     //printf("PEAK Node: %s, Clade: %s\n", curr_node->identifier.c_str(), clade.c_str());
                     std::vector<int> remove_reads;
                     using my_mutex_t = tbb::queuing_mutex;
@@ -1644,7 +1651,7 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
                             for (size_t i = k.begin(); i < k.end(); ++i) {
                                 int rm_idx = remaining_reads[i];
                                 auto read_id = read_map.find(rm_idx)->second;
-                                int read_present = place_reads(T, dfs, read_id, curr_node, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
+                                int read_present = place_reads(T_ref, dfs, read_id, curr_node, node_score, peak_nodes_dummy, mismatch_vector_dummy, 0);
                                 node_score.clear();
                                 //Read contains current node -> REMOVE
                                 if (read_present) {
@@ -1715,13 +1722,13 @@ void analyze_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, const
         int min_dist = 100000;
         //auto ref_clade = get_clade(T, T.get_node(sample));
         //auto best_clade = ref_clade;
-        auto best_node = T.get_node(sample);
-        for (auto n_s: peak_nodes) {
-            int curr_dist = mutation_distance(T, n_s, T.get_node(sample));
+        auto best_node = T_ref.get_node(sample);
+        for (auto pn: peak_nodes) {
+            int curr_dist = mutation_distance(T_ref, pn, T_ref.get_node(sample));
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
-                //best_clade = get_clade(T, n_s);
-                best_node = n_s;
+                //best_clade = get_clade(T_ref, pn);
+                best_node = pn;
             }
         }
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), min_dist);
