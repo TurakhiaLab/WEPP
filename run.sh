@@ -2,14 +2,15 @@ export PATH=$PATH:$PWD/build
 cd build
 make -j
 cd ../
-matUtils place_read -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.1.155,A.21,AE.6,B.1.1.285,B.1.1.47,B.1.567,B.35,U.1,C.27 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v my_vcf -r 150 -w 20 -e 0 -s 100 -f test/NC_045512v2.fa
+#matUtils extract -i public-2021-05-31.all.masked.nextclade.pangolin.pb -s remove_sample.txt -P 5 --prune -o public-2021-05-31.all.masked.nextclade.pangolin_pruned.pb
+matUtils place_read -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin_pruned.pb -j public-2021-05-31.all.masked.nextclade.pangolin.pb -l B.1.1.155,A.21,AE.6,B.1.1.285,B.1.1.47,B.1.567,B.35,U.1,C.27 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v my_vcf -r 150 -w 20 -e 0 -s 100 -f test/NC_045512v2.fa
 
 #Estimating using regression based approach
 echo -e "\nPYTHON-FREYJA"
 python regression_abundance_estimate.py
 
 #Getting the clades from haplotypes using USHeR
-usher -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v my_vcf_haplotypes.vcf --no-add
+usher -i public-2021-05-31.all.masked.nextclade.pangolin_pruned.pb -v my_vcf_haplotypes.vcf --no-add
 echo "Haplotype,Clade" > my_vcf_hap_clade.csv
 awk '{ print $1 "," $3}' clades.txt >> my_vcf_hap_clade.csv
 
