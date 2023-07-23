@@ -62,11 +62,6 @@ void haplotype_pruning(po::parsed_options parsed) {
 
     //Filter the input based on the samples
     MAT::Tree subtree = filter_master(T, samples, false, true);
-    auto n = T.get_node("node_102181");
-    int d = mutation_distance(T, n, T.get_node("England/QEUH-9CA801/2020|OA983298.1|2020-09-10"));
-    printf("Orig distance Node_102181: %d\n",d);
-
-
     subtree.condense_leaves();
     MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
 }
@@ -80,7 +75,7 @@ std::vector<std::string> samples_outside_mut_dist(const MAT::Tree &T, std::vecto
             bool remove = false;
             for (auto sample: samples_to_check) {
                 //Remove leaf node within mut_dist threshold of sample
-                int m_dist = mutation_distance(T, T.get_node(sample), n);
+                int m_dist = mutation_distance(T, T, T.get_node(sample), n);
                 if (m_dist <= mut_dist_thresh) {
                     remove = true;
                     break;

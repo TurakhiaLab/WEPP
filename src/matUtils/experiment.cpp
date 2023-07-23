@@ -156,7 +156,7 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     
     //Depth first expansion to get all nodes in the tree and 
     // comparison with given lineage to get all nodes of the required lineage 
-    dfs = T.depth_first_expansion(T.root); 
+    dfs = T.depth_first_expansion(); 
     
     if (!old_vcf) {
     for (auto lineage: in_lineage) {
@@ -1639,8 +1639,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector
                 if ((peak_vec[top_n_itr - top_n_node_score.begin()]) && (!present)) {
                     peak_nodes.emplace_back(curr_node);
                     //Remove mapped reads from remaining_reads
-                    //auto clade = get_clade(T, curr_node);
-                    //printf("PEAK Node: %s, Clade: %s\n", curr_node->identifier.c_str(), clade.c_str());
                     std::vector<int> remove_reads;
                     using my_mutex_t = tbb::queuing_mutex;
                     my_mutex_t my_mutex;
@@ -1696,7 +1694,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector
                     continue;
                 }
                 //Don't consider peaks within mutation distance limit 
-                int m_dist = mutation_distance(T, curr_node, cmp_node);
+                int m_dist = mutation_distance(T, T, curr_node, cmp_node);
                 if (m_dist > m_dist_thresh)
                     peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = true;
                 else
@@ -1708,9 +1706,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector
         top_n_node_score.clear();
         top_n_node_score.resize(top_n);
         peak_vec.clear();
-        //std::cout << "\n";
     }
-    //std::cout << "\nRemaining reads: " << remaining_reads.size() << "\n";
     remaining_reads.clear();
     printf("\nInital PEAK nodes: %d\n", (int)peak_nodes.size());
     fprintf(stderr,"Peak search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
@@ -1724,7 +1720,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector
         //auto best_clade = ref_clade;
         auto best_node = T_ref.get_node(sample);
         for (auto pn: peak_nodes) {
-            int curr_dist = mutation_distance(T_ref, pn, T_ref.get_node(sample));
+            int curr_dist = mutation_distance(T, T_ref, pn, T_ref.get_node(sample));
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
                 //best_clade = get_clade(T_ref, pn);
@@ -1744,7 +1740,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::vector
 bool check_peaks_neighbourhood (const MAT::Tree &T, const MAT::Node* N, const std::vector<MAT::Node*> &peak_nodes, const int m_dist_thresh) {
     for (auto pn: peak_nodes) {
         //Return false if the Node lies within mutation distance limit 
-        int m_dist = mutation_distance(T, pn, N);
+        int m_dist = mutation_distance(T, T, pn, N);
         if (m_dist <= m_dist_thresh)
             return true;
     }
@@ -1753,9 +1749,9 @@ bool check_peaks_neighbourhood (const MAT::Tree &T, const MAT::Node* N, const st
 
 
 //Function to calculation distance between two nodes
-int mutation_distance(const MAT::Tree &T, const MAT::Node* N1, const MAT::Node* N2) {
+int mutation_distance(const MAT::Tree &T1, const MAT::Tree &T2, const MAT::Node* N1, const MAT::Node* N2) {
     std::vector<MAT::Mutation> node1_mutations, node2_mutations;
-    for (auto anc: T.rsearch(N1->identifier, true)) { //Checking all ancestors of a node
+    for (auto anc: T1.rsearch(N1->identifier, true)) { //Checking all ancestors of a node
         for (auto mut: anc->mutations) {
             auto n1_itr = node1_mutations.begin();
             while (n1_itr != node1_mutations.end()) {
@@ -1767,7 +1763,7 @@ int mutation_distance(const MAT::Tree &T, const MAT::Node* N1, const MAT::Node* 
                 node1_mutations.emplace_back(mut);
         }
     }
-    for (auto anc: T.rsearch(N2->identifier, true)) { //Checking all ancestors of a node
+    for (auto anc: T2.rsearch(N2->identifier, true)) { //Checking all ancestors of a node
         for (auto mut: anc->mutations) {
             auto n2_itr = node2_mutations.begin();
             while (n2_itr != node2_mutations.end()) {
