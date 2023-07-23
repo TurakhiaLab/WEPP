@@ -60,6 +60,7 @@ void post_processing(po::parsed_options parsed) {
     compute_distance(T, read_map, vcf_samples);
 }
 
+
 void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)read_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
@@ -81,7 +82,7 @@ void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct r
     }
 
     //Depth first expansion to get all nodes in the tree and 
-    std::vector<MAT::Node*> dfs = T.depth_first_expansion(T.root); 
+    std::vector<MAT::Node*> dfs = T.depth_first_expansion(); 
     
     //Samples' avg mut distance from other haplotypes of lineage
     printf("\n\nINTRA-LINEAGE AVG MUTATION DISTANCE:\n");
