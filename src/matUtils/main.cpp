@@ -7,6 +7,7 @@
 #include "version.hpp"
 #include "experiment.hpp"
 #include "post_processing.hpp"
+#include "haplotype_pruning.hpp"
 
 Timer timer;
 
@@ -46,6 +47,8 @@ int main (int argc, char** argv) {
     }
     if (cmd == "extract") {
         extract_main(parsed);
+    } else if (cmd == "haplotype_pruning") { 
+        haplotype_pruning(parsed);
     } else if (cmd == "place_read") { 
         simulate_and_place_reads(parsed);
     } else if (cmd == "post_processing") { 
