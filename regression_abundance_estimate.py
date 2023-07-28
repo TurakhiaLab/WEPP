@@ -77,14 +77,13 @@ def cp_solve(A, b, d):
     prob.solve(verbose=False)
     return x.value, cost.value
 
-def add_mutations_to_haplotypes(A, b, d, haplotypes): 
+def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost): 
     A_copy = np.copy(A)
     hap_new = copy.deepcopy(haplotypes)
     hap_added = 0
     
     #Removing haplotypes that are < 0 in abundance
-    sol, ref_cost = cp_solve(A, b, d)
-    sol[sol < eps] = 0
+    sol = copy.deepcopy(orig_sol)
     hap_idx_remove = np.where(sol == 0)[0]
     sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
     A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
@@ -97,29 +96,59 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes):
         residual = abs(weighted_A_copy @ sol - b*d)
         site = np.argmax(residual)
         for i, val in enumerate(A_copy[site]):
+            #Get the curr_cost_add by adding a new hap in A
             #Copy the column at the end of the array and add the mutation there
             A_copy = np.concatenate((A_copy, A_copy[:, i][:, np.newaxis]), axis=1)
             # Invert the mutation in current haplotype
             A_copy[site, -1] = 1 - val
             #Find the new value of x
-            curr_sol, curr_cost = cp_solve(A_copy, b, d)
+            curr_sol_add, curr_cost_add = cp_solve(A_copy, b, d)
             #Removing the last column that was added
             A_copy = A_copy[:, :-1]
+            
+            #Get the curr_cost_mod by modifying the current hap in A
+            # Invert the mutation of current haplotype
+            A_copy[site, i] = 1 - val
+            #Find the new value of x
+            curr_sol_mod, curr_cost_mod = cp_solve(A_copy, b, d)
+            # Get original mutation of current haplotype
+            A_copy[site, i] = val
+            
             #Update the ref_cost on passing convergence condition
+            if abs((add_thresh * curr_cost_add) - curr_cost_mod) > 1e-9:
+                if curr_cost_mod < (add_thresh * curr_cost_add):
+                    curr_cost = curr_cost_mod
+                    curr_sol = curr_sol_mod
+                    modify = True
+                else:
+                    curr_cost = curr_cost_add
+                    curr_sol = curr_sol_add
+                    modify = False
+            else:
+                curr_cost = curr_cost_mod
+                curr_sol = curr_sol_mod
+                modify = True
+
             if ((ref_cost - curr_cost) > (thresh * ref_cost)):
                 ref_cost = copy.deepcopy(curr_cost)
+                sol = copy.deepcopy(curr_sol)
                 hap_idx = i
-                sol = curr_sol
-        
+                modify_final = modify
+
         #Check if cost could be reduced 
         if hap_idx >= 0:
-            #Add the hap_idx column at the end of A_copy
-            A_copy = np.concatenate((A_copy, A_copy[:, hap_idx][:, np.newaxis]), axis=1)
-            # Invert the mutation in current haplotype
-            A_copy[site, -1] = 1 - A_copy[site, hap_idx]
             hap_added += 1
-            hap_new = np.append(hap_new, f"NEW_{hap_added}")
-            
+            if modify_final:
+                #Modify the haplotype giving best cost
+                A_copy[site, hap_idx] = 1 - A_copy[site, hap_idx]
+                hap_new[hap_idx] = hap_new[hap_idx] + f"_M{hap_added}" 
+            else:
+                #Add the hap_idx column at the end of A_copy
+                A_copy = np.concatenate((A_copy, A_copy[:, hap_idx][:, np.newaxis]), axis=1)
+                # Invert the mutation in current haplotype
+                A_copy[site, -1] = 1 - A_copy[site, hap_idx]
+                hap_new = np.append(hap_new, f"NEW_{hap_added}")
+
             #Removing haplotypes that are < 0 in abundance
             sol[sol < eps] = 0
             hap_idx_remove = np.where(sol == 0)[0]
@@ -131,18 +160,18 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes):
             if not hap_added:
                 print("No Haplotype added!!!\n")
             break
-
+    
     return A_copy, np.abs(sol), hap_new
 
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
     #Setting the variables for the regression problem
     A = hap_mut_matrix.T
-    orig_sol, _ = cp_solve(A, read_af, depth_values)
+    orig_sol, ref_cost = cp_solve(A, read_af, depth_values)
     #Make the proportion to be 0 for anything < eps
     orig_sol[orig_sol < eps] = 0
 
     #Add new haplotype names
-    A_new, sol, hap_new = add_mutations_to_haplotypes(A, read_af, depth_values, haplotypes)
+    A_new, sol, hap_new = add_mutations_to_haplotypes(A, read_af, depth_values, haplotypes, orig_sol, ref_cost)
     
     #Remove rows with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A_new == 0, axis=1)
@@ -162,6 +191,7 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
 start_time = time.time()
 eps = 1e-2
 thresh = 0.01
+add_thresh = 1.01
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
