@@ -77,7 +77,7 @@ def cp_solve(A, b, d):
     prob.solve(verbose=False)
     return x.value, cost.value
 
-def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost): 
+def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost, mutations): 
     A_copy = np.copy(A)
     hap_new = copy.deepcopy(haplotypes)
     hap_added = 0
@@ -114,7 +114,7 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost):
             # Get original mutation of current haplotype
             A_copy[site, i] = val
             
-            #Update the ref_cost on passing convergence condition
+            #Decide whether to use curr_cost_mod or curr_cost_add
             if abs((add_thresh * curr_cost_add) - curr_cost_mod) > 1e-9:
                 if curr_cost_mod < (add_thresh * curr_cost_add):
                     curr_cost = curr_cost_mod
@@ -129,11 +129,19 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost):
                 curr_sol = curr_sol_mod
                 modify = True
 
-            if ((ref_cost - curr_cost) > (thresh * ref_cost)):
-                ref_cost = copy.deepcopy(curr_cost)
-                sol = copy.deepcopy(curr_sol)
-                hap_idx = i
-                modify_final = modify
+            #Update the ref_cost on passing convergence condition
+            if hap_idx < 0:
+                if  (abs(((1 - thresh) * ref_cost) - curr_cost) > 1e-9) and ((ref_cost - curr_cost) > (thresh * ref_cost)):
+                    ref_cost = copy.deepcopy(curr_cost)
+                    sol = copy.deepcopy(curr_sol)
+                    hap_idx = i
+                    modify_final = modify
+            else:
+                if (abs(ref_cost - curr_cost) > 1e-9) and (ref_cost > curr_cost):
+                    ref_cost = copy.deepcopy(curr_cost)
+                    sol = copy.deepcopy(curr_sol)
+                    hap_idx = i
+                    modify_final = modify
 
         #Check if cost could be reduced 
         if hap_idx >= 0:
@@ -142,12 +150,14 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost):
                 #Modify the haplotype giving best cost
                 A_copy[site, hap_idx] = 1 - A_copy[site, hap_idx]
                 hap_new[hap_idx] = hap_new[hap_idx] + f"_M{hap_added}" 
+                print(f'Site: {mutations[site]}, \"MOD-{hap_idx}\", cost: {ref_cost}')
             else:
                 #Add the hap_idx column at the end of A_copy
                 A_copy = np.concatenate((A_copy, A_copy[:, hap_idx][:, np.newaxis]), axis=1)
                 # Invert the mutation in current haplotype
                 A_copy[site, -1] = 1 - A_copy[site, hap_idx]
                 hap_new = np.append(hap_new, f"NEW_{hap_added}")
+                print(f'Site: {mutations[site]}, \"NEW\", cost: {ref_cost}')
 
             #Removing haplotypes that are < 0 in abundance
             sol[sol < eps] = 0
@@ -155,7 +165,6 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost):
             sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
             A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
             hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
-            #print(f'Site: {site}, Hap: {hap_idx}, cost: {ref_cost}')
         else:
             if not hap_added:
                 print("No Haplotype added!!!\n")
@@ -171,7 +180,7 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
     orig_sol[orig_sol < eps] = 0
 
     #Add new haplotype names
-    A_new, sol, hap_new = add_mutations_to_haplotypes(A, read_af, depth_values, haplotypes, orig_sol, ref_cost)
+    A_new, sol, hap_new = add_mutations_to_haplotypes(A, read_af, depth_values, haplotypes, orig_sol, ref_cost, mutations)
     
     #Remove rows with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A_new == 0, axis=1)
@@ -191,7 +200,7 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
 start_time = time.time()
 eps = 1e-2
 thresh = 0.01
-add_thresh = 1.01
+add_thresh = 1.025
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
