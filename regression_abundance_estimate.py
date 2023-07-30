@@ -88,7 +88,6 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost, mutatio
     sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
     A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
     hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
-    hap_mod_list = []
 
     while True:
         hap_idx = -1
@@ -102,30 +101,24 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost, mutatio
             A_copy = np.concatenate((A_copy, A_copy[:, i][:, np.newaxis]), axis=1)
             # Invert the mutation in current haplotype
             A_copy[site, -1] = 1 - val
-            #Find the new value of x
+            #Find the new cost
             curr_sol_add, curr_cost_add = cp_solve(A_copy, b, d)
             #Removing the last column that was added
             A_copy = A_copy[:, :-1]
-            
+
             #Get the curr_cost_mod by modifying the current hap in A
             # Invert the mutation of current haplotype
             A_copy[site, i] = 1 - val
-            #Find the new value of x
+            #Find the new cost
             curr_sol_mod, curr_cost_mod = cp_solve(A_copy, b, d)
             # Get original mutation of current haplotype
             A_copy[site, i] = val
-            
+
             #Penalize the curr_cost_add
             curr_cost_add *= add_thresh
-            #Incentivize the modified haplotypes
-            if i in hap_mod_list:
-                curr_cost_mod *= mod_seen_thresh
-
             #Decide whether to use curr_cost_mod or curr_cost_add
             if abs(curr_cost_add - curr_cost_mod) > 1e-9:
                 if curr_cost_mod < curr_cost_add:
-                    if i in hap_mod_list:
-                        curr_cost_mod /= mod_seen_thresh
                     curr_cost = curr_cost_mod
                     curr_sol = curr_sol_mod
                     modify = True
@@ -134,56 +127,92 @@ def add_mutations_to_haplotypes(A, b, d, haplotypes, orig_sol, ref_cost, mutatio
                     curr_sol = curr_sol_add
                     modify = False
             else:
-                if i in hap_mod_list:
-                    curr_cost_mod /= mod_seen_thresh
                 curr_cost = curr_cost_mod
                 curr_sol = curr_sol_mod
                 modify = True
+            #Update the ref_cost
+            if  (abs(((1 - thresh) * ref_cost) - curr_cost) > 1e-9) and ((ref_cost - curr_cost) > (thresh * ref_cost)):
+                ref_cost = copy.deepcopy(curr_cost)
+                sol = copy.deepcopy(curr_sol)
+                hap_idx = i
+                modify_final = modify
+                #if (abs(ref_cost - curr_cost) > 1e-9) and (curr_cost < ref_cost):
+                #    ref_cost = copy.deepcopy(curr_cost)
+                #    sol = copy.deepcopy(curr_sol)
+                #    hap_idx = i
+                #    modify_final = modify
 
-            #Update the ref_cost on passing convergence condition
-            if hap_idx < 0:
-                if  (abs(((1 - thresh) * ref_cost) - curr_cost) > 1e-9) and ((ref_cost - curr_cost) > (thresh * ref_cost)):
-                    ref_cost = copy.deepcopy(curr_cost)
-                    sol = copy.deepcopy(curr_sol)
-                    hap_idx = i
-                    modify_final = modify
-            else:
-                if (abs(ref_cost - curr_cost) > 1e-9) and (ref_cost > curr_cost):
-                    ref_cost = copy.deepcopy(curr_cost)
-                    sol = copy.deepcopy(curr_sol)
-                    hap_idx = i
-                    modify_final = modify
-
-        #Check if cost reduced 
+        #Update if cost reduced 
         if hap_idx >= 0:
             hap_added += 1
             if modify_final:
                 #Modify the haplotype giving best cost
                 A_copy[site, hap_idx] = 1 - A_copy[site, hap_idx]
                 hap_new[hap_idx] = hap_new[hap_idx] + f"_M{hap_added}"
-                #Add the modified haplotype to hap_mod_list
-                if hap_idx not in hap_mod_list:
-                    hap_mod_list.append(hap_idx) 
-                print(f'Site: {mutations[site]}, \"MOD-{hap_new[hap_idx]}\", cost: {ref_cost}')
+                #print(f'Site: {mutations[site]}, \"MOD-{hap_new[hap_idx]}\", cost: {ref_cost}')
             else:
                 #Add the hap_idx column at the end of A_copy
                 A_copy = np.concatenate((A_copy, A_copy[:, hap_idx][:, np.newaxis]), axis=1)
                 # Invert the mutation in current haplotype
                 A_copy[site, -1] = 1 - A_copy[site, hap_idx]
                 hap_new = np.append(hap_new, f"NEW_{hap_added}")
-                print(f'Site: {mutations[site]}, \"NEW-{hap_added}\", cost: {ref_cost}')
-
+                #print(f'Site: {mutations[site]}, \"NEW-{hap_added}\", cost: {ref_cost}')
             #Removing haplotypes that are < 0 in abundance
             sol[sol < eps] = 0
             hap_idx_remove = np.where(sol == 0)[0]
             sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
             A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
             hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
+
+            #Flip all remaining mutations of selected hap to get minimum the cost
+            local_site_list = []
+            while True:
+                site_idx = -1
+                for s in range(len(b)):
+                    if (s != site) and (s not in local_site_list):
+                        #Invert mutation of hap
+                        if modify_final:
+                            A_copy[s, hap_idx] = 1 - A_copy[s, hap_idx]
+                        else:
+                            A_copy[s, -1] = 1 - A_copy[s, -1]
+                        #Find the new cost
+                        curr_sol_flip, curr_cost_flip = cp_solve(A_copy, b, d)
+
+                        #Update the ref_cost
+                        #if (abs(ref_cost - curr_cost_flip) > 1e-9) and (curr_cost_flip < ref_cost):
+                        if  (abs(((1 - (thresh * 5)) * ref_cost) - curr_cost_flip) > 1e-9) and ((ref_cost - curr_cost_flip) > ((thresh * 5) * ref_cost)):
+                            site_idx = s
+                            ref_cost = copy.deepcopy(curr_cost_flip)
+                            sol = copy.deepcopy(curr_sol_flip)
+                        #Put original mutation of hap
+                        if modify_final:
+                            A_copy[s, hap_idx] = 1 - A_copy[s, hap_idx]
+                        else:
+                            A_copy[s, -1] = 1 - A_copy[s, -1]
+                
+                #Check ref_cost reduction
+                if site_idx >= 0:
+                    local_site_list.append(site_idx)
+                    #Invert mutation of hap
+                    if modify_final:
+                        A_copy[site_idx, hap_idx] = 1 - A_copy[site_idx, hap_idx]
+                        #print(f'Sub-site: {mutations[site_idx]}, \"MOD-{hap_new[hap_idx]}\", cost: {ref_cost}')
+                    else:
+                        A_copy[site_idx, -1] = 1 - A_copy[site_idx, -1]
+                        #print(f'Sub-site: {mutations[site_idx]}, \"NEW-{hap_added}\", cost: {ref_cost}')
+                    #Removing haplotypes that are < 0 in abundance
+                    sol[sol < eps] = 0
+                    hap_idx_remove = np.where(sol == 0)[0]
+                    sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
+                    A_copy = np.delete(A_copy, hap_idx_remove, axis = 1)
+                    hap_new = [val for i, val in enumerate(hap_new) if i not in hap_idx_remove]
+                else:
+                    break
+
+        #No ref_cost reduction
         else:
-            if not hap_added:
-                print("No Haplotype added!!!\n")
             break
-    
+
     return A_copy, np.abs(sol), hap_new
 
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
@@ -214,8 +243,7 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
 start_time = time.time()
 eps = 1e-2
 thresh = 0.01
-add_thresh = 1.05
-mod_seen_thresh = 0.98
+add_thresh = 1.025
 
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
