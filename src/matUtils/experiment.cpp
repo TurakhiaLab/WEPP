@@ -1267,7 +1267,7 @@ void read_vcf(std::unordered_map<int, struct read_info*> &read_map, const std::s
         }
     }
 
-    fprintf(stderr,"read VCF parsed in %ld sec\n\n", (timer.Stop() / 1000));   
+    fprintf(stderr,"%s parsed in %ld sec\n\n", vcf_filename_reads.c_str(), (timer.Stop() / 1000));   
 }
 
 
@@ -1397,6 +1397,7 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
 
         bool placed_child = false;
         auto curr_node = dfs[i];
+        
         //Place as a sibling if common_node_mut is not empty
         if ((common_node_mut.size()) && (!curr_node->is_root())) {
             //Checking min_parsimony
@@ -1455,7 +1456,6 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                 min_par.idx_list.emplace_back(i);
                 min_par.par_list.emplace_back(curr_node_par_mut);
             }
-
         }
 
         //Updating the parsimony score of peak nodes for EM algorithm
@@ -1533,7 +1533,6 @@ int place_reads(const MAT::Tree &T, const std::vector<MAT::Node*> &dfs, struct r
                     fprintf(stderr, "\n");
                 }
                 fprintf(stderr, "Read: %s, read mutations: %ld, Parsimony score = %ld, parsimonious positions: %ld\n\n", rp->read.c_str(), rp->mutations.size(), min_par.par_list[0].size(), min_par.par_list.size());
-                std::cout << "\n";
             }
         }
         //Keeping tab on weighted read score being mapped to each parsimonious node
