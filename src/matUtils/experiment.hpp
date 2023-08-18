@@ -66,6 +66,8 @@ bool check_peaks_neighbourhood (const MAT::Tree &, const MAT::Node*, const std::
 int mutation_distance(const MAT::Tree &, const MAT::Tree &, const MAT::Node*, const MAT::Node*);
 std::string get_clade(const MAT::Tree &, MAT::Node*);
 
+void add_neighbor_peaks(const MAT::Tree &, std::vector<MAT::Node*> &, const int, const int);
+
 void generate_EM_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::vector<MAT::Node*> &, const std::string &);
 void generate_regression_abundance_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<int, struct read_info*> &, const std::string &, const std::string &);
 bool compare_mutations(const MAT::Mutation &, const MAT::Mutation &);
