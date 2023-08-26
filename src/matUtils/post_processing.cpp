@@ -55,23 +55,83 @@ void post_processing(po::parsed_options parsed) {
     T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
 
-    //Checking how close are input samples with peaks
-    std::unordered_map<int, struct read_info*> read_map, hap_map;
-    tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
-    std::unordered_map<std::string, std::string> hap_clade_map;
-    std::vector<std::string> vcf_samples;
-    std::unordered_map<std::string, double> hap_abun_map;
-    read_sample_vcf(vcf_samples, sample_vcf_filename);
-    read_vcf(hap_map, hap_vcf_filename);
-    read_csv(hap_abun_map, hap_csv_filename);
-    read_csv(hap_clade_map, hap_clade_csv_filename);
+    ////////////////////////////////////
+    //std::unordered_map<int, struct read_info*> read_map, hap_map;
     
-    //read_vcf(read_map, read_vcf_filename);
-    //place_reads(read_map, hap_map, hap_abun_map, hap_read_map);
+    //std::vector<std::string> vcf_samples;
+    //read_sample_vcf(vcf_samples, sample_vcf_filename);
+    //for (auto sample: vcf_samples) {
+    //    auto sample_mutations = get_mutations(T, sample);
+    //    auto clade = get_clade(T, T.get_node(sample));
+    //    printf("TREE %s %s -> %d\n", clade.c_str(), sample.c_str(), (int)sample_mutations.size());
+    //}
     
-    compute_abundance(hap_abun_map, hap_clade_map);
-    compute_distance(T, hap_map, vcf_samples);
+    //read_vcf(hap_map, sample_vcf_filename);
+    //for (auto hap: hap_map)
+    //    printf("VCF %s -> %d\n", hap.second->read.c_str(), (int)hap.second->mutations.size());
 
+    ////std::unordered_map<int, int> read_mut_count;
+    ////read_vcf(read_map, read_vcf_filename);
+    ////for (auto read: read_map) {
+    ////    int mut_count = read.second->mutations.size();
+    ////    auto rm_itr = read_mut_count.find(mut_count);
+    ////    if (rm_itr == read_mut_count.end())
+    ////        read_mut_count.insert({mut_count, 1});
+    ////    else
+    ////        read_mut_count[mut_count] += 1;
+    ////}
+
+    ////for (auto rm_count: read_mut_count) {
+    ////    printf("%d -> %d\n", rm_count.first, rm_count.second);
+    ////}
+    ////////////////////////////////////
+
+    ////Checking how close are input samples with peaks
+    //std::unordered_map<int, struct read_info*> read_map, hap_map;
+    //tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
+    //std::unordered_map<std::string, std::string> hap_clade_map;
+    //std::vector<std::string> vcf_samples;
+    //std::unordered_map<std::string, double> hap_abun_map;
+    //read_sample_vcf(vcf_samples, sample_vcf_filename);
+    //read_vcf(hap_map, hap_vcf_filename);
+    //read_csv(hap_abun_map, hap_csv_filename);
+    //read_csv(hap_clade_map, hap_clade_csv_filename);
+    
+    ////read_vcf(read_map, read_vcf_filename);
+    ////place_reads(read_map, hap_map, hap_abun_map, hap_read_map);
+    
+    //compute_abundance(hap_abun_map, hap_clade_map);
+    //compute_distance(T, hap_map, vcf_samples);
+
+    std::unordered_map<int, struct read_info*> read_map;
+    read_vcf(read_map, read_vcf_filename);
+    std::vector<int> read_idx;
+    auto rd_itr = read_map.begin();
+    while (rd_itr != read_map.end()) {
+        auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_itr->first);
+        if (check_itr == read_idx.end()) {
+            auto rd_nxt_itr = rd_itr + 1;
+            bool found = false;
+            while (rd_nxt_itr != read_map.end()) {
+                if ((rd_nxt_itr->second->start == rd_itr->second->start) && (rd_nxt_itr->second->end == rd_itr->second->end)) {
+                    int dist = mutation_distance(rd_nxt_itr->second->mutations, rd_itr->second->mutations);
+                    if (!dist) {
+                        found = true;
+                        auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_nxt_itr->first);
+                        if (check_itr == read_idx.end())
+                            read_idx.emplace_back(rd_nxt_itr->first);
+                    } 
+                }
+                rd_nxt_itr++;
+            }
+            if (found)
+                auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_itr->first);
+                if (check_itr == read_idx.end())
+                    read_idx.emplace_back(rd_itr->first);
+        }
+        rd_itr++;
+    }
+    printf("\n Repeated Reads: %d\n", (int)read_idx.size());
 }
 
 
@@ -204,9 +264,9 @@ void place_reads(const std::unordered_map<int, struct read_info*>& read_map, con
                             break;
                         } 
                     if (present)
-                        printf("\n%d%c -> %f PRESENT", r_mut.first, MAT::get_nuc(allele_freq.first), ((double)allele_freq.second / (double)total_reads));
+                        printf("\n%d%c -> %f (%d) PRESENT", r_mut.first, MAT::get_nuc(allele_freq.first), ((double)allele_freq.second / (double)total_reads), allele_freq.second);
                     else
-                        printf("\n%d%c -> %f ABSENT", r_mut.first, MAT::get_nuc(allele_freq.first), ((double)allele_freq.second / (double)total_reads));
+                        printf("\n%d%c -> %f (%d) ABSENT", r_mut.first, MAT::get_nuc(allele_freq.first), ((double)allele_freq.second / (double)total_reads), allele_freq.second);
                 }
             }
         }
