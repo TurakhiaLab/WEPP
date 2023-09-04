@@ -48,47 +48,13 @@ reference_fasta=$1
 input_fastq=$2
 output_vcf=$3
 
-# Run the pipeline
-echo "Running the pipeline"
-
-echo "Converting FASTQ to FASTA"
-time python fastq_to_fasta.py $input_fastq reads.fasta
-echo ""
-
-echo "Aligning reads to reference"
-
 bowtie2-build $reference_fasta intermediate_files/ref_index
-bowtie2 -x intermediate_files/ref_index -f -U reads.fasta --local -S intermediate_files/alignment.sam
-
-cat intermediate_files/alignment.sam | python process_sam.py > intermediate_files/alignment_forward.sam
-sed '1s/^\xEF\xBB\xBF//' intermediate_files/alignment_forward.sam > intermediate_files/alignment.sam
-python new_alignment_positions.py
-samtools view -S -b intermediate_files/alignment_modified.sam > intermediate_files/alignment.bam
-samtools sort intermediate_files/alignment.bam -o intermediate_files/sorted_alignment.bam
-samtools index intermediate_files/sorted_alignment.bam
-samtools fasta intermediate_files/sorted_alignment.bam > reads_aligned.fasta
-# samtools view -F 4 intermediate_files/sorted_alignment.bam | samtools fasta - > reads_aligned.fasta
+bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/alignment.sam
 
 # bwa index $reference_fasta
-# bwa mem $reference_fasta reads.fasta > intermediate_files/alignment.sam
-# python new_alignment_positions.py
-# samtools view -S -b intermediate_files/alignment_modified.sam > intermediate_files/alignment.bam
-# samtools sort intermediate_files/alignment.bam -o intermediate_files/sorted_alignment.bam
-# samtools index intermediate_files/sorted_alignment.bam
-# samtools fasta intermediate_files/sorted_alignment.bam > reads_aligned.fasta
-
-echo ""
-
-echo "Converting FASTA to VCF"
-python process_aligned_fasta.py
-python indel_fasta_to_vcf.py
-time ./fasta_to_vcf reads_aligned.fasta $reference_fasta $output_vcf
-echo ""
-
-# Print location where output VCF was written
-echo "Output VCF written to $output_vcf"
-echo ""
-
-# Remove the intermediate files
-# rm -f reads.fasta reads_aligned.fasta
-
+# bwa mem $reference_fasta $input_fastq > intermediate_files/alignment.sam
+python new_alignment_positions.py
+python new_vcf_generator.py intermediate_files/alignment_modified.sam my_test_output.vcf
+./sort_vcf
+./group_vcf my_test_output_2.vcf my_test_output_3.vcf
+python plotting_data.py > mutation_counts_grouped.txt
