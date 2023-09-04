@@ -1,1 +1,12 @@
 .DS_Store
+alignment_pipeline/intermediate_files/*
+*.fastq
+*.amb
+*.ann
+*.bwt
+*.pac
+*.sa
+*.fai
+*.bt2
+*.sam
+*.bam
