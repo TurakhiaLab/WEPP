@@ -44,7 +44,7 @@ void haplotype_pruning(po::parsed_options parsed) {
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["output-mat"].as<std::string>();
     std::string input_samples_file = dir_prefix + vm["samples"].as<std::string>();
-    int mut_dist = vm["mut-distance"].as<int>();
+    int mut_dist_thresh = vm["mut-distance"].as<int>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T;
@@ -58,32 +58,36 @@ void haplotype_pruning(po::parsed_options parsed) {
     }
 
     //Get remaining samples
-    samples = samples_outside_mut_dist(T, samples, mut_dist);
+    std::vector<MAT::Node*> remove_nodes = samples_outside_mut_dist(T, samples, mut_dist_thresh);
 
     //Filter the input based on the samples
-    MAT::Tree subtree = filter_master(T, samples, false, true);
+    MAT::Tree subtree = MAT::get_tree_copy(T);
+    for (auto node: remove_nodes)
+        subtree.remove_node(node->identifier, false);
+
     subtree.condense_leaves();
     MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
 }
 
 
 //Function to remove haplotypes within certain distance from given haplotypes
-std::vector<std::string> samples_outside_mut_dist(const MAT::Tree &T, std::vector<std::string> samples_to_check, int mut_dist_thresh) {
-    std::vector<std::string> good_samples;
-    for (auto n: T.depth_first_expansion()) {
-        if (n->is_leaf()) {
-            bool remove = false;
-            for (auto sample: samples_to_check) {
-                //Remove leaf node within mut_dist threshold of sample
-                int m_dist = mutation_distance(T, T, T.get_node(sample), n);
-                if (m_dist <= mut_dist_thresh) {
-                    remove = true;
-                    break;
-                }
-            }
-            if (!remove)
-                good_samples.emplace_back(n->identifier);
+std::vector<MAT::Node*> samples_outside_mut_dist(const MAT::Tree &T, std::vector<std::string> samples_to_check, int mut_dist_thresh) {
+    std::vector<MAT::Node*> remove_nodes;
+    for (auto sample: samples_to_check) {
+        MAT::Node* anc_node = NULL;
+        for (auto n: T.rsearch(sample, true)) {
+            //Remove leaf node within mut_dist threshold of sample
+            int m_dist = mutation_distance(T, T, T.get_node(sample), n);
+            if ((m_dist <= mut_dist_thresh) && (!n->is_root()))
+                anc_node = n;
+            else
+                break;
+        }
+        if (anc_node != NULL) {
+            remove_nodes.emplace_back(anc_node);
+            int m_dist = mutation_distance(T, T, T.get_node(sample), anc_node);
+            printf("\n%s has mut_distance %d from %s\n\n", anc_node->identifier.c_str(), m_dist, sample.c_str());
         }
     }
-    return good_samples;
+    return remove_nodes;
 }
