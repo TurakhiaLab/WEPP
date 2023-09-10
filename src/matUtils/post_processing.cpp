@@ -86,52 +86,35 @@ void post_processing(po::parsed_options parsed) {
     ////}
     ////////////////////////////////////
 
-    ////Checking how close are input samples with peaks
-    //std::unordered_map<int, struct read_info*> read_map, hap_map;
-    //tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
-    //std::unordered_map<std::string, std::string> hap_clade_map;
-    //std::vector<std::string> vcf_samples;
-    //std::unordered_map<std::string, double> hap_abun_map;
-    //read_sample_vcf(vcf_samples, sample_vcf_filename);
-    //read_vcf(hap_map, hap_vcf_filename);
-    //read_csv(hap_abun_map, hap_csv_filename);
-    //read_csv(hap_clade_map, hap_clade_csv_filename);
+    //Checking how close are input samples with peaks
+    std::unordered_map<int, struct read_info*> read_map, hap_map;
+    tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
+    std::vector<std::string> vcf_samples;
+    std::unordered_map<std::string, double> hap_abun_map;
+    read_sample_vcf(vcf_samples, sample_vcf_filename);
+    read_vcf(hap_map, hap_vcf_filename);
+    read_csv(hap_abun_map, hap_csv_filename);
     
     ////read_vcf(read_map, read_vcf_filename);
     ////place_reads(read_map, hap_map, hap_abun_map, hap_read_map);
     
+    //std::unordered_map<std::string, std::string> hap_clade_map;
+    //read_csv(hap_clade_map, hap_clade_csv_filename);
     //compute_abundance(hap_abun_map, hap_clade_map);
-    //compute_distance(T, hap_map, vcf_samples);
+    compute_distance(T, hap_map, vcf_samples);
 
-    std::unordered_map<int, struct read_info*> read_map;
-    read_vcf(read_map, read_vcf_filename);
-    std::vector<int> read_idx;
-    auto rd_itr = read_map.begin();
-    while (rd_itr != read_map.end()) {
-        auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_itr->first);
-        if (check_itr == read_idx.end()) {
-            auto rd_nxt_itr = rd_itr + 1;
-            bool found = false;
-            while (rd_nxt_itr != read_map.end()) {
-                if ((rd_nxt_itr->second->start == rd_itr->second->start) && (rd_nxt_itr->second->end == rd_itr->second->end)) {
-                    int dist = mutation_distance(rd_nxt_itr->second->mutations, rd_itr->second->mutations);
-                    if (!dist) {
-                        found = true;
-                        auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_nxt_itr->first);
-                        if (check_itr == read_idx.end())
-                            read_idx.emplace_back(rd_nxt_itr->first);
-                    } 
-                }
-                rd_nxt_itr++;
-            }
-            if (found)
-                auto check_itr = std::find(read_idx.begin(), read_idx.end(), rd_itr->first);
-                if (check_itr == read_idx.end())
-                    read_idx.emplace_back(rd_itr->first);
-        }
-        rd_itr++;
-    }
-    printf("\n Repeated Reads: %d\n", (int)read_idx.size());
+
+///////////////////////NEW TEST
+    //std::unordered_map<int, struct read_info*> read_map;
+    //read_vcf(read_map, read_vcf_filename);
+    //std::vector<int> read_idx;
+    //auto rd_itr = read_map.begin();
+    //while (rd_itr != read_map.end()) {
+    //    if (rd_itr->second->mutations.size() == 0)
+    //        read_idx.emplace_back(rd_itr->first);
+    //    rd_itr++;
+    //}
+    //printf("\n Repeated Reads: %d\n", (int)read_idx.size());
 }
 
 
@@ -428,7 +411,7 @@ void compute_abundance(const std::unordered_map<std::string, double>& hap_abun_m
     //Iterate through haplotype-abundance map
     auto h_abun_itr = hap_abun_map.begin();
     while (h_abun_itr != hap_abun_map.end()) {
-        //Find the haplotype in haplotype-clade map 
+        //Find the haplotype in haplotype-clade map
         auto h_clade_itr = hap_clade_map.find(h_abun_itr->first);
         //Insert the clade in clade-abundance map if not present
         auto c_abun_itr = clade_abun_map.find(h_clade_itr->second);
