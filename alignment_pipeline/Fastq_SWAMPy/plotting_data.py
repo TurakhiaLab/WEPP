@@ -1,9 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import sys
 
+if len(sys.argv) != 2:
+    print("Usage: python plotting_data.py <input_vcf>")
+    sys.exit(1)
 
-input_vcf = "my_test_output_3.vcf"
+input_vcf = sys.argv[1]
 f = open(input_vcf, 'r')
 lines = f.readlines()
 f.close()
