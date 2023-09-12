@@ -51,6 +51,10 @@ reference_fasta=$1
 input_fastq=$2
 output_vcf=$3
 
+output_vcf_no_ext=${output_vcf%.*}
+output_vcf_freyja=${output_vcf_no_ext}_freyja.vcf
+output_vcf_depth=${output_vcf_no_ext}_freyja.depth
+
 bowtie2-build $reference_fasta intermediate_files/ref_index
 bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/alignment.sam
 python process_rc.py $input_fastq
@@ -64,5 +68,5 @@ python new_alignment_positions.py
 python new_vcf_generator.py intermediate_files/alignment_modified.sam my_test_output.vcf
 ./sort_vcf
 ./group_vcf my_test_output_2.vcf $output_vcf
-./generate_freyja_files my_test_output_2.vcf $reference_fasta freyja.vcf freyja.depth
-python plotting_data.py > mutation_counts_grouped.txt
+./generate_freyja_files my_test_output_2.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth
+python plotting_data.py $output_vcf > mutation_counts_grouped.txt
