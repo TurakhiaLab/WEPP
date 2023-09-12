@@ -22,6 +22,9 @@ with open("intermediate_files/alignment.sam", "r") as samfile:
             # if '_amplicon_' in fields[0]:
             #     fields[0] = fields[0].split('_amplicon_')[0]
 
+            if start == 0: # Skip unmapped reads
+                continue
+
             # Append positions to read name (the 1st field)
             fields[0] += "_READ_" + str(start) + "_" + str(end)
 

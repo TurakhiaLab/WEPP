@@ -50,6 +50,10 @@ output_vcf=$3
 
 bowtie2-build $reference_fasta intermediate_files/ref_index
 bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/alignment.sam
+python process_rc.py $input_fastq
+# Append _processed to the input fastq name
+input_fastq_processed=${input_fastq%.*}_processed.fastq
+bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediate_files/alignment.sam
 
 # bwa index $reference_fasta
 # bwa mem $reference_fasta $input_fastq > intermediate_files/alignment.sam
