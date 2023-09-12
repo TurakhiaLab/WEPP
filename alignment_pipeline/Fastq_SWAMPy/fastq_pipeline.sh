@@ -20,6 +20,9 @@ if [ $# -eq 4 ]; then
     if [ "$4" == "--compile" ]; then
         echo "Compiling C++ code"
         g++ -o fasta_to_vcf fasta_to_vcf.cpp
+        g++ -o sort_vcf sort_vcf.cpp
+        g++ -o group_vcf group_vcf.cpp
+        g++ -o generate_freyja_files generate_freyja_files.cpp
     else
         echo "Usage: $0 <reference_fasta> <input fastq> <output_vcf> [--compile]"
         exit 1
@@ -60,5 +63,6 @@ bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediat
 python new_alignment_positions.py
 python new_vcf_generator.py intermediate_files/alignment_modified.sam my_test_output.vcf
 ./sort_vcf
-./group_vcf my_test_output_2.vcf my_test_output_3.vcf
+./group_vcf my_test_output_2.vcf $output_vcf
+./generate_freyja_files my_test_output_2.vcf $reference_fasta freyja.vcf freyja.depth
 python plotting_data.py > mutation_counts_grouped.txt
