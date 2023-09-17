@@ -38,6 +38,8 @@ def parse_mdz(mdz, seq, pos):
             ref_pos += token
         else: # mismatch
             ref_base = ref_genome[ref_pos-1]
+            if read_pos > len(seq):
+                break
             alt_base = seq[read_pos - 1]
             if ref_base != alt_base:
                 mismatches.append((ref_pos, ref_base, alt_base))
