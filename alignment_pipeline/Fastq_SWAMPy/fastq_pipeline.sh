@@ -20,6 +20,9 @@ if [ $# -eq 4 ]; then
     if [ "$4" == "--compile" ]; then
         echo "Compiling C++ code"
         g++ -o fasta_to_vcf fasta_to_vcf.cpp
+        g++ -o sort_vcf sort_vcf.cpp
+        g++ -o group_vcf group_vcf.cpp
+        g++ -o generate_freyja_files generate_freyja_files.cpp
     else
         echo "Usage: $0 <reference_fasta> <input fastq> <output_vcf> [--compile]"
         exit 1
@@ -48,13 +51,22 @@ reference_fasta=$1
 input_fastq=$2
 output_vcf=$3
 
+output_vcf_no_ext=${output_vcf%.*}
+output_vcf_freyja=${output_vcf_no_ext}_freyja.vcf
+output_vcf_depth=${output_vcf_no_ext}_freyja.depth
+
 bowtie2-build $reference_fasta intermediate_files/ref_index
 bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/alignment.sam
+python process_rc.py $input_fastq
+# Append _processed to the input fastq name
+input_fastq_processed=${input_fastq%.*}_processed.fastq
+bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediate_files/alignment.sam
 
 # bwa index $reference_fasta
 # bwa mem $reference_fasta $input_fastq > intermediate_files/alignment.sam
 python new_alignment_positions.py
 python new_vcf_generator.py intermediate_files/alignment_modified.sam my_test_output.vcf
 ./sort_vcf
-./group_vcf my_test_output_2.vcf my_test_output_3.vcf
-python plotting_data.py > mutation_counts_grouped.txt
+./group_vcf my_test_output_2.vcf $output_vcf
+./generate_freyja_files my_test_output_2.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth
+python plotting_data.py $output_vcf > mutation_counts_grouped.txt
