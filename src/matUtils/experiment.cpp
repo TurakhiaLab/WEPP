@@ -1604,6 +1604,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             else 
                 break;
         }
+        node_score_vector.clear();
         
         //Only consider peak nodes not seen before
         std::vector<bool> peak_vec(top_n_node_score.size(), true);
