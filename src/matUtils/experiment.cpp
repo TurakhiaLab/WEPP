@@ -1531,7 +1531,7 @@ int place_reads(const std::vector<MAT::Node*> &dfs, struct read_info* rp, const 
 //Main peak search algorithm
 void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf) {
     timer.Start();
-    int top_n = 25, m_dist_thresh = 2, neighbor_dist_thresh = 3, neighbor_peaks_thresh = 50;
+    int top_n = 25, m_dist_thresh = 2, neighbor_dist_thresh = 7, neighbor_peaks_thresh = 100;
     std::vector<MAT::Node*> dfs, peak_nodes, curr_peak_nodes, prohibited_nodes;
     std::vector<size_t> remaining_reads(read_map.size());
     
@@ -1539,191 +1539,196 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
     dfs = T.depth_first_expansion(); 
     
     //GREEDY ALGORITHM for peak nodes
-    /*
-        1. Place remaining reads on tree
-        2. Remove nodes not to be considered (present in Prohibited nodes)
-        3. Find top scoring nodes
-        4. Only consider highest scoring node(s) not seen before
-        5. Remove reads mapped to these nodes
-        6. Don't consider top scoring nodes in the neighborhood of other top nodes
-        7. Add neighbors of selected top scoring nodes to Prohibited nodes 
-    */
-    ////Initializing remaining_reads
-    //for (size_t i = 0; i < read_map.size(); i++)
-    //    remaining_reads[i] = i;
-    ////Iterate till no reads left
-    //while ((int)remaining_reads.size() > 0) {
-    //    //Calculating node score for remaining reads
-    //    printf("\n");
-    //    static tbb::affinity_partitioner ap;
-    //    tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
-    //        [&](tbb::blocked_range<size_t> k) {
-    //            for (size_t i = k.begin(); i < k.end(); ++i) {
-    //                size_t rm_idx = remaining_reads[i];
-    //                auto read_id = read_map.find(rm_idx)->second;
-    //                place_reads(dfs, read_id, NULL, node_score);
-    //            }
-    //        },
-    //    ap);
-    //    //REMOVE prohibited_nodes from node_score
-    //    tbb::parallel_for( tbb::blocked_range<size_t>(0, prohibited_nodes.size()),
-    //        [&](tbb::blocked_range<size_t> k) {
-    //            for (size_t i = k.begin(); i < k.end(); ++i) {
-    //                auto p_node = prohibited_nodes[i];
-    //                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-    //                if (node_score.find(ac, p_node))
-    //                    node_score.erase(ac);
-    //            }
-    //        },
-    //    ap);
-    //    //Get top_n node_scores
-    //    std::vector<std::pair<MAT::Node*, double>> top_n_node_score(top_n);
-    //    std::partial_sort_copy(node_score.begin(),
-    //                        node_score.end(),
-    //                        top_n_node_score.begin(),
-    //                        top_n_node_score.end(),
-    //                        [](std::pair<const MAT::Node*, double> const& l,
-    //                           std::pair<const MAT::Node*, double> const& r)
-    //                        {
-    //                            return l.second > r.second;
-    //                        });
-    //    node_score.clear();
+    //    1. Place remaining reads on tree
+    //    2. Remove nodes not to be considered (present in Prohibited nodes)
+    //    3. Find top scoring nodes
+    //    4. Only consider highest scoring node(s) not seen before
+    //    5. Remove reads mapped to these nodes
+    //    6. Don't consider top scoring nodes in the neighborhood of other top nodes
+    //    7. Add neighbors of selected top scoring nodes to Prohibited nodes 
+    
+    //Initializing remaining_reads
+    for (size_t i = 0; i < read_map.size(); i++)
+        remaining_reads[i] = i;
+    //Iterate till no reads left
+    while ((int)remaining_reads.size() > 0) {
+        //Calculating node score for remaining reads
+        printf("\n");
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    size_t rm_idx = remaining_reads[i];
+                    auto read_id = read_map.find(rm_idx)->second;
+                    place_reads(dfs, read_id, NULL, node_score);
+                }
+            },
+        ap);
+        
+        //REMOVE prohibited_nodes from node_score
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, prohibited_nodes.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto p_node = prohibited_nodes[i];
+                    tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                    if (node_score.find(ac, p_node))
+                        node_score.erase(ac);
+                }
+            },
+        ap);
 
-    //    //Only consider nodes not seen before
-    //    std::vector<bool> peak_vec(top_n_node_score.size(), true);
-    //    //Find the reads not mapped to the best nodes
-    //    auto top_n_itr = top_n_node_score.begin();
-    //    auto top_score = top_n_itr->second;
-    //    while (top_n_itr != top_n_node_score.end()) {
-    //        auto curr_node = top_n_itr->first;
-    //        //Only add unique nodes in curr_peak_nodes with score == top_score
-    //        if (abs(top_score - top_n_itr->second) < 1e-9) {
-    //            //Check if current node is not in neighborhood of peaks seen till now
-    //            if (peak_vec[top_n_itr - top_n_node_score.begin()]) {
-    //                curr_peak_nodes.emplace_back(curr_node);
-    //                auto curr_clade = get_clade(T, curr_node);
-    //                printf("PEAK: %s, Score: %f, Clade:%s\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str());
-    //                //Remove reads mapped to curr_node
-    //                std::vector<size_t> remove_reads;
-    //                using my_mutex_t = tbb::queuing_mutex;
-    //                my_mutex_t my_mutex;
-    //                static tbb::affinity_partitioner ap;
-    //                //Parallel_for loop for each remaining read
-    //                tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
-    //                    [&](tbb::blocked_range<size_t> k) {
-    //                        for (size_t i = k.begin(); i < k.end(); ++i) {
-    //                            size_t rm_idx = remaining_reads[i];
-    //                            auto read_id = read_map.find(rm_idx)->second;
-    //                            int read_present = place_reads(dfs, read_id, curr_node, node_score);
-    //                            node_score.clear();
-    //                            //If Read contains current node -> REMOVE
-    //                            if (read_present) {
-    //                                my_mutex_t::scoped_lock my_lock{my_mutex};
-    //                                remove_reads.emplace_back(rm_idx);
-    //                            }
-    //                        }
-    //                    },
-    //                ap);
-    //                //Erase from remove_reads
-    //                for (auto rm_idx: remove_reads) {
-    //                    auto itr = remaining_reads.begin();
-    //                    while (itr != remaining_reads.end()) {
-    //                        if ((*itr) == rm_idx) {
-    //                            remaining_reads.erase(itr);
-    //                            break;
-    //                        }
-    //                        itr++;
-    //                    }
-    //                }
-    //                remove_reads.clear();
-    //            }
-    //            //If present in neighbourhood of current peaks, move to next node
-    //            else {
-    //                top_n_itr++;
-    //                continue;
-    //            }
-    //        }
-    //        //node score is less than top score
-    //        else
-    //            break;
-    //        
-    //        //Remove nearby peaks from further analysis
-    //        auto top_n_peak_cmp_itr = top_n_itr;
-    //        std::advance(top_n_peak_cmp_itr, 1);
-    //        while (top_n_peak_cmp_itr != top_n_node_score.end()) {
-    //            auto cmp_node = top_n_peak_cmp_itr->first;
-    //            //Stop checking if score < top_score
-    //            if (abs(top_score - top_n_peak_cmp_itr->second) > 1e-9)
-    //                break;
-    //            //Check next peak if this peak is already in neighborhood of some other peak
-    //            else if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
-    //                top_n_peak_cmp_itr++;
-    //                continue;
-    //            }
-    //            //Don't consider peaks within mutation distance limit 
-    //            int m_dist = mutation_distance(T, T, curr_node, cmp_node);
-    //            if (m_dist <= m_dist_thresh)
-    //                peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
-    //            top_n_peak_cmp_itr++;
-    //        }
+        //SORT node_scores
+        std::vector<std::pair<MAT::Node*, double>> node_score_vector, top_n_node_score;
+        node_score_vector.reserve(node_score.size());
+        // Convert the concurrent hash map into a vector in parallel
+        tbb::parallel_for_each(node_score.begin(), node_score.end(), [&node_score_vector](const auto& element) {
+            node_score_vector.emplace_back(element);
+        });
+        node_score.clear();
+        // Sort the node_score_vector filled above
+        tbb::parallel_sort(node_score_vector.begin(), node_score_vector.end(), 
+             [&T](const auto& a, const auto& b) {
+                return compare_node_score(T, a, b);
+        });
 
-    //        top_n_itr++;
-    //    }
-    //    top_n_node_score.clear();
-    //    peak_vec.clear();
+        // Take top_n values from nod_score_vector into top_n_node_score
+        int node_count = 0;
+        auto top_score = node_score_vector.begin()->second;
+        for (const auto& n_s: node_score_vector) {
+            if (abs(top_score - n_s.second) < 1e-9) {
+                top_n_node_score.emplace_back(n_s);
+                node_count++;
+                if (node_count == top_n)
+                    break;
+            }
+            else 
+                break;
+        }
+        
+        //Only consider peak nodes not seen before
+        std::vector<bool> peak_vec(top_n_node_score.size(), true);
+        //Find the reads not mapped to the best nodes
+        auto top_n_itr = top_n_node_score.begin();
+        while (top_n_itr != top_n_node_score.end()) {
+            auto curr_node = top_n_itr->first;
+            //Check if current node is not in neighborhood of peaks seen till now
+            if (peak_vec[top_n_itr - top_n_node_score.begin()]) {
+                curr_peak_nodes.emplace_back(curr_node);
+                auto curr_clade = get_clade(T, curr_node);
+                printf("PEAK: %s, Score: %f, Clade:%s\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str());
+                //Remove reads mapped to curr_node
+                std::vector<size_t> remove_reads;
+                using my_mutex_t = tbb::queuing_mutex;
+                my_mutex_t my_mutex;
+                static tbb::affinity_partitioner ap;
+                //Parallel_for loop for each remaining read
+                tbb::parallel_for( tbb::blocked_range<size_t>(0, remaining_reads.size()),
+                    [&](tbb::blocked_range<size_t> k) {
+                        for (size_t i = k.begin(); i < k.end(); ++i) {
+                            size_t rm_idx = remaining_reads[i];
+                            auto read_id = read_map.find(rm_idx)->second;
+                            int read_present = place_reads(dfs, read_id, curr_node, node_score);
+                            node_score.clear();
+                            //If Read contains current node -> REMOVE
+                            if (read_present) {
+                                my_mutex_t::scoped_lock my_lock{my_mutex};
+                                remove_reads.emplace_back(rm_idx);
+                            }
+                        }
+                    },
+                ap);
+                //Erase from remove_reads
+                std::sort(remove_reads.begin(), remove_reads.end());
+                auto rmr_itr = remaining_reads.begin();
+                auto rr_itr = remove_reads.begin();
+                while ((rmr_itr != remaining_reads.end()) && (rr_itr != remove_reads.end())) {
+                    if (*rmr_itr == *rr_itr) {
+                        rr_itr++;
+                        rmr_itr = remaining_reads.erase(rmr_itr);
+                    }
+                    else
+                        rmr_itr++;
+                }
+                remove_reads.clear();
+            }
+            //If present in neighbourhood of current peaks, move to next node
+            else {
+                top_n_itr++;
+                continue;
+            }
+            
+            //Remove nearby peaks from further analysis
+            auto top_n_peak_cmp_itr = top_n_itr;
+            std::advance(top_n_peak_cmp_itr, 1);
+            while (top_n_peak_cmp_itr != top_n_node_score.end()) {
+                auto cmp_node = top_n_peak_cmp_itr->first;
+                //Check next peak if this peak is already in neighborhood of some other peak
+                if (!peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()]) {
+                    top_n_peak_cmp_itr++;
+                    continue;
+                }
+                //Don't consider peaks within mutation distance limit 
+                int m_dist = mutation_distance(T, T, curr_node, cmp_node);
+                if (m_dist <= m_dist_thresh)
+                    peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
+                top_n_peak_cmp_itr++;
+            }
 
-    //    //ADDING current_peak_nodes and its neighbors to prohibited_nodes
-    //    /*
-    //        1. Find the farthest ancestor of every peak node within m_dist_thresh
-    //        2. Recursively only analyze its children within m_dist_thresh
-    //        3. Only include unique neighborhood nodes to prohibited_nodes
-    //    */
-    //    using my_mutex_t = tbb::queuing_mutex;
-    //    my_mutex_t my_mutex;
-    //    tbb::parallel_for( tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
-    //        [&](tbb::blocked_range<size_t> k) {
-    //            for (size_t i = k.begin(); i < k.end(); ++i) {
-    //                auto peak = curr_peak_nodes[i];
-    //                //Find farthest ancestor with mut distance from peak <= m_dist_thresh
-    //                MAT::Node* anc_node = NULL;
-    //                for (const auto& n: T.rsearch(peak->identifier, true)) {
-    //                    int m_dist = mutation_distance(T, T, n, peak);
-    //                    if (m_dist <= m_dist_thresh)
-    //                        anc_node = n;
-    //                    else
-    //                        break;
-    //                }
-    //                //Adding neighborhood peaks to prohibited_nodes
-    //                std::queue<MAT::Node*> remaining_nodes;
-    //                remaining_nodes.push(anc_node);
-    //                while (remaining_nodes.size() > 0) {
-    //                    MAT::Node* present_node = remaining_nodes.front();
-    //                    remaining_nodes.pop();
-    //                    //Only add if mutation distance between peak and present_node <= m_dist_thresh
-    //                    int m_dist = mutation_distance(T, T, present_node, peak);
-    //                    if (m_dist <= m_dist_thresh) {
-    //                        //Only add if present_node NOT already present in prohibited_nodes
-    //                        //Looking for exact node matches here as we want to remove same mutation nodes
-    //                        my_mutex_t::scoped_lock my_lock;
-    //                        my_lock.acquire(my_mutex);
-    //                        if (!std::binary_search(prohibited_nodes.begin(), prohibited_nodes.end(), present_node))
-    //                            prohibited_nodes.emplace_back(present_node);
-    //                        my_lock.release();
-    //                        //Add present_node's children in list for checking
-    //                        for (const auto& c: present_node->children)
-    //                            remaining_nodes.push(c);
-    //                    }
-    //                }
-    //            }
-    //        },
-    //    ap);
+            top_n_itr++;
+        }
+        top_n_node_score.clear();
+        peak_vec.clear();
 
-    //    //Add curr_peak_nodes to peak_nodes
-    //    peak_nodes.reserve(peak_nodes.size() + curr_peak_nodes.size());
-    //    peak_nodes.insert(peak_nodes.end(), curr_peak_nodes.begin(), curr_peak_nodes.end());
-    //    //Clear vectors needed for next iteration
-    //    curr_peak_nodes.clear();
-    //}
+        //ADDING current_peak_nodes and its neighbors to prohibited_nodes
+        //  1. Find the farthest ancestor of every peak node within m_dist_thresh
+        //  2. Recursively only analyze its children within m_dist_thresh
+        //  3. Only include unique neighborhood nodes to prohibited_nodes
+        using my_mutex_t = tbb::queuing_mutex;
+        my_mutex_t my_mutex;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto peak = curr_peak_nodes[i];
+                    //Find farthest ancestor with mut distance from peak <= m_dist_thresh
+                    MAT::Node* anc_node = NULL;
+                    for (const auto& n: T.rsearch(peak->identifier, true)) {
+                        int m_dist = mutation_distance(T, T, n, peak);
+                        if (m_dist <= m_dist_thresh)
+                            anc_node = n;
+                        else
+                            break;
+                    }
+                    //Adding neighborhood peaks to prohibited_nodes
+                    std::queue<MAT::Node*> remaining_nodes;
+                    remaining_nodes.push(anc_node);
+                    while (remaining_nodes.size() > 0) {
+                        MAT::Node* present_node = remaining_nodes.front();
+                        remaining_nodes.pop();
+                        //Only add if mutation distance between peak and present_node <= m_dist_thresh
+                        int m_dist = mutation_distance(T, T, present_node, peak);
+                        if (m_dist <= m_dist_thresh) {
+                            //Only add if present_node NOT already present in prohibited_nodes
+                            //Looking for exact node matches here as we want to remove same mutation nodes
+                            my_mutex_t::scoped_lock my_lock;
+                            my_lock.acquire(my_mutex);
+                            if (!std::binary_search(prohibited_nodes.begin(), prohibited_nodes.end(), present_node))
+                                prohibited_nodes.emplace_back(present_node);
+                            my_lock.release();
+                            //Add present_node's children in list for checking
+                            for (const auto& c: present_node->children)
+                                remaining_nodes.push(c);
+                        }
+                    }
+                }
+            },
+        ap);
+
+        //Add curr_peak_nodes to peak_nodes
+        peak_nodes.reserve(peak_nodes.size() + curr_peak_nodes.size());
+        peak_nodes.insert(peak_nodes.end(), curr_peak_nodes.begin(), curr_peak_nodes.end());
+        //Clear vectors needed for next iteration
+        curr_peak_nodes.clear();
+    }
 
     fprintf(stderr,"\nRemaining Reads: %d\n", (int)remaining_reads.size());
     remaining_reads.clear();
@@ -1731,82 +1736,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
     printf("\nInital PEAK nodes: %d\n", (int)peak_nodes.size());
     fprintf(stderr,"\nPeak search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
     
-    ////////////////////////////CHANGE
-    std::vector<std::string> selected_nodes = {
-        "node_102926", 
-        "node_133903", 
-        "node_124416", 
-        "node_132632", 
-        "node_167862", 
-        "node_2545", 
-        "node_150316", 
-        "node_14972", 
-        "node_8660", 
-        "node_8664", 
-        "node_8666", 
-        "node_8659", 
-        "node_102870", 
-        "node_102866", 
-        "node_102871", 
-        "node_9839", 
-        "node_29199", 
-        "node_130441", 
-        "node_130284", 
-        "node_130437", 
-        "node_130443", 
-        "node_147010", 
-        "node_156447", 
-        "node_156409", 
-        "node_156441", 
-        "node_156406", 
-        "node_156440", 
-        "node_156417", 
-        "node_156442", 
-        "node_156411", 
-        "node_156413", 
-        "node_156419", 
-        "node_156407", 
-        "node_70953", 
-        "USA/NC-CDC-LC0058460/2021|MZ253636.1|2021-05-04", 
-        "node_6259", 
-        "node_6626", 
-        "node_6625", 
-        "node_15888", 
-        "node_16150", 
-        "node_15884", 
-        "node_15889", 
-        "node_15886", 
-        "node_15885", 
-        "node_15895", 
-        "node_15896", 
-        "node_15878", 
-        "node_84418", 
-        "node_83810", 
-        "node_83722", 
-        "node_84429", 
-        "node_83022", 
-        "node_83693", 
-        "node_83998", 
-        "node_82951", 
-        "node_83344", 
-        "node_83520", 
-        "node_133516", 
-        "node_83452", 
-        "node_83686", 
-        "node_83637", 
-        "node_83819", 
-        "node_84157", 
-        "node_83962", 
-        "USA/MA-CDC-22520628/2021|MW763944.1|21-02-24", 
-        "England/PHEC-1595F9/2021|21-01-26", 
-        "node_83373", 
-        "node_83772", 
-        "node_84259"
-    };
-    for (auto pk: selected_nodes) {
-        peak_nodes.emplace_back(T.get_node(pk));
-    }
-
     printf("MUTATION DISTANCE ORIG:\n"); 
     //Verify Recovery of Input Samples
     timer.Start();
@@ -2248,7 +2177,43 @@ void generate_regression_abundance_data(const MAT::Tree &T, const std::vector<MA
         
     fprintf(stderr,"Barcode and VCF file writing took %ld sec\n\n", (timer.Stop() / 1000));
 }
+
 //Comparing mutations for sorting a vector 
 bool compare_mutations(const MAT::Mutation &a, const MAT::Mutation &b) {
     return a.position < b.position;
+}
+
+//Comparing different node_scores  
+bool compare_node_score (const MAT::Tree &T, const std::pair<MAT::Node*, double>& a, const std::pair<MAT::Node*, double>& b) {
+    //Compare based on double values
+    if (abs(a.second - b.second) > 1e-9) {
+        return a.second > b.second;
+    }
+    else {
+        size_t a_leaves = get_num_leaves(T, a.first);
+        size_t b_leaves = get_num_leaves(T, b.first);
+       //Compare based on number of leaf nodes
+       if (a_leaves != b_leaves)
+          return a_leaves > b_leaves;
+       //Compare alphabetically
+       else
+          return a.first->identifier > b.first->identifier;
+    }
+};
+
+//Get number of leaves
+size_t get_num_leaves(const MAT::Tree &T, MAT::Node* node) {
+    std::vector<MAT::Node*> leaves;
+    std::queue<MAT::Node*> remaining_nodes;
+    remaining_nodes.push(node);
+    while (remaining_nodes.size() > 0) {
+        MAT::Node* curr_node = remaining_nodes.front();
+        remaining_nodes.pop();
+        if (curr_node->children.size() == 0)
+            leaves.emplace_back(curr_node);
+        for (auto c: curr_node->children) {
+            remaining_nodes.push(c);
+        }
+    }
+    return leaves.size();
 }

@@ -60,8 +60,8 @@ struct node_branch {
 };
 
 po::variables_map parse_extract_command(po::parsed_options parsed);
-void simulate_and_place_reads(po::parsed_options parsed);
 
+void simulate_and_place_reads(po::parsed_options parsed);
 
 void read_sample_vcf(std::vector<std::string> &, const std::string);
 
@@ -82,3 +82,7 @@ int child_nodes_addition(const MAT::Tree &, my_mutex_t &, const std::vector<MAT:
 void generate_regression_abundance_data(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::unordered_map<size_t, struct read_info*> &, const std::string &, const std::string &);
 
 bool compare_mutations(const MAT::Mutation &, const MAT::Mutation &);
+
+bool compare_node_score (const MAT::Tree &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
+
+size_t get_num_leaves(const MAT::Tree &T, MAT::Node* n);
