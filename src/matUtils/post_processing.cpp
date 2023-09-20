@@ -55,7 +55,7 @@ void post_processing(po::parsed_options parsed) {
     T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
 
-    ////////////////////////////////////
+    //////////////////////////////////////
     //std::unordered_map<int, struct read_info*> read_map, hap_map;
     
     //std::vector<std::string> vcf_samples;
@@ -87,7 +87,7 @@ void post_processing(po::parsed_options parsed) {
     ////////////////////////////////////
 
     //Checking how close are input samples with peaks
-    std::unordered_map<int, struct read_info*> read_map, hap_map;
+    std::unordered_map<size_t, struct read_info*> read_map, hap_map;
     tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
     std::vector<std::string> vcf_samples;
     std::unordered_map<std::string, double> hap_abun_map;
@@ -115,6 +115,7 @@ void post_processing(po::parsed_options parsed) {
     //    rd_itr++;
     //}
     //printf("\n Repeated Reads: %d\n", (int)read_idx.size());
+
 }
 
 
@@ -259,7 +260,7 @@ void place_reads(const std::unordered_map<int, struct read_info*>& read_map, con
 }
 
 
-void compute_distance(const MAT::Tree &T, const std::unordered_map<int, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples) {
+void compute_distance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)hap_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Get Mutations of samples
