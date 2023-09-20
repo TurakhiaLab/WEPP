@@ -1581,8 +1581,20 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         std::vector<std::pair<MAT::Node*, double>> node_score_vector, top_n_node_score;
         node_score_vector.reserve(node_score.size());
         // Convert the concurrent hash map into a vector in parallel
-        tbb::parallel_for_each(node_score.begin(), node_score.end(), [&node_score_vector](const auto& element) {
-            node_score_vector.emplace_back(element);
+        // Create a range for parallel processing
+        tbb::blocked_range<size_t> range(0, node_score.size());
+         // Use TBB parallel_for to iterate over the concurrent hash map and convert it to a vector
+        tbb::parallel_for(range, [&node_score, &node_score_vector](const tbb::blocked_range<size_t>& r) {
+            for (size_t i = r.begin(); i != r.end(); ++i) {
+                auto it = node_score.begin();
+                // Advance the iterator to the correct position
+                std::advance(it, i); 
+                // Extract the node and score from the concurrent hash map
+                auto node = it->first;
+                auto score = it->second;
+                // Create a pair and add it to the concurrent vector
+                node_score_vector.push_back(std::make_pair(node, score));
+            }
         });
         node_score.clear();
         // Sort the node_score_vector filled above
@@ -1595,6 +1607,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         int node_count = 0;
         auto top_score = node_score_vector.begin()->second;
         for (const auto& n_s: node_score_vector) {
+            //Only consider top_n nodes that have score equal to top node
             if (abs(top_score - n_s.second) < 1e-9) {
                 top_n_node_score.emplace_back(n_s);
                 node_count++;
@@ -1615,8 +1628,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             //Check if current node is not in neighborhood of peaks seen till now
             if (peak_vec[top_n_itr - top_n_node_score.begin()]) {
                 curr_peak_nodes.emplace_back(curr_node);
-                auto curr_clade = get_clade(T, curr_node);
-                printf("PEAK: %s, Score: %f, Clade:%s\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str());
                 //Remove reads mapped to curr_node
                 std::vector<size_t> remove_reads;
                 using my_mutex_t = tbb::queuing_mutex;
@@ -1629,7 +1640,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                             size_t rm_idx = remaining_reads[i];
                             auto read_id = read_map.find(rm_idx)->second;
                             int read_present = place_reads(dfs, read_id, curr_node, node_score);
-                            node_score.clear();
                             //If Read contains current node -> REMOVE
                             if (read_present) {
                                 my_mutex_t::scoped_lock my_lock{my_mutex};
@@ -1638,7 +1648,8 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                         }
                     },
                 ap);
-                //Erase from remove_reads
+                node_score.clear();
+                //Erase remove_reads from remaining_reads
                 std::sort(remove_reads.begin(), remove_reads.end());
                 auto rmr_itr = remaining_reads.begin();
                 auto rr_itr = remove_reads.begin();
@@ -1651,6 +1662,8 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                         rmr_itr++;
                 }
                 remove_reads.clear();
+                auto curr_clade = get_clade(T, curr_node);
+                printf("PEAK: %s, Score: %f, Clade:%s, remaining_reads: %d\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
             }
             //If present in neighbourhood of current peaks, move to next node
             else {
@@ -1674,7 +1687,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                     peak_vec[top_n_peak_cmp_itr - top_n_node_score.begin()] = false;
                 top_n_peak_cmp_itr++;
             }
-
             top_n_itr++;
         }
         top_n_node_score.clear();
