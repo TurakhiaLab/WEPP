@@ -5,9 +5,15 @@
 #include <string>
 #include <sstream>
 
-int main() {
-    std::ifstream inputFile("my_test_output.vcf");
-    std::ofstream outputFile("my_test_output_2.vcf");
+int main(const int argc, const char* argv[]) {
+
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << " <input_vcf> <output_vcf>" << std::endl;
+        return 1;
+    }
+
+    std::ifstream inputFile(argv[1]);  
+    std::ofstream outputFile(argv[2]);
 
     if (!inputFile.is_open() || !outputFile.is_open()) {
         std::cerr << "Error opening files." << std::endl;
