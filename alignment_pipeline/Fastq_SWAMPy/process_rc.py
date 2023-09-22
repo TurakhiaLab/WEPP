@@ -1,13 +1,14 @@
 import sys
 
-if len(sys.argv) != 2:
-    print("Usage: python3 process_rc.py <fastq>")
+if len(sys.argv) != 3:
+    print("Usage: python3 process_rc.py <input_sam> <fastq>")
     exit()
 
-fastq = sys.argv[1]
+input_sam = sys.argv[1]
+fastq = sys.argv[2]
 out_fastq = fastq[:-6] + "_processed.fastq"
 
-f = open('./intermediate_files/alignment.sam', 'r')
+f = open(input_sam, 'r')
 sam_lines = f.readlines()
 sam_lines = sam_lines[3:]
 f.close()

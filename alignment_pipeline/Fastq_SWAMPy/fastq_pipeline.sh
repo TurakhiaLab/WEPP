@@ -19,7 +19,6 @@ set -e
 if [ $# -eq 4 ]; then
     if [ "$4" == "--compile" ]; then
         echo "Compiling C++ code"
-        g++ -o fasta_to_vcf fasta_to_vcf.cpp
         g++ -o sort_vcf sort_vcf.cpp
         g++ -o group_vcf group_vcf.cpp
         g++ -o generate_freyja_files generate_freyja_files.cpp
@@ -43,7 +42,6 @@ fi
 rm -f $3
 
 # Remove intermediate files if they already exist
-rm -f reads.fasta reads_aligned.fasta
 mkdir -p intermediate_files
 
 # Read in the arguments
@@ -57,16 +55,13 @@ output_vcf_depth=${output_vcf_no_ext}_freyja.depth
 
 bowtie2-build $reference_fasta intermediate_files/ref_index
 bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/alignment.sam
-python process_rc.py $input_fastq
-# Append _processed to the input fastq name
+python process_rc.py intermediate_files/alignment.sam $input_fastq
 input_fastq_processed=${input_fastq%.*}_processed.fastq
-bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediate_files/alignment.sam
+bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediate_files/alignment_2.sam
 
-# bwa index $reference_fasta
-# bwa mem $reference_fasta $input_fastq > intermediate_files/alignment.sam
-python new_alignment_positions.py
-python new_vcf_generator.py intermediate_files/alignment_modified.sam my_test_output.vcf
-./sort_vcf
-./group_vcf my_test_output_2.vcf $output_vcf
-./generate_freyja_files my_test_output_2.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth
+python new_alignment_positions.py intermediate_files/alignment_2.sam intermediate_files/alignment_modified.sam
+python sam_to_vcf.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
+./sort_vcf intermediate_files/vcf_unsorted.vcf intermediate_files/vcf_sorted.vcf
+./group_vcf intermediate_files/vcf_sorted.vcf $output_vcf
+./generate_freyja_files intermediate_files/vcf_sorted.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth $output_vcf
 python plotting_data.py $output_vcf > mutation_counts_grouped.txt
