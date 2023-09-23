@@ -24,8 +24,8 @@ void string_split (std::string const& s, char delim, std::vector<std::string>& w
 int main(int argc, char* argv[]) {
 
     // Check that the correct number of arguments are provided
-    if (argc != 5) {
-        std::cout << "Usage: generate_freyja_files <input_vcf> <reference_fasta> <output_freyja_vcf> <output_depth_file>" << std::endl;
+    if (argc != 6) {
+        std::cout << "Usage: generate_freyja_files <input_vcf> <reference_fasta> <output_freyja_vcf> <output_depth_file> <input grouped vcf>" << std::endl;
         return 1;
     }
 
@@ -33,6 +33,7 @@ int main(int argc, char* argv[]) {
     std::string reference_file = argv[2];
     std::string output_file = argv[3];
     std::string output_depth_file = argv[4];
+    std::string input_grouped_vcf = argv[5];
 
     // Read in the reference sequence and store it in a string called ref_seq
     std::ifstream reference_fasta(reference_file);
@@ -50,7 +51,7 @@ int main(int argc, char* argv[]) {
 
     output_vcf << "##fileformat=VCFv4.2" << std::endl;
     output_vcf << "##source=alignmentpipeline" << std::endl;
-    output_vcf << "##CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO" << std::endl;
+    output_vcf << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO" << std::endl;
 
     // read in vcf lines, except headers
     std::vector<std::string> vcf_file_reads_lines_list;
@@ -73,93 +74,39 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // group the vcf lines by position, making a vector of vectors
-    std::vector<std::vector<std::string>> vcf_lines_grouped;
-    std::vector<std::string> vcf_lines_grouped_temp;
-
-    for (int i = 0; i < (int)vcf_file_reads_lines_list.size(); i++) {
-        std::vector<std::string> words;
-        string_split(vcf_file_reads_lines_list[i], '\t', words);
-        int pos = std::stoi(words[1]);
-        vcf_lines_grouped_temp.push_back(vcf_file_reads_lines_list[i]);
-        for (int j = i + 1; j < (int)vcf_file_reads_lines_list.size(); j++) {
-            std::vector<std::string> words2;
-            string_split(vcf_file_reads_lines_list[j], '\t', words2);
-            int pos2 = std::stoi(words2[1]);
-            if (pos == pos2) {
-                vcf_lines_grouped_temp.push_back(vcf_file_reads_lines_list[j]);
-                i = j + 1;
-            } else {
-                break;
-            }
-        }
-        vcf_lines_grouped.push_back(vcf_lines_grouped_temp);
-        vcf_lines_grouped_temp.clear();
-    }
-
     // Make a vector of strings to store the lines for the VCF file for reads for Freyja
     std::vector<std::string> vcf_lines_freyja_list;
 
-    for (auto group: vcf_lines_grouped) {
+    for (auto line: vcf_file_reads_lines_list) {
         std::vector<std::string> alts;
         std::vector<std::string> ids;
         std::vector<std::string> infos;
         std::string current_vcf_line = "";
 
         // store chrom, pos, ref, qual, filter for the first line in the group
-        std::vector<std::string> words_first;
-        string_split(group[0], '\t', words_first);
+        std::vector<std::string> words;
+        string_split(line, '\t', words);
 
-        for (auto line: group) {
-            std::vector<std::string> words;
-            string_split(line, '\t', words);
-
-            int num_ones = 0;
-            for (int i = 9; i < (int)words.size(); i++) {
-                if (words[i] != "0") {
-                    num_ones++;
-                }
+        int num_ones = 0;
+        
+        for (int i = 9; i < (int)words.size(); i++) {
+            if (words[i] != "0") {
+                num_ones++;
             }
-            int num_reads = 0;
-            for (auto sample_read: sample_read_list) {
-                int start_pos = std::stoi(sample_read.substr(sample_read.find("_READ_") + 6, sample_read.find("_", sample_read.find("_READ_") + 6) - (sample_read.find("_READ_") + 6)));
-                int end_pos = std::stoi(sample_read.substr(sample_read.find("_", sample_read.find("_READ_") + 6) + 1, sample_read.size() - (sample_read.find("_", sample_read.find("_READ_") + 6) + 1)));
-                if ((std::stoi(words[1]) >= start_pos) && (std::stoi(words[1]) <= end_pos)) {
-                    num_reads++;
-                }
-            }
-            double ratio = (double)num_ones / (double)num_reads;
-            infos.push_back("AF=" + std::to_string(ratio));
-            alts.push_back(words[4]);
-            ids.push_back(words[2]);
         }
 
-        // vcf_file_reads_freyja << words_first[0] << "\t" << words_first[1] << "\t";
-        current_vcf_line += words_first[0] + "\t" + words_first[1] + "\t";
-        for (int i = 0; i < (int)ids.size(); i++) {
-            if (i == 0) {
-                current_vcf_line += ids[i];
-            } else {
-                current_vcf_line += "," + ids[i];
+        int num_reads = 0;
+        for (auto sample_read: sample_read_list) {
+            int start_pos = std::stoi(sample_read.substr(sample_read.find("_READ_") + 6, sample_read.find("_", sample_read.find("_READ_") + 6) - (sample_read.find("_READ_") + 6)));
+            int end_pos = std::stoi(sample_read.substr(sample_read.find("_", sample_read.find("_READ_") + 6) + 1, sample_read.size() - (sample_read.find("_", sample_read.find("_READ_") + 6) + 1)));
+            if ((std::stoi(words[1]) >= start_pos) && (std::stoi(words[1]) <= end_pos)) {
+                num_reads++;
             }
         }
-        current_vcf_line += "\t" + words_first[3] + "\t";
-        for (int i = 0; i < (int)alts.size(); i++) {
-            if (i == 0) {
-                current_vcf_line += alts[i];
-            } else {
-                current_vcf_line += "," + alts[i];
-            }
-        }
-        current_vcf_line += "\t.\t.\t";
-        for (int i = 0; i < (int)infos.size(); i++) {
-            if (i == 0) {
-                current_vcf_line += infos[i];
-            } else {
-                current_vcf_line += ";" + infos[i];
-            }
-        }
-        current_vcf_line += "\n";
+        
+        double ratio = (double)num_ones / (double)num_reads;
+        
+        current_vcf_line +=  words[0] + "\t" + words[1] + "\t" + words[2] + "\t" + words[3] + "\t" + words[4] + "\t" + words[5] + "\t" + words[6] + "\t" + "AF=" + std::to_string(ratio) + "\n";
         vcf_lines_freyja_list.push_back(current_vcf_line);
     }
 
@@ -173,9 +120,9 @@ int main(int argc, char* argv[]) {
     output_vcf.close();
 
       std::string reference = "NC_045512v2";
-    // Make a variable to store all the lines for the depth file, so we can write them all at once
     std::vector<std::string> depth_lines;
-    for (int i = 0; i < (int)ref_seq.size(); i++) {
+    std::vector<int> read_counts;
+    for (int i = 1; i <= (int)ref_seq.size(); i++) {
         int read_count = 0;
         for (auto sample_read: sample_read_list) {
             int start_pos = std::stoi(sample_read.substr(sample_read.find("_READ_") + 6, sample_read.find("_", sample_read.find("_READ_") + 6) - (sample_read.find("_READ_") + 6)));
@@ -184,7 +131,8 @@ int main(int argc, char* argv[]) {
                 read_count++;
             }
         }
-        depth_lines.push_back(reference + "\t" + std::to_string(i+1) + "\t" + ref_seq[i] + "\t" + std::to_string(read_count));
+        read_counts.push_back(read_count);
+        depth_lines.push_back(reference + "\t" + std::to_string(i) + "\t" + ref_seq[i-1] + "\t" + std::to_string(read_count));
     }
 
     // combine the lines into one string, and write all the lines at once
@@ -195,4 +143,44 @@ int main(int argc, char* argv[]) {
 
     output_depth << depth_lines_combined;
     output_depth.close();
+
+    // iterate through sample_read_list and for each read name, append _ and the average depth (across all positions) to the end of the read name
+    std::vector<std::string> sample_read_list_depth;
+    for (auto sample_read: sample_read_list) {
+        int start_pos = std::stoi(sample_read.substr(sample_read.find("_READ_") + 6, sample_read.find("_", sample_read.find("_READ_") + 6) - (sample_read.find("_READ_") + 6)));
+        int end_pos = std::stoi(sample_read.substr(sample_read.find("_", sample_read.find("_READ_") + 6) + 1, sample_read.size() - (sample_read.find("_", sample_read.find("_READ_") + 6) + 1)));
+        int total_depth = 0;
+        for (int i = start_pos; i <= end_pos; i++) {
+            total_depth += read_counts[i-1];
+        }
+        int average_depth = total_depth / (end_pos - start_pos + 1);
+        sample_read_list_depth.push_back(sample_read + "_" + std::to_string(average_depth));
+    }
+
+    // Read the input grouped VCF file
+    std::ifstream input_grouped_vcf_file(input_grouped_vcf);
+    
+    // Now that the sample names have been updated, write the new grouped VCF file, which has exactly the same information as the input grouped VCF file, except the sample names have been updated
+    std::ofstream output_grouped_vcf_file("grouped_vcf_updated_sample_names.vcf");
+    while (std::getline(input_grouped_vcf_file, line)) {
+        if (line[0] == '#') {
+            output_grouped_vcf_file << line << std::endl;
+        }
+        else {
+            std::vector<std::string> words;
+            string_split(line, '\t', words);
+            std::string new_line = "";
+            for (int i = 0; i < 9; i++) {
+                new_line += words[i] + "\t";
+            }
+            for (int i = 9; i < (int)words.size(); i++) {
+                new_line += sample_read_list_depth[i-9] + "\t";
+            }
+            output_grouped_vcf_file << new_line << std::endl;
+        }
+    }
+    output_grouped_vcf_file.close();
+
+    return 0;
+
 }
