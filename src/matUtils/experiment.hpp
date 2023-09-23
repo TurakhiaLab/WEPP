@@ -50,7 +50,7 @@ struct parsimony {
 };
 
 struct min_parsimony {
-   std::vector<int> idx_list;
+   std::vector<size_t> idx_list;
    std::vector<std::vector<MAT::Mutation>> par_list;
 };
 
@@ -83,6 +83,6 @@ void generate_regression_abundance_data(const MAT::Tree &, const std::vector<MAT
 
 bool compare_mutations(const MAT::Mutation &, const MAT::Mutation &);
 
-bool compare_node_score (const MAT::Tree &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
+bool compare_node_score(const MAT::Tree &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
 
 size_t get_num_leaves(const MAT::Tree &T, MAT::Node* n);
