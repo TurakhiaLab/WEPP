@@ -1,6 +1,7 @@
 import csv
 import numpy as np
 import cvxpy as cp
+import glpk
 import copy
 import time
 
@@ -8,6 +9,7 @@ def read_barcode_csv_file(file_path):
     with open(file_path, 'r') as file:
         csv_reader = csv.reader(file)
         mutations = next(csv_reader)  # Store headers separately
+        mutations = mutations[1:]
         haplotypes = []
         hap_mut_matrix = []
         
@@ -121,7 +123,6 @@ eps = 1e-2
 # Reading File
 barcode_file_path = 'my_vcf_barcode.csv'
 mutations, haplotypes, hap_mut_matrix = read_barcode_csv_file(barcode_file_path)
-mutations = mutations[1:]
 
 vcf_file = 'my_vcf_abundance.vcf'
 af_values, depth_values = read_vcf_file(vcf_file)
