@@ -1,7 +1,17 @@
+import sys
+
+# Check if the number of arguments is correct
+if len(sys.argv) != 3:
+    print("Usage: python3 new_alignment_positions.py <input_sam> <output_sam>")
+    sys.exit(1)
+
+input_sam = sys.argv[1]
+output_sam = sys.argv[2]
+
 # Open the SAM file
-with open("intermediate_files/alignment.sam", "r") as samfile:
+with open(input_sam, "r") as samfile:
     # Open the output file
-    with open("intermediate_files/alignment_modified.sam", "w") as outfile:
+    with open(output_sam, "w") as outfile:
         # Process each line in the SAM file
         for line in samfile:
             # Skip header lines
