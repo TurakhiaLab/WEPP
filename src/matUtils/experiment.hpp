@@ -42,6 +42,7 @@ struct read_info {
    std::vector<MAT::Mutation> mutations;
    int start;
    int end;
+   size_t depth;
 };
 
 struct parsimony {
@@ -75,7 +76,11 @@ int mutation_distance(const MAT::Tree &, const MAT::Tree &, const MAT::Node*, co
 
 std::string get_clade(const MAT::Tree &, MAT::Node*);
 
-void add_neighbor_peaks(const MAT::Tree &, std::vector<MAT::Node*> &, const int, const int);
+void update_prohibited_nodes(const MAT::Tree &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, const int&);
+
+std::vector<MAT::Node*> update_neighbor_nodes(const MAT::Tree &, MAT::Node*, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
+
+void add_neighbor_peaks(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
 
 int child_nodes_addition(const MAT::Tree &, my_mutex_t &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, int &, std::vector<MAT::Node*> &, MAT::Node*, MAT::Node*, const int &, const int &, const int &, const int &);
 
