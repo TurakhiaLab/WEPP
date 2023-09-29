@@ -84,5 +84,5 @@ for (ref_name, position, ref_base, alt_base), variant_reads in variants_by_pos.i
     out_lines.append("\t".join([ref_name, str(position), ref_base + str(position) + alt_base , ref_base, alt_base, ".", ".", ".", ".", *genotype_data]))
 
 
-with open(sys.argv[2], 'w') as f:
+with open(sys.argv[3], 'w') as f:
     f.write("\n".join(out_lines))
