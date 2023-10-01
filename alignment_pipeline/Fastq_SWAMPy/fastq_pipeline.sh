@@ -8,23 +8,29 @@
 
 # Check that the correct number of arguments were passed in
 if [ $# -lt 3 ]; then
-    echo "Usage: $0 <reference_fasta> <input_fastq> <output_vcf> [--compile]"
+    echo "Usage: $0 <reference_fasta> <input_fastq> <output_vcf> [--compile] [--no-indels]"
     exit 1
 fi
 
 # Exit if any command fails
 set -e
 
+# Create a boolean variable to indicate whether indels should be included
+include_indels=true
+
 # Check if the optional argument was passed in
-if [ $# -eq 4 ]; then
-    if [ "$4" == "--compile" ]; then
+if [ $# -gt 3 ]; then
+
+    if [ "$4" == "--compile" ] || [ "$5" == "--compile" ]; then
         echo "Compiling C++ code"
         g++ -o sort_vcf sort_vcf.cpp
         g++ -o group_vcf group_vcf.cpp
         g++ -o generate_freyja_files generate_freyja_files.cpp
-    else
-        echo "Usage: $0 <reference_fasta> <input fastq> <output_vcf> [--compile]"
-        exit 1
+    fi
+
+    if [ "$4" == "--no-indels" ] || [ "$5" == "--no-indels" ]; then
+        echo "Running without indels"
+        include_indels=false
     fi
 fi
 
@@ -58,10 +64,17 @@ bowtie2 -x intermediate_files/ref_index -U $input_fastq -S intermediate_files/al
 python process_rc.py intermediate_files/alignment.sam $input_fastq
 input_fastq_processed=${input_fastq%.*}_processed.fastq
 bowtie2 -x intermediate_files/ref_index -U $input_fastq_processed -S intermediate_files/alignment_2.sam
-
 python new_alignment_positions.py intermediate_files/alignment_2.sam intermediate_files/alignment_modified.sam
-python sam_to_vcf.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
+
+# Check if include_indels is true
+if [ "$include_indels" = true ]; then
+    python sam_to_vcf.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
+else
+    python sam_to_vcf_no_indels.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
+fi
+
 ./sort_vcf intermediate_files/vcf_unsorted.vcf intermediate_files/vcf_sorted.vcf
 ./group_vcf intermediate_files/vcf_sorted.vcf $output_vcf
 ./generate_freyja_files intermediate_files/vcf_sorted.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth $output_vcf
+
 python plotting_data.py $output_vcf > mutation_counts_grouped.txt

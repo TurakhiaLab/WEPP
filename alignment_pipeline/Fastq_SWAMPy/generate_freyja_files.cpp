@@ -159,27 +159,46 @@ int main(int argc, char* argv[]) {
 
     // Read the input grouped VCF file
     std::ifstream input_grouped_vcf_file(input_grouped_vcf);
-    
-    // Now that the sample names have been updated, write the new grouped VCF file, which has exactly the same information as the input grouped VCF file, except the sample names have been updated
-    std::ofstream output_grouped_vcf_file("grouped_vcf_updated_sample_names.vcf");
-    while (std::getline(input_grouped_vcf_file, line)) {
-        if (line[0] == '#') {
-            output_grouped_vcf_file << line << std::endl;
-        }
-        else {
+
+    // Read all lines
+    std::vector<std::string> input_grouped_vcf_lines;
+    std::string line3;
+    while (std::getline(input_grouped_vcf_file, line3)) {
+        input_grouped_vcf_lines.push_back(line3);
+    }
+
+    input_grouped_vcf_file.close();
+
+    // Iterate through the lines and for the line that starts with #CHROM, edit the read names
+    for (int i = 0; i < (int)input_grouped_vcf_lines.size(); i++) {
+        if (input_grouped_vcf_lines[i].substr(0, 6) == "#CHROM") {
             std::vector<std::string> words;
-            string_split(line, '\t', words);
+            string_split(input_grouped_vcf_lines[i], '\t', words);
+            for (int j = 9; j < (int)words.size(); j++) {
+                words[j] = sample_read_list_depth[j-9];
+            }
             std::string new_line = "";
-            for (int i = 0; i < 9; i++) {
-                new_line += words[i] + "\t";
+            for (auto word: words) {
+                new_line += word + "\t";
             }
-            for (int i = 9; i < (int)words.size(); i++) {
-                new_line += sample_read_list_depth[i-9] + "\t";
-            }
-            output_grouped_vcf_file << new_line << std::endl;
+
+            new_line = new_line.substr(0, new_line.size()-1); // remove the last tab
+
+            input_grouped_vcf_lines[i] = new_line;
+
+            break;
         }
     }
-    output_grouped_vcf_file.close();
+
+    // Combine all the lines into one string and write all the lines at once to the same grouped VCF file
+    std::string input_grouped_vcf_lines_combined;
+    for (auto line: input_grouped_vcf_lines) {
+        input_grouped_vcf_lines_combined += line + "\n";
+    }
+
+    std::ofstream input_grouped_vcf_file2(input_grouped_vcf); // overwrite the file
+    input_grouped_vcf_file2 << input_grouped_vcf_lines_combined;
+    input_grouped_vcf_file2.close();
 
     return 0;
 

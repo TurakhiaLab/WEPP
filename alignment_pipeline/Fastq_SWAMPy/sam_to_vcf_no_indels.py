@@ -1,12 +1,13 @@
 import sys
 import re
 
-# Check if the correct number of arguments are provided
 if len(sys.argv) != 4:
-    print("Usage: python sam_to_vcf.py <sam_file> <reference_file> <vcf_file>")
+    print("Usage: python sam_to_vcf_no_indels.py <sam_file> <reference_file> <vcf_file>")
     sys.exit(1)
 
+sam_file = sys.argv[1]
 reference_file = sys.argv[2]
+vcf_file = sys.argv[3]
 
 ref_genome = ""
 with open(reference_file, 'r') as f:
@@ -15,39 +16,38 @@ with open(reference_file, 'r') as f:
             continue
         ref_genome += line.strip()
 
-def parse_mdz(mdz, cigar, seq, pos):
+def parse_cigar_and_mdz(cigar, mdz, seq, pos):
     mismatches = []
-    
-    # split the MD string into tokens
-    tokens = re.findall(r'(\d+|\^[A-Z]+|[A-Z])', mdz)
-
     read_pos = 0
     ref_pos = pos
-
-    cigar_tokens = re.findall(r'(\d+)([MIDNSHPX=])', cigar)
-    for token in tokens:
-        if token.startswith("^"): # deletion
-            del_len = len(token) - 1
-            ref_pos += del_len
-            mismatches.append((ref_pos, token[1:], "-"))
-        elif token.isdigit(): # matching bases
-            read_pos += int(token)
-            ref_pos += int(token)
-        else: # mismatch
-            ref_base = ref_genome[ref_pos-1]
-            alt_base = seq[read_pos]
-            mismatches.append((ref_pos, ref_base, alt_base))
-            read_pos += 1
-            ref_pos += 1
-
+    
+    mdz_tokens = iter(re.findall(r'(\d+|\^[A-Z]+|[A-Z])', mdz))
+    cigar_tokens = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+    
     for count, operation in cigar_tokens:
         count = int(count)
-        if operation == 'I': # Insertion
-            alt_base = seq[read_pos:read_pos+count]
-            mismatches.append((ref_pos, "-", alt_base))
-            read_pos += count
-        elif operation in 'DN': # Deletion
-            ref_pos += count
+        
+        if operation == 'M':
+            for _ in range(count):
+                md_token = next(mdz_tokens, '')
+                if md_token.isdigit():
+                    read_pos += int(md_token)
+                    ref_pos += int(md_token)
+                elif md_token.startswith("^"):
+                    continue  # Ignore deletions
+                else:
+                    ref_base = ref_genome[ref_pos - 1]
+                    alt_base = seq[read_pos]
+                    mismatches.append((ref_pos, ref_base, alt_base))
+                    read_pos += 1
+                    ref_pos += 1
+        elif operation == 'I':
+            read_pos += count  # Skip insertions
+        elif operation == 'D':
+            ref_pos += count  # Skip deletions
+        else:
+            # For other operations like N, S, H, etc., do not alter read_pos or ref_pos
+            continue
 
     return mismatches
 
@@ -60,14 +60,12 @@ def parse_sam_line(line):
 variants_by_pos = {}
 reads = set()
 
-with open(sys.argv[1], 'r') as f:
+with open(sam_file, 'r') as f:
     for line in f:
-        if line.startswith('@'): # Skip header lines
+        if line.startswith('@'):
             continue
-        
         read_name, ref_name, pos, seq, mdz, cigar = parse_sam_line(line)
-        mismatches = parse_mdz(mdz, cigar, seq, pos)
-        
+        mismatches = parse_cigar_and_mdz(cigar, mdz, seq, pos)
         reads.add(read_name)
         for position, ref_base, alt_base in mismatches:
             key = (ref_name, position, ref_base, alt_base)
@@ -81,8 +79,7 @@ out_lines.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t
 
 for (ref_name, position, ref_base, alt_base), variant_reads in variants_by_pos.items():
     genotype_data = ["0" if read not in variant_reads else "1" for read in sorted(reads)]
-    out_lines.append("\t".join([ref_name, str(position), ref_base + str(position) + alt_base , ref_base, alt_base, ".", ".", ".", ".", *genotype_data]))
+    out_lines.append("\t".join([ref_name, str(position), ".", ref_base, alt_base, ".", ".", ".", ".", *genotype_data]))
 
-
-with open(sys.argv[3], 'w') as f:
+with open(vcf_file, 'w') as f:
     f.write("\n".join(out_lines))
