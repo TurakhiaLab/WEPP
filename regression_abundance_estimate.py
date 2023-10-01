@@ -34,9 +34,10 @@ def read_vcf_file(file_path):
                 af_value = af_field.split(';')[0].split('=')[1]
                 af_values.append(float(af_value))
                 depth_values.append(int(row[-1])+1)
-    
-    return np.array(af_values), np.log2(depth_values)
 
+    depth = np.log2(depth_values)
+    depth = depth/np.max(depth)
+    return np.array(af_values), depth
 
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
@@ -109,7 +110,6 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
     mutations = [val for i, val in enumerate(mutations) if i not in mut_idx_remove]
 
     #Write VCF
-    haplotypes = [hap + "_READ_1_29903" for hap in haplotypes]
     vcf_file = "my_vcf_haplotypes.vcf"
     write_vcf_file(vcf_file, A, haplotypes, mutations)
     
@@ -135,10 +135,10 @@ lineages = {}
 for i, hap in enumerate(haplotypes):
     split_parts = hap.split('_')
     #Extract the part after the last '_'
-    if split_parts[-4] not in lineages:
-        lineages[split_parts[-4]] = abundances[i]
+    if split_parts[-1] not in lineages:
+        lineages[split_parts[-1]] = abundances[i]
     else:
-        lineages[split_parts[-4]] += abundances[i]
+        lineages[split_parts[-1]] += abundances[i]
 
 print("\nLINEAGE ABUNDANCE (ORIG):")
 for lin, abun in lineages.items():
