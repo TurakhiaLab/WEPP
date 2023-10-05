@@ -1162,12 +1162,62 @@ void simulate_and_place_reads (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     std::vector<std::string> vcf_samples;
+
     //read samples.vcf to check how close are peaks to samples 
     read_sample_vcf(vcf_samples, vcf_filename_samples);
     //Get the reads.vcf data
     read_vcf(read_map, vcf_filename_reads);
+    
     //Core algorithm 
     analyze_reads(T, T_ref, read_map, node_score_map, vcf_samples, barcode_file, read_abundance_vcf);
+
+
+    
+   // std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> node_mappings;
+   // MAT::Tree new_Tree;
+   // int start = 1500, end = 2000;
+   // 
+   // std::vector<size_t>read_ids;
+   // for (auto const& rm: read_map) {
+   //     if ((rm.second->start >= start) && (rm.second->end <= end)) { 
+   //             read_ids.emplace_back(rm.first);
+   //     }
+   // }
+   // printf("Reads within %d to %d: %lu\n\n", start, end, read_ids.size());
+   // 
+   // static tbb::affinity_partitioner ap;
+   // 
+   // 
+   // timer.Start();
+   // tbb::parallel_for(tbb::blocked_range<size_t>(0, read_ids.size()),
+   //     [&](tbb::blocked_range<size_t> k) {
+   //         for (size_t i = k.begin(); i < k.end(); ++i) {
+   //             size_t rm_idx = read_ids[i];
+   //             auto read_id = read_map.find(rm_idx)->second;	
+   //             place_reads(dfs, read_id, NULL, node_score_map);
+   //         }
+   //     },
+   // ap);
+   // fprintf(stderr,"Full tree search took %ld msec\n\n", timer.Stop());   
+   // node_score_map.clear();
+   // 
+   // 
+   // get_range_Tree(T.root, start, end, node_mappings, new_Tree);
+
+   // 
+   // timer.Start();
+   // tbb::parallel_for(tbb::blocked_range<size_t>(0, read_ids.size()),
+   //     [&](tbb::blocked_range<size_t> k) {
+   //         for (size_t i = k.begin(); i < k.end(); ++i) {
+   //             size_t rm_idx = read_ids[i];
+   //             auto read_id = read_map.find(rm_idx)->second;	
+   //             place_reads_new(new_Tree, read_id, NULL, node_score_map, node_mappings);
+   //         }
+   //     },
+   // ap);
+   // fprintf(stderr,"New tree search took %ld msec\n\n", timer.Stop());   
+   // node_score_map.clear();
+    
 }
 
 //Get the names of samples prsent in samples.vcf
@@ -1210,19 +1260,18 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
                     struct read_info * rp = new struct read_info;
                     rp->read = words[j];
                     //Get start-end positions and depth of the Read
-                    //std::regex rgx(".*READ_(\\w+)_(\\w+)_(\\w+).*");
-                    std::regex rgx(".*READ_(\\w+)_(\\w+).*");
+                    std::regex rgx(".*READ_(\\w+)_(\\w+)_(\\w+)");
                     std::smatch match;
                     if (std::regex_search(words[j], match, rgx)) {
                         rp->start = std::stoi(match[1]);
                         rp->end = std::stoi(match[2]);
-                        //rp->depth = std::stoi(match[3]);
+                        rp->depth = std::stoi(match[3]);
                     }
                     //Consider the entire genome
                     else {
                         rp->start = 1;
                         rp->end = 29903;
-                        //rp->depth = 0;
+                        rp->depth = 1;
                     }
                     read_ids.emplace_back(rp);
                     missing_idx.emplace_back(j);
@@ -1287,7 +1336,7 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
 }
 
 //Parsimonious placement search for reads
-int place_reads(const std::vector<MAT::Node*> &dfs, struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map) {
+int place_reads(const std::vector<MAT::Node*> &dfs, const struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map) {
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
     //Checking all nodes of the tree
@@ -1309,6 +1358,7 @@ int place_reads(const std::vector<MAT::Node*> &dfs, struct read_info* rp, const 
             if (parsimony_stack.empty())
                 fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
             curr_node_par_mut = parent_parsimony.p_node_par;
+        
         }
         //Checking all mutations of current node
         for (auto node_mut: curr_node->mutations) {
@@ -1499,8 +1549,7 @@ int place_reads(const std::vector<MAT::Node*> &dfs, struct read_info* rp, const 
     //Compute node_score_map
     if (check_node == NULL) {
         //Keeping tab on weighted read score being mapped to each parsimonious node
-        //Give score to parsimonious node: Score -> 1/N^2
-        double score = (1.0 / pow(min_par.idx_list.size(), 2));
+        double score =  1.0 / (log2(min_par.idx_list.size() + 1) * rp->depth);
         for (auto n_idx: min_par.idx_list) {
             auto node = dfs[n_idx];
             tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
@@ -1552,6 +1601,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
     while ((int)remaining_reads.size() > 0) {
         //Calculating node score for remaining reads
         printf("\n");
+        fprintf(stderr, "\n");
         static tbb::affinity_partitioner ap;
         tbb::parallel_for(tbb::blocked_range<size_t>(0, remaining_reads.size()),
             [&](tbb::blocked_range<size_t> k) {
@@ -1679,6 +1729,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                 remove_reads.clear();
                 auto curr_clade = get_clade(T, curr_node);
                 printf("PEAK: %s, Score: %f, Clade:%s, remaining_reads: %d\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
+                fprintf(stderr, "PEAK: %s, Score: %f, Clade:%s, remaining_reads: %d\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
             }
             //If present in neighbourhood of current peaks, move to next node
             else {
@@ -2374,4 +2425,298 @@ size_t get_num_leaves(const MAT::Tree &T, MAT::Node* node) {
         }
     }
     return leaves.size();
+}
+
+//Get MAT within range
+void get_range_Tree(MAT::Node* ref_root, const int &start, const int &end, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, MAT::Tree &T) {
+    timer.Start();
+    //Have a queue of current_node (from ref_Tree)and parent_node (from new_Tree) pair
+    std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
+    auto new_node = T.create_node("DUMMY", -1.0, 0);
+    node_mappings[new_node] = std::vector<MAT::Node*>();
+    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(ref_root, new_node));
+    
+    //Add the new_node to the node_mappings
+    while(remaining_nodes.size() > 0) {
+        auto r_curr_node = remaining_nodes.front().first;
+        auto n_parent_node = remaining_nodes.front().second;
+        remaining_nodes.pop();
+        std::vector<MAT::Mutation> range_mutations;
+        for (const auto& mut: r_curr_node->mutations) {
+            if ((mut.position >= start) && (mut.position <= end))
+                range_mutations.emplace_back(mut);
+        }
+        
+        //Add a new node to tree if mutation found in range
+        if (!range_mutations.empty()) {
+            //Create a new_node
+            auto new_node = T.create_node(r_curr_node->identifier, n_parent_node, -1.0);
+            //Add mutations to new_node
+            for (const auto& mut: range_mutations)
+                new_node->mutations.emplace_back(mut);
+            range_mutations.clear();
+            //Add new_node to the node_mappings
+            node_mappings[new_node] = {r_curr_node};
+            //Add children to remaining_nodes    
+            for (auto child: r_curr_node->children)
+                remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
+        }
+        //Without any mutation, can only be Placed as a child if r_curr_node is NOT leaf node
+        else if (!r_curr_node->is_leaf()) {
+            //Add current_node to the n_parent_node's list in node_mappings
+            node_mappings[n_parent_node].emplace_back(r_curr_node);
+            //Add children to remaining_nodes    
+            for (auto child: r_curr_node->children)
+                remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, n_parent_node));
+        }
+    }
+    fprintf(stderr,"Range Tree creation took %ld msec\n\n", timer.Stop());   
+}
+
+//Parsimonious placement search for reads
+int place_reads_new(const MAT::Tree &T, const struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
+    auto dfs = T.depth_first_expansion();
+    std::stack<struct parsimony> parsimony_stack;
+    struct min_parsimony min_par;
+    //Checking all nodes of the tree
+    for (size_t i = 0; i < dfs.size(); i++) {
+        auto curr_node = dfs[i];
+        std::vector<MAT::Mutation> uniq_curr_node_mut, common_node_mut, curr_node_par_mut;
+        struct parsimony curr_par;
+        //Nothing in stack for first node
+        if (i) {
+            //Get the parsimony vector from parent
+            auto parent_parsimony = parsimony_stack.top();
+            while ((curr_node->parent != parent_parsimony.curr_node) && (!parsimony_stack.empty()))   {
+                parsimony_stack.pop();
+                if (!parsimony_stack.empty())
+                    parent_parsimony = parsimony_stack.top();
+                else 
+                    fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
+            } 
+            if (parsimony_stack.empty())
+                fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
+            curr_node_par_mut = parent_parsimony.p_node_par;
+        }
+        //Checking all mutations of current node
+        for (auto node_mut: curr_node->mutations) {
+            //Only look at mutations within the read range
+            if ((node_mut.position >= rp->start) && (node_mut.position <= rp->end)) {
+                bool found = false;
+                //Check in Mutation position found in parsimony of parent node
+                auto curr_node_par_itr = curr_node_par_mut.begin();
+                while (curr_node_par_itr != curr_node_par_mut.end()) {
+                    if (curr_node_par_itr->position == node_mut.position) {
+                        //mut_nuc matches => remove mutation from parsimony
+                        if ((curr_node_par_itr->mut_nuc == node_mut.mut_nuc) || (curr_node_par_itr->mut_nuc == 0b1111)) {
+                           curr_node_par_mut.erase(curr_node_par_itr);
+                           common_node_mut.emplace_back(*curr_node_par_itr);
+                        }
+                        //Update the par_nuc in parsimony if only position matches
+                        else {
+                            curr_node_par_itr->par_nuc = node_mut.mut_nuc;
+                        }
+                        found = true;
+                        break;
+                    }
+                    else 
+                        curr_node_par_itr++;
+                }
+                if (found)
+                    continue;
+
+                //Not found in parent parsimony
+                for (auto read_mut: rp->mutations) {
+                    if (read_mut.position == node_mut.position) {
+                        //For root 
+                        if (!i) {
+                            //Mutation found in read, add to common_node_mut
+                            if (read_mut.mut_nuc == node_mut.mut_nuc)
+                                common_node_mut.emplace_back(read_mut);
+                            //read_mut is 'N', add to common_node_mut
+                            else if (read_mut.mut_nuc == 0b1111)
+                                common_node_mut.emplace_back(read_mut);
+                            //If mutation is different, handle the mutation as child of current node
+                            //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
+                            else {
+                                struct MAT::Mutation new_mut;
+                                new_mut.position = read_mut.position;
+                                new_mut.ref_nuc = read_mut.ref_nuc;
+                                new_mut.par_nuc = node_mut.mut_nuc;
+                                new_mut.mut_nuc = read_mut.mut_nuc;
+                                curr_node_par_mut.emplace_back(new_mut);
+                                //Placing it in common_mut so don't add this mut again
+                                common_node_mut.emplace_back(new_mut);
+                            }
+                        }
+                        //Otherwise, if mut_nuc is same it would have been detcted above in parent_parsimony check
+                        //At this step the mut_nuc is getting RE-INTRODUCED -> add it as a uniq mutation
+                        //Reverse par_nuc and mut_nuc as it will again get flipped in uniq_curr_node_mut
+                        else {
+                            struct MAT::Mutation new_mut;
+                            new_mut.position = read_mut.position;
+                            new_mut.ref_nuc = read_mut.ref_nuc;
+                            new_mut.par_nuc = read_mut.mut_nuc;
+                            new_mut.mut_nuc = node_mut.mut_nuc;
+                            uniq_curr_node_mut.emplace_back(new_mut);
+                        }
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
+                    continue;
+
+                //Niether in parent parsimony nor in read_mut
+                uniq_curr_node_mut.emplace_back(node_mut);
+            }
+        } 
+
+        //Adding only unseen read_mut to node parsimony for root node
+        if (!i) {
+            for (auto read_mut: rp->mutations) {
+                bool present = false;
+                //Check if mut present in common_node_mut
+                auto c_itr = common_node_mut.begin();
+                while (c_itr != common_node_mut.end()) {
+                    if (c_itr->position == read_mut.position) {
+                        if (c_itr->mut_nuc != read_mut.mut_nuc)
+                            fprintf(stderr,"common_node mut does not match read_mut!!!\n");
+                        present = true;
+                        break;
+                    }
+                    c_itr++;
+                }
+                if (present)
+                    continue;
+
+                //Else add it to curr_node_mut if mut_nuc != 'N'
+                if (read_mut.mut_nuc != 0b1111)
+                    curr_node_par_mut.emplace_back(read_mut);
+            }
+        }
+
+        bool placed_child = false;
+        //Place as a sibling if common_node_mut is not empty and NOT root
+        if ((common_node_mut.size()) && (!curr_node->is_root())) {
+            //Checking min_parsimony
+            int new_min_par = -1; 
+            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+            if (min_par.par_list.empty())
+                new_min_par = 1;
+            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+            else if ((curr_node_par_mut.size() < min_par.par_list[0].size()))
+                new_min_par = 1;
+            // If cur_par_score == best_par_score -> APPEND
+            else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
+                new_min_par = 0;
+            
+            if (new_min_par == 1) {
+                min_par.idx_list.clear();
+                min_par.par_list.clear();
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
+            else if (new_min_par == 0) {
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }   
+        }
+        //Place as a child if current node is NOT leaf node in original_tree or a ROOT node
+        else if (!node_mappings.find(curr_node)->second.front()->is_leaf()) {
+            placed_child = true;
+            //Updating parsimony to be stored as a child
+            for (auto uniq_mut: uniq_curr_node_mut) {
+                //Just reverse mut_nuc and par_nuc and add it to parsimony
+                int8_t temp = uniq_mut.par_nuc;
+                uniq_mut.par_nuc = uniq_mut.mut_nuc;
+                uniq_mut.mut_nuc = temp;
+                curr_node_par_mut.emplace_back(uniq_mut);
+            }
+            //Checking min_parsimony
+            int new_min_par = -1; 
+            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+            if (min_par.par_list.empty())
+                new_min_par = 1;
+            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+            else if (curr_node_par_mut.size() < min_par.par_list[0].size()) 
+                new_min_par = 1;
+            // If cur_par_score == best_par_score -> APPEND
+            else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
+                new_min_par = 0;
+            
+            if (new_min_par == 1) {
+                min_par.idx_list.clear();
+                min_par.par_list.clear();
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
+            else if (new_min_par == 0) {
+                min_par.idx_list.emplace_back(i);
+                min_par.par_list.emplace_back(curr_node_par_mut);
+            }
+        }
+
+        //Only update if not placed as child
+        if (!placed_child) {
+            //Updating parsimony to be stored as a child
+            for (auto uniq_mut: uniq_curr_node_mut) {
+                //Just reverse mut_nuc and par_nuc and add it to parsimony
+                int8_t temp = uniq_mut.par_nuc;
+                uniq_mut.par_nuc = uniq_mut.mut_nuc;
+                uniq_mut.mut_nuc = temp;
+                curr_node_par_mut.emplace_back(uniq_mut);
+            }
+        }
+
+        //Updating curr_node_mut for having read as child
+        curr_par.p_node_par = curr_node_par_mut;
+        curr_par.curr_node = curr_node;
+        parsimony_stack.push(curr_par);
+
+        uniq_curr_node_mut.clear();
+        common_node_mut.clear();
+        curr_node_par_mut.clear();
+    }
+
+    //Clear variables
+    while (!parsimony_stack.empty())
+        parsimony_stack.pop();
+    min_par.par_list.clear();
+    
+    //Compute node_score_map
+    if (check_node == NULL) {
+        //Keeping tab on weighted read score being mapped to each parsimonious node
+        //Give score to parsimonious node: Score -> 1/N^2
+        size_t num_nodes = 0;
+        for (auto n_idx: min_par.idx_list) 
+            num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+        double score = 1.0 / (log2(num_nodes + 1) * rp->depth);
+        
+        for (auto n_idx: min_par.idx_list) {
+            auto epp_list = node_mappings.find(dfs[n_idx])->second;
+            for (auto const& node: epp_list) {
+                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                auto created = node_score_map.insert(ac, std::make_pair(node, score));
+                if (!created)
+                    ac->second += score;
+                ac.release();
+            }
+        }
+        min_par.idx_list.clear();
+        return 0;
+    }
+    //Check if given node is present in parsimonious list of read
+    else {
+        for (auto n_idx: min_par.idx_list) {
+            for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                if (node == check_node) {
+                    min_par.idx_list.clear();
+                    return 1;
+                }
+            }
+        }
+        min_par.idx_list.clear();
+        return 0;
+    }
 }
