@@ -42,7 +42,7 @@ struct read_info {
    std::vector<MAT::Mutation> mutations;
    int start;
    int end;
-   size_t depth;
+   int depth;
 };
 
 struct parsimony {
@@ -68,7 +68,7 @@ void read_sample_vcf(std::vector<std::string> &, const std::string);
 
 void read_vcf(std::unordered_map<size_t, struct read_info*> &, const std::string);
 
-int place_reads(const std::vector<MAT::Node*> &, struct read_info*, const MAT::Node*, tbb::concurrent_hash_map<MAT::Node*, double> &);
+int place_reads(const MAT::Tree &, const struct read_info*, const MAT::Node*, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &);
 
 void analyze_reads(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &, const std::string &);
 
@@ -90,4 +90,6 @@ bool compare_mutations(const MAT::Mutation &, const MAT::Mutation &);
 
 bool compare_node_score(const MAT::Tree &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
 
-size_t get_num_leaves(const MAT::Tree &T, MAT::Node* n);
+size_t get_num_leaves(const MAT::Tree &, MAT::Node* );
+
+void get_range_Tree(MAT::Node*, const int &, const int &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
