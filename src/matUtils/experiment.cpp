@@ -1549,8 +1549,8 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
     //    2. Remove nodes not to be considered (present in Prohibited nodes)
     //    3. Find top scoring nodes
     //    4. Only consider highest scoring node(s) not seen before
-    //    5. Remove reads mapped to these nodes
-    //    6. Don't consider top scoring nodes in the neighborhood of other top nodes
+    //    5. Don't consider top scoring nodes in the neighborhood of other top nodes
+    //    6. Remove reads mapped to these nodes
     //    7. Add neighbors of selected top scoring nodes to Prohibited nodes 
     
     //Initializing remaining_reads
@@ -1654,20 +1654,14 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         std::vector<std::pair<MAT::Node*, double>> top_n_node_scores;
         top_n_node_scores.reserve(top_n);
         auto top_score = node_score_vector.begin()->second;
-        using my_mutex_t = tbb::queuing_mutex;
-        my_mutex_t my_mutex;
-        tbb::parallel_for(tbb::blocked_range<int>(0, std::min((size_t)top_n, node_score_vector.size())),
-            [&](tbb::blocked_range<int> k) {
-                for (int i = k.begin(); i < k.end(); ++i) {
-                    auto n_s = node_score_vector[i];
-                    //Only consider top_n nodes that have score equal to top node
-                    if (abs(top_score - n_s.second) < 1e-9) {
-                        my_mutex_t::scoped_lock my_lock{my_mutex};
-                        top_n_node_scores.emplace_back(n_s);
-                    }
-                }
-            },
-        ap);
+        for (int i = 0; i < std::min(top_n, (int)node_score_vector.size()); ++i) {
+            auto n_s = node_score_vector[i];
+            //Only consider top_n nodes that have score equal to top node
+            if (abs(top_score - n_s.second) < 1e-9)
+                top_n_node_scores.emplace_back(n_s);
+            else 
+                break;
+        }
         node_score_vector.clear();
         
         //REMOVE peak from top_n_node_scores that are in each other's neighborhood
@@ -1705,7 +1699,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         } 
         top_n_node_scores_remove_nodes.clear();
 
-        //Find the reads not mapped to the top_n_node_scores
+        //Remove reads mapped to the top_n_node_scores
         top_n_itr = top_n_node_scores.begin();
         while (top_n_itr != top_n_node_scores.end()) {
             auto curr_node = top_n_itr->first;
