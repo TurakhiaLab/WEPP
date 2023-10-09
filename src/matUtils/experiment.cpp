@@ -1288,7 +1288,7 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
 }
 
 //Parsimonious placement search for reads
-int place_reads(const MAT::Tree &T, const struct read_info* rp, const MAT::Node* check_node, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
+int place_reads(const MAT::Tree &T, const struct read_info* rp, const std::vector<MAT::Node*> &check_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
     auto dfs = T.depth_first_expansion();
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
@@ -1499,7 +1499,7 @@ int place_reads(const MAT::Tree &T, const struct read_info* rp, const MAT::Node*
     min_par.par_list.clear();
     
     //Compute node_score_map
-    if (check_node == NULL) {
+    if (check_nodes.empty()) {
         //Keeping tab on weighted read score being mapped to each parsimonious node
         //Give score to parsimonious node: Score -> 1/N^2
         size_t num_nodes = 0;
@@ -1523,7 +1523,7 @@ int place_reads(const MAT::Tree &T, const struct read_info* rp, const MAT::Node*
     else {
         for (auto n_idx: min_par.idx_list) {
             for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
-                if (node == check_node) {
+                if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
                     min_par.idx_list.clear();
                     return 1;
                 }
@@ -1547,11 +1547,10 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
     //GREEDY ALGORITHM for peak nodes
     //    1. Place remaining reads on tree
     //    2. Remove nodes not to be considered (present in Prohibited nodes)
-    //    3. Find top scoring nodes
-    //    4. Only consider highest scoring node(s) not seen before
-    //    5. Don't consider top scoring nodes in the neighborhood of other top nodes
-    //    6. Remove reads mapped to these nodes
-    //    7. Add neighbors of selected top scoring nodes to Prohibited nodes 
+    //    3. Sort and Find top scoring nodes
+    //    4. Don't consider top scoring nodes in the neighborhood of other top nodes
+    //    5. Remove reads mapped to these nodes
+    //    6. Add neighbors of selected top scoring nodes to Prohibited nodes 
     
     //Initializing remaining_reads
     for (size_t i = 0; i < read_map.size(); i++)
@@ -1571,7 +1570,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             MAT::Tree range_Tree;
             std::vector<size_t> curr_read_ids;
             //Extract all the remaining_read_ids wihtin range
-
             //////////////////////////////////////////////////// PARALLELIZE
             auto rm_itr = remaining_read_ids.begin();
             while (rm_itr != remaining_read_ids.end()) {
@@ -1594,7 +1592,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                     for (size_t i = k.begin(); i < k.end(); ++i) {
                         size_t rm_idx = curr_read_ids[i];
                         auto read_id = read_map.find(rm_idx)->second;	
-                        place_reads(range_Tree, read_id, NULL, node_score_map, node_mappings);
+                        place_reads(range_Tree, read_id, curr_peak_nodes, node_score_map, node_mappings);
                     }
                 },
             ap);
@@ -1610,7 +1608,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         if (!remaining_read_ids.empty())
             fprintf(stderr,"Smaller MAT Code NOT working properly!!!");
         
-
         //REMOVE prohibited_nodes from node_score_map
         static tbb::affinity_partitioner ap;
         tbb::parallel_for(tbb::blocked_range<size_t>(0, prohibited_nodes.size()),
@@ -1630,7 +1627,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         // CONVERT the concurrent hash map into a vector in parallel
         // Create a range for parallel processing
         tbb::blocked_range<size_t> range(0, node_score_map.size());
-         // Use TBB parallel_for to iterate over the concurrent hash map and convert it to a vector
+         //Use TBB parallel_for to iterate over the concurrent hash map and convert it to a vector
         tbb::parallel_for(range, [&node_score_map, &node_score_vector](const tbb::blocked_range<size_t>& r) {
             for (size_t i = r.begin(); i != r.end(); ++i) {
                 auto it = node_score_map.begin();
@@ -1644,7 +1641,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             }
         });
         node_score_vector.shrink_to_fit();
-        // Sort the node_score_vector filled above
+        //Sort the node_score_vector filled above
         tbb::parallel_sort(node_score_vector.begin(), node_score_vector.end(), 
              [&T](const auto& a, const auto& b) {
                 return compare_node_score(T, a, b);
@@ -1652,7 +1649,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
 
         //GET top_n top_score values from node_score_vector into top_n_node_scores
         std::vector<std::pair<MAT::Node*, double>> top_n_node_scores;
-        top_n_node_scores.reserve(top_n);
+        top_n_node_scores.reserve(std::min(top_n, (int)node_score_vector.size()));
         auto top_score = node_score_vector.begin()->second;
         for (int i = 0; i < std::min(top_n, (int)node_score_vector.size()); ++i) {
             auto n_s = node_score_vector[i];
@@ -1663,7 +1660,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                 break;
         }
         node_score_vector.clear();
-        
+
         //REMOVE peak from top_n_node_scores that are in each other's neighborhood
         //Finding top_n_node_scores in neighborhood
         std::vector<MAT::Node*> top_n_node_scores_remove_nodes;
@@ -1699,7 +1696,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
         } 
         top_n_node_scores_remove_nodes.clear();
 
-        //Remove reads mapped to the top_n_node_scores
+        //GET neighbor_nodes of the nodes in top_n_node_scores
         top_n_itr = top_n_node_scores.begin();
         while (top_n_itr != top_n_node_scores.end()) {
             auto curr_node = top_n_itr->first;
@@ -1709,97 +1706,115 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             neighbor_nodes.reserve(neighbor_nodes.size() + curr_neighbor_nodes.size());
             neighbor_nodes.insert(neighbor_nodes.end(), curr_neighbor_nodes.begin(), curr_neighbor_nodes.end());
             //ADD curr_neighbor_nodes to prohibited_nodes
-            for (const auto& neighbor: curr_neighbor_nodes) {
-                if (std::find(prohibited_nodes.begin(), prohibited_nodes.end(), neighbor) == prohibited_nodes.end())
-                    prohibited_nodes.emplace_back(neighbor);
-            }
+            using rwmutex_t = tbb::queuing_rw_mutex;
+            rwmutex_t my_mutex_rw;
+            static tbb::affinity_partitioner ap;
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_neighbor_nodes.size()),
+                [&](tbb::blocked_range<size_t> k) {
+                    for (size_t i = k.begin(); i < k.end(); ++i) {
+                        auto neighbor = curr_neighbor_nodes[i];
+                        std::vector<MAT::Node*>::iterator pn_itr;
+                        {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
+                            pn_itr = std::find(prohibited_nodes.begin(), prohibited_nodes.end(), neighbor);
+                        }
+                        if (pn_itr == prohibited_nodes.end()) {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
+                            prohibited_nodes.emplace_back(neighbor);
+                        }
+                    }
+                },
+            ap);
             curr_neighbor_nodes.clear();
             
-            //REMOVE reads mapped to curr_node
-            std::vector<size_t> remove_reads;
-            std::vector<size_t>remaining_read_ids = remaining_reads;
-            for (int start = 0; start < 30000; start += 400) {
-                int end = start + tree_range;
-                std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> node_mappings;
-                MAT::Tree range_Tree;
-                std::vector<size_t> curr_read_ids;
-                //Extract all the remaining_read_ids within range
-                auto rm_itr = remaining_read_ids.begin();
-                while (rm_itr != remaining_read_ids.end()) {
-                    auto read_id = read_map.find(*rm_itr)->second;	
-                    if ((read_id->start >= start) && (read_id->end <= end)) { 
-                        curr_read_ids.emplace_back(*rm_itr);
-                        rm_itr = remaining_read_ids.erase(rm_itr);
-                    }
-                    else
-                        rm_itr++;
-                }
-
-                //Create range tree
-                if (!curr_read_ids.empty())
-                    get_range_Tree(T.root, start, end, node_mappings, range_Tree);
-                //Tree Search
-                using my_mutex_t = tbb::queuing_mutex;
-                my_mutex_t my_mutex;
-                static tbb::affinity_partitioner ap;
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_read_ids.size()),
-                    [&](tbb::blocked_range<size_t> k) {
-                        for (size_t i = k.begin(); i < k.end(); ++i) {
-                            size_t rm_idx = curr_read_ids[i];
-                            auto read_id = read_map.find(rm_idx)->second;	
-                            int read_present = place_reads(range_Tree, read_id, curr_node, node_score_map, node_mappings);
-                            //If Read contains current node -> REMOVE
-                            if (read_present) {
-                                my_mutex_t::scoped_lock my_lock{my_mutex};
-                                remove_reads.emplace_back(rm_idx);
-                            }
-                        }
-                    },
-                ap);
-
-                //Clear data structures
-                node_mappings.clear();
-                MAT::clear_tree(range_Tree);
-                curr_read_ids.clear();
-                //Do not check remaining range trees if no reads are left
-                if (remaining_read_ids.empty())
-                    break;
-            }
-            if (!remaining_read_ids.empty())
-                fprintf(stderr,"Smaller MAT Code NOT working properly!!!");
-
-            //Erase remove_reads from remaining_reads
-            std::sort(remove_reads.begin(), remove_reads.end());
-            auto rmr_itr = remaining_reads.begin();
-            auto rr_itr = remove_reads.begin();
-            while ((rmr_itr != remaining_reads.end()) && (rr_itr != remove_reads.end())) {
-                //Remove from remaining_reads if equal
-                if (*rmr_itr == *rr_itr) {
-                    rr_itr++;
-                    rmr_itr = remaining_reads.erase(rmr_itr);
-                }
-                //Move to next remove_read if current remove_read not found in remaining_reads
-                else if (*rmr_itr > *rr_itr) {
-                    rr_itr++;
-                    fprintf(stderr,"remove_read not present in remaining_reads!!!");
-                }
-                //Move to next remaining_reads if it is smaller than current remove_read
-                else
-                    rmr_itr++;
-            }
-            remove_reads.clear();
             auto curr_clade = get_clade(T, curr_node);
-            printf("PEAK: %s, Score: %f, Clade:%s, remaining_reads: %d\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
-            fprintf(stderr, "PEAK: %s, Score: %f, Clade:%s, remaining_reads: %d\n",curr_node->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
+            printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",top_n_itr->first->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
+            fprintf(stderr, "PEAK: %s, Score: %f, Clade:%s, reads: %d\n",top_n_itr->first->identifier.c_str(), top_n_itr->second, curr_clade.c_str(), (int)remaining_reads.size());
             
             top_n_itr++;
         }
-
+        
         node_score_map.clear();
         top_n_node_scores.clear();
-
+        
         //ADD prohibited nodes to list
         update_prohibited_nodes(T, curr_peak_nodes, prohibited_nodes, m_dist_thresh);
+        
+        //REMOVE reads mapped to curr_peak_nodes
+        std::vector<size_t> remove_reads;
+        remaining_read_ids = remaining_reads;
+        for (int start = 0; start < 30000; start += 400) {
+            int end = start + tree_range;
+            std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> node_mappings;
+            MAT::Tree range_Tree;
+            std::vector<size_t> curr_read_ids;
+            //Extract all the remaining_read_ids within range
+            //////////////////////////////////////////////////// PARALLELIZE
+            auto rm_itr = remaining_read_ids.begin();
+            while (rm_itr != remaining_read_ids.end()) {
+                auto read_id = read_map.find(*rm_itr)->second;	
+                if ((read_id->start >= start) && (read_id->end <= end)) { 
+                    curr_read_ids.emplace_back(*rm_itr);
+                    rm_itr = remaining_read_ids.erase(rm_itr);
+                }
+                else
+                    rm_itr++;
+            }
+
+            //Create range tree
+            if (!curr_read_ids.empty())
+                get_range_Tree(T.root, start, end, node_mappings, range_Tree);
+
+            //Tree Search
+            using my_mutex_t = tbb::queuing_mutex;
+            my_mutex_t my_mutex;
+            static tbb::affinity_partitioner ap;
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_read_ids.size()),
+                [&](tbb::blocked_range<size_t> k) {
+                    for (size_t i = k.begin(); i < k.end(); ++i) {
+                        size_t rm_idx = curr_read_ids[i];
+                        auto read_id = read_map.find(rm_idx)->second;	
+                        int read_present = place_reads(range_Tree, read_id, curr_peak_nodes, node_score_map, node_mappings);
+                        //If Read contains current node -> REMOVE
+                        if (read_present) {
+                            my_mutex_t::scoped_lock my_lock{my_mutex};
+                            remove_reads.emplace_back(rm_idx);
+                        }
+                    }
+                },
+            ap);
+
+            //Clear data structures
+            node_mappings.clear();
+            MAT::clear_tree(range_Tree);
+            curr_read_ids.clear();
+            //Do not check remaining range trees if no reads are left
+            if (remaining_read_ids.empty())
+                break;
+        }
+        if (!remaining_read_ids.empty())
+            fprintf(stderr,"Smaller MAT Code NOT working properly!!!");
+
+        //ERASE remove_reads from remaining_reads
+        std::sort(remove_reads.begin(), remove_reads.end());
+        auto rmr_itr = remaining_reads.begin();
+        auto rr_itr = remove_reads.begin();
+        while ((rmr_itr != remaining_reads.end()) && (rr_itr != remove_reads.end())) {
+            //Remove from remaining_reads if equal
+            if (*rmr_itr == *rr_itr) {
+                rr_itr++;
+                rmr_itr = remaining_reads.erase(rmr_itr);
+            }
+            //Move to next remove_read if current remove_read not found in remaining_reads
+            else if (*rmr_itr > *rr_itr) {
+                rr_itr++;
+                fprintf(stderr,"remove_read not present in remaining_reads!!!");
+            }
+            //Move to next remaining_reads if it is smaller than current remove_read
+            else
+                rmr_itr++;
+        }
+        remove_reads.clear();
 
         //ADD curr_peak_nodes to peak_nodes
         peak_nodes.reserve(peak_nodes.size() + curr_peak_nodes.size());
