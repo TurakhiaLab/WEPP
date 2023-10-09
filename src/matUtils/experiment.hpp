@@ -68,7 +68,7 @@ void read_sample_vcf(std::vector<std::string> &, const std::string);
 
 void read_vcf(std::unordered_map<size_t, struct read_info*> &, const std::string);
 
-int place_reads(const MAT::Tree &, const struct read_info*, const MAT::Node*, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &);
+int place_reads(const MAT::Tree &, const struct read_info*, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &);
 
 void analyze_reads(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &, const std::string &);
 
