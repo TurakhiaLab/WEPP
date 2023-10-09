@@ -1500,37 +1500,72 @@ int place_reads(const MAT::Tree &T, const struct read_info* rp, const std::vecto
     
     //Compute node_score_map
     if (check_nodes.empty()) {
-        //Keeping tab on weighted read score being mapped to each parsimonious node
-        //Give score to parsimonious node: Score -> 1/N^2
-        size_t num_nodes = 0;
-        for (auto n_idx: min_par.idx_list) 
-            num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+        //Getting num_nodes in parallel to calculate score
+        size_t num_nodes = tbb::parallel_reduce(tbb::blocked_range<size_t>(0, min_par.idx_list.size()), 0.0, 
+            [&](const tbb::blocked_range<size_t> &k, size_t block_num_nodes) -> size_t {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto n_idx = min_par.idx_list[i];
+                    block_num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+                }
+                return block_num_nodes;
+            },
+            [&] (size_t x, size_t y) -> size_t {
+                return x + y;
+            }
+        );
         double score = 1.0 / (log2(num_nodes + 1) * rp->depth);
         
-        for (auto n_idx: min_par.idx_list) {
-            for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
-                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-                auto created = node_score_map.insert(ac, std::make_pair(node, score));
-                if (!created)
-                    ac->second += score;
-                ac.release();
-            }
-        }
+        //Update node_score_map in parallel
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, min_par.idx_list.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    auto n_idx = min_par.idx_list[i];
+                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                        tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                        auto created = node_score_map.insert(ac, std::make_pair(node, score));
+                        if (!created)
+                            ac->second += score;
+                        ac.release();
+                    }
+                }
+            },
+        ap);
+        
         min_par.idx_list.clear();
         return 0;
     }
     //Check if given node is present in parsimonious list of read
     else {
-        for (auto n_idx: min_par.idx_list) {
-            for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
-                if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
-                    min_par.idx_list.clear();
-                    return 1;
+        using rwmutex_t = tbb::queuing_rw_mutex;
+        rwmutex_t my_mutex_rw;
+        static tbb::affinity_partitioner ap;
+        bool found = false;
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, min_par.idx_list.size()),
+            [&](tbb::blocked_range<size_t> k) {
+                for (size_t i = k.begin(); i < k.end(); ++i) {
+                    {
+                        rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
+                        if (found)
+                            continue;
+                    }
+                    auto n_idx = min_par.idx_list[i];
+                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                        if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
+                            found = true;
+                            break;
+                        }
+                    }
                 }
-            }
-        }
+            },
+        ap);
+
         min_par.idx_list.clear();
-        return 0;
+        if (found)
+            return 1;
+        else
+            return 0;
     }
 }
 
@@ -1585,6 +1620,7 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
             //Create range tree
             if (!curr_read_ids.empty())
                 get_range_Tree(T.root, start, end, node_mappings, range_Tree);
+
             //Tree Search
             static tbb::affinity_partitioner ap;
             tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_read_ids.size()),
@@ -1873,8 +1909,8 @@ void update_prohibited_nodes(const MAT::Tree &T, const std::vector<MAT::Node*> &
     ////  1. Find the farthest ancestor of every peak node within m_dist_thresh
     ////  2. Recursively only analyze its children within m_dist_thresh
     ////  3. Only include unseen neighborhood nodes to prohibited_nodes
-    using my_mutex_t = tbb::queuing_mutex;
-    my_mutex_t my_mutex;
+    using rwmutex_t = tbb::queuing_rw_mutex;
+    rwmutex_t my_mutex_rw;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
         [&](tbb::blocked_range<size_t> k) {
@@ -1900,11 +1936,15 @@ void update_prohibited_nodes(const MAT::Tree &T, const std::vector<MAT::Node*> &
                     if (m_dist <= m_dist_thresh) {
                         //Only add if present_node NOT already present in prohibited_nodes
                         //Looking for exact node matches here as we want to remove same mutation nodes
-                        my_mutex_t::scoped_lock my_lock;
-                        my_lock.acquire(my_mutex);
-                        if (std::find(prohibited_nodes.begin(), prohibited_nodes.end(), present_node) == prohibited_nodes.end())
+                        std::vector<MAT::Node*>::iterator p_n_itr;
+                        {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
+                            p_n_itr = std::find(prohibited_nodes.begin(), prohibited_nodes.end(), present_node);
+                        }
+                        if (p_n_itr == prohibited_nodes.end()) {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
                             prohibited_nodes.emplace_back(present_node);
-                        my_lock.release();
+                        }
                         //Add present_node's children in list for checking
                         for (const auto& c: present_node->children)
                             remaining_nodes.push(c);
