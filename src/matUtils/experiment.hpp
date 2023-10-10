@@ -78,7 +78,7 @@ std::string get_clade(const MAT::Tree &, MAT::Node*);
 
 void update_prohibited_nodes(const MAT::Tree &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, const int&);
 
-std::vector<MAT::Node*> update_neighbor_nodes(const MAT::Tree &, MAT::Node*, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
+std::vector<MAT::Node*> update_neighbor_nodes(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
 void add_neighbor_peaks(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
 
