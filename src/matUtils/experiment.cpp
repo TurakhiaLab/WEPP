@@ -1513,7 +1513,7 @@ int place_reads(const MAT::Tree &T, const struct read_info* rp, const std::vecto
                 return x + y;
             }
         );
-        double score = 1.0 / (log2(num_nodes + 1) * rp->depth);
+        double score = 1.0 / log2(num_nodes+1);
         
         //Update node_score_map in parallel
         static tbb::affinity_partitioner ap;
@@ -1642,19 +1642,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                 else
                     rri_itr++;
             }
-
-
-
-            //auto rm_itr = remaining_read_ids.begin();
-            //while (rm_itr != remaining_read_ids.end()) {
-            //    auto read_id = read_map.find(*rm_itr)->second;	
-            //    if ((read_id->start >= start) && (read_id->end <= end)) { 
-            //        curr_read_ids.emplace_back(*rm_itr);
-            //        rm_itr = remaining_read_ids.erase(rm_itr);
-            //    }
-            //    else
-            //        rm_itr++;
-            //}
 
             //Create range tree
             if (!curr_read_ids.empty())
@@ -1830,19 +1817,6 @@ void analyze_reads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorde
                 else
                     rri_itr++;
             }
-
-
-
-            //auto rm_itr = remaining_read_ids.begin();
-            //while (rm_itr != remaining_read_ids.end()) {
-            //    auto read_id = read_map.find(*rm_itr)->second;	
-            //    if ((read_id->start >= start) && (read_id->end <= end)) { 
-            //        curr_read_ids.emplace_back(*rm_itr);
-            //        rm_itr = remaining_read_ids.erase(rm_itr);
-            //    }
-            //    else
-            //        rm_itr++;
-            //}
 
             //Create range tree
             if (!curr_read_ids.empty())
