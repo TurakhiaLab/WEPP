@@ -192,7 +192,6 @@ void simulate_and_place_reads (po::parsed_options parsed) {
             for (int i = 0; i < ceil(dist * sample_size); i++) {
                 int rand_val = int(rand() % lineage_ptr->size());
                 lineage_selected.emplace_back((*lineage_ptr)[rand_val]);
-                //printf("Sample Name: %s\n", (*lineage_ptr)[rand_val]->identifier.c_str());
             }
             lineage_ptr++;
         }
@@ -204,958 +203,8 @@ void simulate_and_place_reads (po::parsed_options parsed) {
 
         fprintf(stderr, "\n%ld Samples Selected in %ld msec \n\n", lineage_selected.size(), timer.Stop());
 
-        timer.Start();
-        const std::vector<int8_t> nuc_array{1, 2, 4, 8};
-        std::vector<int> random_vec, read_positions;
-        std::vector<struct pos_misread*> misread_pos;
-        std::vector<std::vector<int>> sample_reads_vector; 
-        std::vector<struct sample_read_pair*> sample_read_list;
-        std::map<int,std::vector<struct sample_read_pair*>*> read_map;
         int num_reads = sequence_depth * ((int(ref_seq.size()) / read_length) + ((int(ref_seq.size()) % read_length) != 0));
         fprintf(stderr, "Num reads per sample: %d\n", num_reads);
-
-        //Creating Reads by randomly selecting a seed position
-        for (auto node: lineage_selected) {
-            ancestors.emplace_back(T.rsearch(node->identifier, true));
-            random_vec.clear();
-            clock_t time = clock();
-            srand(int(time));
-            
-            for (int i = 0; i < num_reads; i++) {
-                int rand_val = int(rand() % int( (int(ref_seq.size()) - ((read_length / 2) + (read_length % 2))) - ((read_length / 2) + (read_length % 2))) ) + ((read_length / 2) + (read_length % 2));
-                auto it = std::find(random_vec.begin(), random_vec.end(), rand_val);
-                
-                while (it != random_vec.end()) {
-                    rand_val = int(rand() % int( (int(ref_seq.size()) - ((read_length / 2) + (read_length % 2))) - ((read_length / 2) + (read_length % 2))) ) + ((read_length / 2) + (read_length % 2));
-                    it = std::find(random_vec.begin(), random_vec.end(), rand_val);
-                }
-                random_vec.emplace_back(rand_val);
-                
-                struct sample_read_pair *sample_read = new struct sample_read_pair;
-                sample_read->sample = node;
-                //sample_read->read = node->identifier + "_" + boost::lexical_cast<std::string>(rand_val) + "_READ_" + boost::lexical_cast<std::string>(i); 
-                int start_coord = (rand_val - ((read_length / 2) + (read_length % 2)));
-                int end_coord = (rand_val + (read_length / 2)) - 1;
-                if (start_coord < 1)
-                    start_coord = 1; 
-                if (end_coord >= (int(ref_seq.size())))
-                    end_coord = (int(ref_seq.size()));
-                sample_read->read = node->identifier + "_READ_" + boost::lexical_cast<std::string>(start_coord) + "_" + boost::lexical_cast<std::string>(end_coord); 
-                sample_read_list.emplace_back(sample_read);
-
-                read_positions.clear();
-                time = clock();
-                srand(int(time));
-                for (int pos = (rand_val - ((read_length / 2) + (read_length % 2))); pos < (rand_val + (read_length / 2)); pos ++) {
-                    if ((pos > 0) && (pos < (int(ref_seq.size()+1)))) {
-                        read_positions.emplace_back(pos);
-                        double rndDouble = (double)rand() / RAND_MAX;
-                        if (rndDouble < (read_error[0])) {             
-                            struct pos_misread *misreadpos = new struct pos_misread;
-                            misreadpos->pos = pos;
-                            misreadpos->read = sample_read->read;
-                            misreadpos->used = false;
-                            misread_pos.emplace_back(misreadpos);
-                        }
-                    }
-                }
-                sample_reads_vector.emplace_back(read_positions);  
-            } 
-        }
-
-        fprintf(stderr, "Misread pos = %ld\n\n", misread_pos.size());
-        //for (auto misreads: misread_pos) 
-        //    std::cout << "Read: " << misreads->read << ", Pos: " << misreads->pos << "\n";
-        
-        
-        //Creating read map to place the reads acc to mut positions
-        std::vector<struct sample_read_pair*>::iterator read_name_ptr;
-        read_name_ptr = sample_read_list.begin();
-        for (auto reads: sample_reads_vector) {
-            for (auto pos: reads) {
-                if (read_map.find(pos) == read_map.end()) {
-                    std::vector<struct sample_read_pair*> *sr_list = new std::vector<struct sample_read_pair*>;
-                    sr_list->emplace_back(*read_name_ptr);
-                    read_map.insert({pos, sr_list});
-                }
-                else {
-                    std::vector<struct sample_read_pair*> *sr_list;
-                    sr_list = read_map[pos];
-                    auto itr = std::find(sr_list->begin(), sr_list->end(), *read_name_ptr);
-                    if (itr == sr_list->end())
-                        sr_list->emplace_back(*read_name_ptr);
-                }
-            }
-            read_name_ptr++;
-        }
-
-
-        // Inserting selected samples in the Map
-        for (auto anc: ancestors) {
-            for (auto node: anc) {
-                for (auto mut: node->mutations){
-                    bool back_mutation = true;
-                    if (back_mut_map.find(mut.position) == back_mut_map.end()) {
-                        if (mut.ref_nuc != mut.mut_nuc)
-                            back_mutation =  false;
-                    }
-                    // No Back Mutation
-                    if (!back_mutation) {
-                        if(sample_map.find(mut.position) == sample_map.end()){
-                            std::vector<struct ances_sample_list*> *anc_sample_list = new std::vector<struct ances_sample_list*>;
-                            std::vector<Mutation_Annotated_Tree::Node*> *samples = new std::vector<Mutation_Annotated_Tree::Node*>;
-                            struct ances_sample_list *anc_nodes = new ances_sample_list;
-
-                            anc_nodes->ancestor_node = node;
-                            samples->emplace_back(anc[0]);
-                            anc_nodes->sample_nodes = samples;
-                            anc_sample_list->emplace_back(anc_nodes);
-                            sample_map.insert({mut.position, anc_sample_list});
-                        }
-                        else {
-                            std::vector<struct ances_sample_list*> *anc_sample_list; 
-                            std::vector<struct ances_sample_list*>::iterator ptr; 
-                            anc_sample_list = sample_map[mut.position];
-
-                            for (ptr = anc_sample_list->begin(); ptr < anc_sample_list->end(); ptr++) 
-                                if ((*ptr)->ancestor_node == node)
-                                    break;
-
-                            if (ptr == anc_sample_list->end()) {
-                                struct ances_sample_list *anc_nodes = new ances_sample_list;
-                                std::vector<Mutation_Annotated_Tree::Node*> *samples = new std::vector<Mutation_Annotated_Tree::Node*>;
-                                anc_nodes->ancestor_node = node;
-                                samples->emplace_back(anc[0]);
-                                anc_nodes->sample_nodes = samples;
-                                anc_sample_list->emplace_back(anc_nodes);
-                            }
-                            else {
-                                bool present = false;
-                                for (auto sample: *(*ptr)->sample_nodes)
-                                    if (sample == anc[0]){
-                                        present = true;
-                                        break;
-                                    }
-                                if (!present) {
-                                    (*ptr)->sample_nodes->emplace_back(anc[0]);
-                                }
-                            }
-                        }
-                    }   
-                    // First Back Mutation
-                    else if (back_mut_map.find(mut.position) == back_mut_map.end()) {
-                        if(sample_map.find(mut.position) != sample_map.end()){
-                            std::vector<struct ances_sample_list*> *anc_sample_list; 
-                            anc_sample_list = sample_map[mut.position];
-                            for (auto ances: *anc_sample_list) {
-                                // New Back mutation is not ancestor of ancestor node from sample_map 
-                                if (T.is_ancestor(ances->ancestor_node->identifier, node->identifier)) {
-                                    for (auto leaf: *ances->sample_nodes) {
-                                        if (T.is_ancestor(node->identifier, leaf->identifier) || (node->identifier == leaf->identifier)) {
-                                            ances->sample_nodes->erase(std::remove(ances->sample_nodes->begin(), ances->sample_nodes->end(), leaf), ances->sample_nodes->end());
-                                        }
-                                    }
-                                }
-                                // New Back Mutation node is either ancestor or sibling of previous node in map, i.e., BM is irrelevant
-                                // Do nothing as iteration is for current node only
-                                if (ances->sample_nodes->size() < 1)
-                                    anc_sample_list->erase(std::remove(anc_sample_list->begin(), anc_sample_list->end(), ances), anc_sample_list->end());
-                            }
-                        }
-
-                        std::vector<Mutation_Annotated_Tree::Node*> *back_mut_list = new std::vector<Mutation_Annotated_Tree::Node*>;
-                        back_mut_list->emplace_back(node);
-                        back_mut_map.insert({mut.position, back_mut_list});
-                    } 
-                    // Back Mutation present at that position
-                    else {
-                        auto back_mut_list = back_mut_map[mut.position];
-                        int no_BM = 0;
-                        //New node without Back Mutation
-                        if (mut.ref_nuc != mut.mut_nuc) {
-                            for (auto bm_node: *back_mut_list) {
-                                // If new Node is ancestor of Back Mutation Node and sample does not belong to BM 
-                                if ((T.is_ancestor(node->identifier, bm_node->identifier)) && (!( (bm_node->identifier == anc[0]->identifier) || (T.is_ancestor(bm_node->identifier, anc[0]->identifier) )))) {
-                                    no_BM += 1;
-                                }
-                                // If Back Mutation node is ancestor of new node
-                                else if (T.is_ancestor(bm_node->identifier, node->identifier)) {
-                                    no_BM += 1;
-                                }
-                                // If Back Mutation node is sibling of new node
-                                else if (!( (T.is_ancestor(bm_node->identifier, node->identifier)) || (T.is_ancestor(node->identifier, bm_node->identifier)) )) {
-                                    no_BM += 1;
-                                }
-                            }
-                            if (no_BM == int(back_mut_list->size())) {
-                                if(sample_map.find(mut.position) == sample_map.end()){
-                                    std::vector<struct ances_sample_list*> *anc_sample_list = new std::vector<struct ances_sample_list*>;
-                                    std::vector<Mutation_Annotated_Tree::Node*> *samples = new std::vector<Mutation_Annotated_Tree::Node*>;
-                                    struct ances_sample_list *anc_nodes = new ances_sample_list;
-
-                                    anc_nodes->ancestor_node = node;
-                                    samples->emplace_back(anc[0]);
-                                    anc_nodes->sample_nodes = samples;
-                                    anc_sample_list->emplace_back(anc_nodes);
-                                    sample_map.insert({mut.position, anc_sample_list});
-                                }
-                                else {
-                                    std::vector<struct ances_sample_list*> *anc_sample_list; 
-                                    std::vector<struct ances_sample_list*>::iterator ptr; 
-                                    anc_sample_list = sample_map[mut.position];
-
-                                    for (ptr = anc_sample_list->begin(); ptr < anc_sample_list->end(); ptr++) 
-                                        if ((*ptr)->ancestor_node == node)
-                                            break;
-
-                                    if (ptr == anc_sample_list->end()) {
-                                        struct ances_sample_list *anc_nodes = new ances_sample_list;
-                                        std::vector<Mutation_Annotated_Tree::Node*> *samples = new std::vector<Mutation_Annotated_Tree::Node*>;
-                                        anc_nodes->ancestor_node = node;
-                                        samples->emplace_back(anc[0]);
-                                        anc_nodes->sample_nodes = samples;
-                                        anc_sample_list->emplace_back(anc_nodes);
-                                    }
-                                    else {
-                                        bool present = false;
-                                        for (auto sample: *(*ptr)->sample_nodes)
-                                            if (sample == anc[0]){
-                                                present = true;
-                                                break;
-                                            }
-                                        if (!present) {
-                                            (*ptr)->sample_nodes->emplace_back(anc[0]);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        //New node with Back Mutation
-                        else {
-                            std::vector<struct ances_sample_list*> *anc_sample_list; 
-                            if (sample_map.find(mut.position) != sample_map.end()) {
-                                anc_sample_list = sample_map[mut.position];
-                                for (auto ances: *anc_sample_list) {
-                                    // New Back mutation is not ancestor of node from sample_map
-                                    if (T.is_ancestor(ances->ancestor_node->identifier, node->identifier)) {
-                                        for (auto leaf: *ances->sample_nodes) {
-                                            if (T.is_ancestor(node->identifier, leaf->identifier) || (node->identifier == leaf->identifier))
-                                                ances->sample_nodes->erase(std::remove(ances->sample_nodes->begin(), ances->sample_nodes->end(), leaf), ances->sample_nodes->end());
-                                        }
-                                        if (ances->sample_nodes->size() < 1)
-                                            anc_sample_list->erase(std::remove(anc_sample_list->begin(), anc_sample_list->end(), ances), anc_sample_list->end());
-                                    }
-                                    // New Back Mutation is either ancestor or sibling of node in map i.e., BM is irrelevant
-                                    // Do nothing as iteration is for current node only
-                                }
-                            }
-                            back_mut_list->emplace_back(node);
-                            back_mut_map.insert({mut.position, back_mut_list});
-                        }
-                    }
-                }
-            }
-        }
-
-        ancestors.clear();
-        fprintf(stderr, "Both Maps Filled in %ld msec \n\n", timer.Stop());
-
-        timer.Start();
-        //Printing and storing in VCF
-        std::ofstream outfile_samples(vcf_filename_samples, std::ios::out | std::ios::binary);
-        std::ofstream outfile_reads(vcf_filename_reads, std::ios::out | std::ios::binary);
-        std::ofstream outfile_reads_freyja(vcf_filename_reads_freyja, std::ios::out | std::ios::binary);
-        std::ofstream outfile_reads_freyja_depth(depth_filename_reads_freyja, std::ios::out | std::ios::binary);
-        boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_samples, outbuf_reads, outbuf_reads_freyja, outbuf_reads_freyja_depth;
-        if (vcf_filename_samples.find(".gz\0") != std::string::npos) {
-            outbuf_samples.push(boost::iostreams::gzip_compressor());
-        }
-        if (vcf_filename_reads.find(".gz\0") != std::string::npos) {
-            outbuf_reads.push(boost::iostreams::gzip_compressor());
-        }
-        if (vcf_filename_reads_freyja.find(".gz\0") != std::string::npos) {
-            outbuf_reads_freyja.push(boost::iostreams::gzip_compressor());
-        }
-        if (depth_filename_reads_freyja.find(".gz\0") != std::string::npos) {
-            outbuf_reads_freyja_depth.push(boost::iostreams::gzip_compressor());
-        }
-        outbuf_samples.push(outfile_samples);
-        outbuf_reads.push(outfile_reads);
-        outbuf_reads_freyja.push(outfile_reads_freyja);
-        outbuf_reads_freyja_depth.push(outfile_reads_freyja_depth);
-        std::ostream vcf_file_samples(&outbuf_samples);
-        std::ostream vcf_file_reads(&outbuf_reads);
-        std::ostream vcf_file_reads_freyja(&outbuf_reads_freyja);
-        std::ostream depth_file_reads_freyja(&outbuf_reads_freyja_depth);
-
-        vcf_file_samples << "##fileformat=VCFv4.2\n";
-        vcf_file_samples << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
-        vcf_file_samples << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
-        
-        vcf_file_reads << "##fileformat=VCFv4.2\n";
-        vcf_file_reads << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
-        vcf_file_reads << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
-        
-        vcf_file_reads_freyja << "##fileformat=VCFv4.2\n";
-        vcf_file_reads_freyja << "##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n";
-        vcf_file_reads_freyja << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
-        
-        for (auto node: lineage_selected) {
-            vcf_file_samples << "\t" << node->identifier;
-        }
-
-        for (auto sample: sample_read_list) {
-            vcf_file_reads << "\t" << sample->read;
-        }
-        
-        vcf_file_samples << "\n";
-        vcf_file_reads << "\n";
-        vcf_file_reads_freyja << "\n";
-        
-        std::vector<int> lineage_present(lineage_selected.size());
-        std::vector<int> read_present(sample_read_list.size());
-        std::vector<int> misreads_eligible;
-        std::string vcf_file_read_holder, vcf_file_read_match, vcf_file_read_freyja_holder, vcf_file_read_freyja_match, depth_file_read_freyja_holder;
-        std::vector<struct pos_misread*>::iterator misread_ptr;
-        std::vector<struct sample_ances_list*> sample_ancestors;
-        auto previous_pos = sample_map.begin()->first;
-        int map_count = 0, allele_pos = 0;
-        
-        
-        //Populating VCF based on mutating positions in the sample map 
-        for (auto map: sample_map){
-            bool encountered_sample_ancestor = false, encountered_read = false;
-            std::string mut_nuc_list_samples, mut_nuc_list_reads;
-            std::vector<struct read_mut_pair*> misread_names;
-            std::vector<int8_t>nuc_used, nuc_available;
-            char ref_nuc_name_samples = {};
-            char ref_nuc_name_reads = {};
-            mut_nuc_list_samples.clear(); 
-            mut_nuc_list_reads.clear();
-            misreads_eligible.clear();
-            sample_ancestors.clear(); 
-            vcf_file_read_holder.clear();
-            vcf_file_read_match.clear();
-            vcf_file_read_freyja_holder.clear();
-            vcf_file_read_freyja_match.clear();
-            fill(lineage_present.begin(), lineage_present.end(), 0);
-            fill(read_present.begin(), read_present.end(), 0);
-            std::vector<int>read_match_count;
-    
-            //Tackling Misreads not present as mutations in our sample map
-            misread_ptr = misread_pos.begin();
-            while (misread_ptr != misread_pos.end()) {
-                auto m_e_itr = std::find(misreads_eligible.begin(), misreads_eligible.end(), (*misread_ptr)->pos);
-                if ( (!(*misread_ptr)->used) && (m_e_itr == misreads_eligible.end()) && ( ( (map_count == (int)sample_map.size()-1) && ((*misread_ptr)->pos > map.first) ) || ( (map.first == sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) ) || ( (map.first != sample_map.begin()->first) && ((*misread_ptr)->pos < map.first) && ((*misread_ptr)->pos > previous_pos) ) ) ) {
-                    misreads_eligible.emplace_back((*misread_ptr)->pos);    
-                }
-                misread_ptr++;
-            }
-            tbb::parallel_sort(misreads_eligible.begin(), misreads_eligible.end());
-            int last_pos = -1;
-            misread_names.clear();
-
-            for (auto misread: misreads_eligible) {
-                if (last_pos != -1) {
-                    fill(read_present.begin(), read_present.end(), 0);
-                    vcf_file_read_holder.append("\t");
-                    vcf_file_read_holder.push_back(ref_nuc_name_reads);
-                    vcf_file_read_holder.append("\t");
-                    
-                    vcf_file_read_freyja_holder.append("\t");
-                    vcf_file_read_freyja_holder.push_back(ref_nuc_name_reads);
-                    vcf_file_read_freyja_holder.append("\t");
-                    read_match_count.clear();
-                    for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
-                        if (i) {
-                            vcf_file_read_holder += ",";
-                            vcf_file_read_freyja_holder += ",";
-                        }
-                        vcf_file_read_holder += mut_nuc_list_reads[i];
-                        vcf_file_read_freyja_holder += mut_nuc_list_reads[i];
-                        read_match_count.emplace_back(0);
-                    }
-                    vcf_file_read_holder += "\t.\t.\t.\t.\t";
-                    vcf_file_read_freyja_holder += "\t.\t.\t";
-
-                    std::vector<struct sample_read_pair*>::iterator s_r_ptr;
-                    s_r_ptr = sample_read_list.begin();
-                    for (auto read_mut: misread_names) {
-                        std::string read_name = read_mut->read_name;
-                        while (s_r_ptr != sample_read_list.end()) {
-                            if ((*s_r_ptr)->read == read_name) {
-                                read_present[s_r_ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(read_mut->mut_nuc) + 1;
-                                break;
-                            }
-                            s_r_ptr++;
-                        } 
-                    }
-
-                    for (auto read: read_present) {
-                        vcf_file_read_holder.append(std::to_string(read) + "\t");
-                        if (read)
-                            read_match_count[read-1] += 1;
-                    }
-                    vcf_file_read_holder += "\n";
-                    
-                    int total_count = 0;
-                    s_r_ptr = sample_read_list.begin();
-                    int start, end;
-                    while (s_r_ptr != sample_read_list.end()) {
-                        std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                        std::smatch match;
-                        if (std::regex_search((*s_r_ptr)->read, match, rgx)) {
-                            start = std::stoi(match[1]);
-                            end = std::stoi(match[2]);
-                            if ((misread >= start) && (misread <= end))
-                                total_count++;
-                        }
-                        s_r_ptr++;
-                    }
-                    vcf_file_read_freyja_holder += "AF=";
-                    for (int i = 0; i < int(read_match_count.size()); i++) {
-                        if (i)
-                            vcf_file_read_freyja_holder += ",";
-                        float af = (float)read_match_count[i] / (float)total_count;
-                        vcf_file_read_freyja_holder.append(std::to_string(af));
-                    }
-                    vcf_file_read_freyja_holder += "\n";
-                    
-                    ref_nuc_name_reads={};
-                    misread_names.clear();
-                    mut_nuc_list_reads.clear();
-                }
-
-                misread_ptr = misread_pos.begin();
-                while (misread_ptr != misread_pos.end()) {
-                    if ((misread == (*misread_ptr)->pos) && (!(*misread_ptr)->used)) {
-                        if (misread != last_pos) {
-                            nuc_available.clear();
-                            nuc_used.clear();
-                            nuc_used.emplace_back(MAT::get_nuc_id(ref_seq[(*misread_ptr)->pos-1]));
-                            std::vector<int8_t> misread_nuc;
-                            struct read_mut_pair *read_mut = new struct read_mut_pair;
-
-                            for (auto nuc_in_use: nuc_used) {
-                                for (auto nuc: nuc_array){
-                                    if (nuc_in_use != nuc) {
-                                        nuc_available.emplace_back(nuc);
-                                    }
-                                }
-                            }
-                            std::sample(
-                                nuc_available.begin(),
-                                nuc_available.end(),
-                                std::back_inserter(misread_nuc),
-                                1,
-                                std::mt19937{std::random_device{}()}
-                            );
-                            ref_nuc_name_reads = ref_seq[(*misread_ptr)->pos-1];
-                            read_mut->read_name = (*misread_ptr)->read;
-                            read_mut->mut_nuc = MAT::get_nuc(misread_nuc[0]);
-                            misread_names.emplace_back(read_mut);
-                            
-                            vcf_file_read_holder += "NC_045512v2\t" + std::to_string((*misread_ptr)->pos) + "\t";
-                            vcf_file_read_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]);
-                            vcf_file_read_freyja_holder += "NC_045512v2\t" + std::to_string((*misread_ptr)->pos) + "\t";
-                            vcf_file_read_freyja_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]);
-                            mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0])); 
-                            nuc_used.emplace_back(misread_nuc[0]);
-                            misread_nuc.clear();
-                        }
-                        else {
-                            std::vector<int8_t> misread_nuc;
-                            struct read_mut_pair *read_mut = new struct read_mut_pair;
-                            bool unique = true;
-                            std::sample(
-                                nuc_available.begin(),
-                                nuc_available.end(),
-                                std::back_inserter(misread_nuc),
-                                1,
-                                std::mt19937{std::random_device{}()}
-                            );
-                            for (auto nuc_not_avail: nuc_used) {
-                                if (misread_nuc[0] == nuc_not_avail)
-                                    unique = false;
-                            }
-                            if (unique) {
-                                vcf_file_read_holder += ",";
-                                vcf_file_read_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]); 
-                                vcf_file_read_freyja_holder += ",";
-                                vcf_file_read_freyja_holder += ref_nuc_name_reads + std::to_string((*misread_ptr)->pos) + MAT::get_nuc(misread_nuc[0]); 
-                                mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
-                                nuc_used.emplace_back(misread_nuc[0]);
-                            }
-                            read_mut->read_name = (*misread_ptr)->read;
-                            read_mut->mut_nuc = MAT::get_nuc(misread_nuc[0]);
-                            misread_names.emplace_back(read_mut);
-                            misread_nuc.clear();
-                        }
-                        (*misread_ptr)->used = true;
-                        last_pos = misread;
-                    }   
-                    misread_ptr++;
-                }
-            }
-
-            if (misreads_eligible.size()) {
-                vcf_file_read_holder.append("\t");
-                vcf_file_read_holder.push_back(ref_nuc_name_reads);
-                vcf_file_read_holder.append("\t");
-                
-                vcf_file_read_freyja_holder.append("\t");
-                vcf_file_read_freyja_holder.push_back(ref_nuc_name_reads);
-                vcf_file_read_freyja_holder.append("\t");
-                read_match_count.clear();
-                for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
-                    if (i) {
-                        vcf_file_read_holder += ",";
-                        vcf_file_read_freyja_holder += ",";
-                    }
-                    vcf_file_read_holder += mut_nuc_list_reads[i];
-                    vcf_file_read_freyja_holder += mut_nuc_list_reads[i];
-                    read_match_count.emplace_back(0);
-                }
-                vcf_file_read_holder += "\t.\t.\t.\t.\t";
-                vcf_file_read_freyja_holder += "\t.\t.\t";
-                
-                fill(read_present.begin(), read_present.end(), 0);
-                std::vector<struct sample_read_pair*>::iterator s_r_ptr;
-                s_r_ptr = sample_read_list.begin();
-                for (auto read_mut: misread_names) {
-                    std::string read_name = read_mut->read_name;
-                    while (s_r_ptr != sample_read_list.end()) {
-                        if ((*s_r_ptr)->read == read_name) {
-                            read_present[s_r_ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(read_mut->mut_nuc) + 1;
-                            break;
-                        }
-                        s_r_ptr++;
-                    } 
-                }
-                
-                for (auto read: read_present) {
-                    vcf_file_read_holder += std::to_string(read) + "\t";
-                    if (read)
-                        read_match_count[read-1] += 1;
-                }
-                vcf_file_read_holder += "\n";
-                
-                int total_count = 0;
-                s_r_ptr = sample_read_list.begin();
-                int start, end;
-                while (s_r_ptr != sample_read_list.end()) {
-                    std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                    std::smatch match;
-                    if (std::regex_search((*s_r_ptr)->read, match, rgx)) {
-                        start = std::stoi(match[1]);
-                        end = std::stoi(match[2]);
-                        if ((last_pos >= start) && (last_pos <= end))
-                            total_count++;
-                    }
-                    s_r_ptr++;
-                }
-                vcf_file_read_freyja_holder += "AF=";
-                for (int i = 0; i < int(read_match_count.size()); i++) {
-                    if (i)
-                        vcf_file_read_freyja_holder += ",";
-                    float af = (float)read_match_count[i] / (float)total_count;
-                    vcf_file_read_freyja_holder.append(std::to_string(af));
-                }
-                vcf_file_read_freyja_holder += "\n";
-                
-                if (map_count != (int)sample_map.size()-1) {
-                    vcf_file_reads << vcf_file_read_holder;
-                    vcf_file_reads_freyja << vcf_file_read_freyja_holder;
-                }
-            }
-
-
-            //Normal VCF Writing for mutations in samples
-            mut_nuc_list_reads.clear();
-            ref_nuc_name_reads = {};
-            misread_names.clear();
-            fill(read_present.begin(), read_present.end(), 0);
-
-            for (auto anc_smp: *(map.second)) {
-                auto anc = anc_smp->ancestor_node;
-                for (auto mut_anc: anc->mutations) {
-                    if (mut_anc.position == map.first) {
-                        ref_nuc_name_samples = MAT::get_nuc(mut_anc.ref_nuc);
-                        if (!encountered_sample_ancestor) {
-                            vcf_file_samples << "NC_045512v2\t" << map.first << "\t";
-                            vcf_file_samples << ref_nuc_name_samples << map.first << MAT::get_nuc(mut_anc.mut_nuc);
-                            encountered_sample_ancestor = true;                     
-                            mut_nuc_list_samples.push_back(MAT::get_nuc(mut_anc.mut_nuc));  
-                        }
-                        else if (mut_nuc_list_samples.find(MAT::get_nuc(mut_anc.mut_nuc)) == std::string::npos) {
-                            vcf_file_samples << "," << ref_nuc_name_samples << map.first << MAT::get_nuc(mut_anc.mut_nuc);
-                            mut_nuc_list_samples.push_back(MAT::get_nuc(mut_anc.mut_nuc));                     
-                        }
-
-                        //For read vcf
-                        if (read_map.find(map.first) != read_map.end()) {
-                            for (auto sample_reads: *read_map[map.first]) {
-                                for (auto sample: *anc_smp->sample_nodes){
-                                    if (sample_reads->sample == sample) {
-                                        ref_nuc_name_reads = MAT::get_nuc(mut_anc.ref_nuc);
-                                        
-                                        //Checking misread at this position
-                                        bool mis_read_pos = false;
-                                        nuc_available.clear();
-                                        auto misread_ptr = misread_pos.begin();
-                                        while (misread_ptr != misread_pos.end()) {
-                                            if ((map.first == (*misread_ptr)->pos) && (!(*misread_ptr)->used) && (sample_reads->read == (*misread_ptr)->read) ) {
-                                                std::vector<int8_t> misread_nuc;
-                                                for (auto nuc: nuc_array){
-                                                if (mut_anc.mut_nuc != nuc)
-                                                    nuc_available.emplace_back(nuc);
-                                                }
-                                                std::sample(
-                                                    nuc_available.begin(),
-                                                    nuc_available.end(),
-                                                    std::back_inserter(misread_nuc),
-                                                    1,
-                                                    std::mt19937{std::random_device{}()}
-                                                );
-                                                struct read_mut_pair *read_mut = new struct read_mut_pair;
-                                                read_mut->read_name = (*misread_ptr)->read;
-                                                read_mut->mut_nuc = MAT::get_nuc(misread_nuc[0]);
-                                                misread_names.emplace_back(read_mut);
-                                                if (!encountered_read) {
-                                                    vcf_file_read_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
-                                                    vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
-                                                    vcf_file_read_freyja_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
-                                                    vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
-                                                    mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
-                                                    encountered_read = true;
-                                                }
-                                                else if (mut_nuc_list_reads.find(MAT::get_nuc(misread_nuc[0])) == std::string::npos) {
-                                                    vcf_file_read_match += ",";
-                                                    vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
-                                                    vcf_file_read_freyja_match += ",";
-                                                    vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(misread_nuc[0]);
-                                                    mut_nuc_list_reads.push_back(MAT::get_nuc(misread_nuc[0]));  
-                                                }
-                                                misread_nuc.clear();
-                                                (*misread_ptr)->used = true;
-                                                mis_read_pos = true;
-                                            }
-                                            misread_ptr++;
-                                        }
-                                        
-                                        if (!mis_read_pos) {
-                                            if (!encountered_read) {
-                                                vcf_file_read_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
-                                                vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc);
-                                                vcf_file_read_freyja_match += "NC_045512v2\t" + std::to_string(map.first) + "\t";
-                                                vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc);
-                                                mut_nuc_list_reads.push_back(MAT::get_nuc(mut_anc.mut_nuc));  
-                                                encountered_read = true;                     
-                                            }
-                                            else if (mut_nuc_list_reads.find(MAT::get_nuc(mut_anc.mut_nuc)) == std::string::npos) {
-                                                vcf_file_read_match += ",";
-                                                vcf_file_read_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc); 
-                                                vcf_file_read_freyja_match += ",";
-                                                vcf_file_read_freyja_match += ref_nuc_name_reads + std::to_string(map.first) + MAT::get_nuc(mut_anc.mut_nuc); 
-                                                mut_nuc_list_reads.push_back(MAT::get_nuc(mut_anc.mut_nuc));  
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            vcf_file_samples << "\t" <<  ref_nuc_name_samples << "\t";
-            for (int i = 0; i < int(mut_nuc_list_samples.size()); i++) {
-                if (i) {
-                    vcf_file_samples << ",";
-                }
-                vcf_file_samples << mut_nuc_list_samples[i];
-            }
-            vcf_file_samples << "\t.\t.\t.\t.\t";
-            
-            read_match_count.clear();
-            if (encountered_read) {
-                vcf_file_reads << vcf_file_read_match;
-                vcf_file_reads << "\t" <<  ref_nuc_name_reads << "\t";
-                vcf_file_reads_freyja << vcf_file_read_freyja_match;
-                vcf_file_reads_freyja << "\t" <<  ref_nuc_name_reads << "\t";
-                for (int i = 0; i < int(mut_nuc_list_reads.size()); i++) {
-                    if (i) {
-                        vcf_file_reads << ",";
-                        vcf_file_reads_freyja << ",";
-                    }
-                    vcf_file_reads << mut_nuc_list_reads[i];
-                    vcf_file_reads_freyja << mut_nuc_list_reads[i];
-                    read_match_count.emplace_back(0);
-                }
-                vcf_file_reads << "\t.\t.\t.\t.\t";
-                vcf_file_reads_freyja << "\t.\t.\t";
-            }
-
-            std::vector<struct ances_sample_list*> *anc_sample_list; 
-            anc_sample_list = map.second; 
-            
-            for (auto anc_sample: *anc_sample_list) {
-                for (auto sample: *anc_sample->sample_nodes) {
-                    //This doesn't work for some reason
-                    //auto itr = std::find(lineage_selected.begin(), lineage_selected.end(), sample);
-                    auto itr = lineage_selected.begin();
-                    while (itr != lineage_selected.end()) {
-                        itr = std::find(itr, lineage_selected.end(), sample);
-                        if (itr != lineage_selected.end()) {
-                            // If that lineage is not assigned something
-                            if (!lineage_present[itr - lineage_selected.begin()]) {
-                                for (auto mut_anc: anc_sample->ancestor_node->mutations) {
-                                    if (mut_anc.position == map.first) {
-                                        struct sample_ances_list *sample_ancestor_list = new struct sample_ances_list;
-                                        sample_ancestor_list->sample = sample;
-                                        std::vector<Mutation_Annotated_Tree::Node*> * ances_list = new std::vector<Mutation_Annotated_Tree::Node*>;
-                                        ances_list->emplace_back(anc_sample->ancestor_node);
-                                        sample_ancestor_list->ances = ances_list;
-                                        sample_ancestors.emplace_back(sample_ancestor_list);
-                                        
-                                        if (mut_nuc_list_samples.find(MAT::get_nuc(mut_anc.mut_nuc)) != std::string::npos){
-                                            //Find the correct mutation in sample
-                                            lineage_present[itr - lineage_selected.begin()] = mut_nuc_list_samples.find(MAT::get_nuc(mut_anc.mut_nuc)) + 1; 
-                                            
-                                            //Find the same sample in read list
-                                            if (read_map.find(map.first) != read_map.end()) {
-                                                for (auto sample_reads: *read_map[map.first]) {
-                                                    if (sample_reads->sample == sample) {
-                                                        std::vector<struct sample_read_pair*>::iterator ptr;
-                                                        ptr = sample_read_list.begin();
-                                                        while (ptr != sample_read_list.end()) {
-                                                            if ((*ptr)->read == sample_reads->read) {
-                                                                bool misread_present = false;
-                                                                if (misread_names.size()) {
-                                                                    /////NEED to change
-                                                                    for (auto read_mut: misread_names) {
-                                                                        if ((*ptr)->read == read_mut->read_name) {
-                                                                            read_present[ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(read_mut->mut_nuc) + 1;
-                                                                            misread_present = true;
-                                                                            break;
-                                                                        }
-                                                                    }
-                                                                }
-                                                                if (!(misread_present))
-                                                                    read_present[ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(MAT::get_nuc(mut_anc.mut_nuc)) + 1;
-                                                                //break;
-                                                            }
-                                                            ptr++;
-                                                        } 
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                            // Sample already has a mutation assigned in VCF
-                            else {
-                                for (auto mut_anc: anc_sample->ancestor_node->mutations) {
-                                    if (mut_anc.position == map.first) {
-                                        std::vector<struct sample_ances_list*>::iterator pointer = sample_ancestors.begin();
-                                        while (pointer != sample_ancestors.end()) {
-                                            if ((*pointer)->sample == sample)
-                                                break;
-                                            pointer++;
-                                        }
-                                        bool ances_found = false;
-                                        for (auto anc: *(*pointer)->ances) {
-                                            if (anc == anc_sample->ancestor_node) {
-                                                ances_found = true;
-                                                break;
-                                            }
-                                        }
-                                        if (!ances_found) {
-                                            bool is_daughter = true;
-                                            for (auto anc: *(*pointer)->ances) {
-                                                if (T.is_ancestor(anc_sample->ancestor_node->identifier, anc->identifier)) {
-                                                is_daughter = false;
-                                                break;
-                                                }    
-                                            }
-                                            if (is_daughter) {
-                                                if (mut_nuc_list_samples.find(MAT::get_nuc(mut_anc.mut_nuc)) != std::string::npos){
-                                                    //Find the correct mutation in sample
-                                                    lineage_present[itr - lineage_selected.begin()] = mut_nuc_list_samples.find(MAT::get_nuc(mut_anc.mut_nuc)) + 1; 
-
-                                                    //Find the same sample in read list
-                                                    if (read_map.find(map.first) != read_map.end()) {
-                                                        for (auto sample_reads: *read_map[map.first]) {
-                                                            if (sample_reads->sample == sample) {
-                                                                std::vector<struct sample_read_pair*>::iterator ptr;
-                                                                ptr = sample_read_list.begin();
-                                                                while (ptr != sample_read_list.end()) {
-                                                                    if ((*ptr)->read == sample_reads->read) {
-                                                                        bool misread_present = false;
-                                                                        if (misread_names.size()) {
-                                                                        ///////NEED to change
-                                                                            for (auto read_mut: misread_names) {
-                                                                                if ((*ptr)->read == read_mut->read_name) {
-                                                                                    read_present[ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(read_mut->mut_nuc) + 1;
-                                                                                    misread_present = true;
-                                                                                    break;
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                        if (!(misread_present))
-                                                                            read_present[ptr - sample_read_list.begin()] = mut_nuc_list_reads.find(MAT::get_nuc(mut_anc.mut_nuc)) + 1;
-                                                                        //break;
-                                                                    }
-                                                                    ptr++;
-                                                                } 
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            (*pointer)->ances->emplace_back(anc_sample->ancestor_node);
-                                        }
-                                    }
-                                }
-                            }
-                            itr++;
-                        }
-                    }
-                }
-            }
-            
-            //Print in VCF from lineage_present
-            for (auto hap: lineage_present)
-                vcf_file_samples << hap <<"\t";
-            vcf_file_samples << "\n";
-            
-            if (encountered_read) {
-                for (auto read: read_present) {
-                    vcf_file_reads << read <<"\t";
-                    if (read)
-                        read_match_count[read-1] += 1;
-                }
-                vcf_file_reads << "\n";
-            }
-
-            int total_count = 0;
-            int start, end;
-            using my_mutex_t = tbb::queuing_mutex;
-            my_mutex_t my_mutex;
-            static tbb::affinity_partitioner ap;
-            tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
-                [&](tbb::blocked_range<size_t> k) {
-                    for (size_t s = k.begin(); s < k.end(); ++s) {
-                        auto sample_read = sample_read_list[s];
-                        std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                        std::smatch match;
-                        my_mutex_t::scoped_lock my_lock;
-                        my_lock.acquire(my_mutex);
-                        if (std::regex_search(sample_read->read, match, rgx)) {
-                            start = std::stoi(match[1]);
-                            end = std::stoi(match[2]);
-                            if ((map.first >= start) && (map.first <= end)) {
-                                    total_count++;
-                            }
-                        }
-                        my_lock.release();
-                    }
-                },
-            ap);
-            for (int i = 0; i < int(read_match_count.size()); i++) {
-                if (!i)
-                    vcf_file_reads_freyja << "AF=";
-                if (i)
-                    vcf_file_reads_freyja << ",";
-                float af = (float)read_match_count[i] / (float)total_count;
-                vcf_file_reads_freyja << std::to_string(af);
-                if (i == int(read_match_count.size() - 1))
-                    vcf_file_reads_freyja << "\n";
-            }
-
-            while (allele_pos <= map.first) {
-                int read_count = 0;
-                int start, end;
-                using my_mutex_t = tbb::queuing_mutex;
-                my_mutex_t my_mutex;
-                static tbb::affinity_partitioner ap;
-                tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
-                    [&](tbb::blocked_range<size_t> k) {
-                        for (size_t s = k.begin(); s < k.end(); ++s) {
-                            auto sample_read = sample_read_list[s];
-                            std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                            std::smatch match;
-                            my_mutex_t::scoped_lock my_lock;
-                            my_lock.acquire(my_mutex);
-                            if (std::regex_search(sample_read->read, match, rgx)) {
-                                start = std::stoi(match[1]);
-                                end = std::stoi(match[2]);
-                                if ((allele_pos >= start) && (allele_pos <= end)) {
-                                        read_count++;
-                                }
-                            }
-                            my_lock.release();
-                        }
-                    },
-                ap);
-                depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos+1) + "\t" + ref_seq[allele_pos-1] + "\t" + std::to_string(read_count) + "\n";
-                allele_pos++;
-            }
-
-
-            if ((map_count == ((int)sample_map.size()-1)) && (misreads_eligible.size())) {
-                vcf_file_reads << vcf_file_read_holder;
-                vcf_file_reads_freyja << vcf_file_read_freyja_holder;
-            }
-            if (map_count == ((int)sample_map.size()-1)) {
-                while (allele_pos < (int)ref_seq.size()) {
-                    int read_count = 0;
-                    int start, end;
-                    using my_mutex_t = tbb::queuing_mutex;
-                    my_mutex_t my_mutex;
-                    static tbb::affinity_partitioner ap;
-                    tbb::parallel_for( tbb::blocked_range<size_t>(0, sample_read_list.size()),
-                        [&](tbb::blocked_range<size_t> k) {
-                            for (size_t s = k.begin(); s < k.end(); ++s) {
-                                auto sample_read = sample_read_list[s];
-                                std::regex rgx(".*READ_(\\w+)_(\\w+).*");
-                                std::smatch match;
-                                my_mutex_t::scoped_lock my_lock;
-                                my_lock.acquire(my_mutex);
-                                if (std::regex_search(sample_read->read, match, rgx)) {
-                                    start = std::stoi(match[1]);
-                                    end = std::stoi(match[2]);
-                                    if ((allele_pos >= start) && (allele_pos <= end)) {
-                                            read_count++;
-                                    }
-                                }
-                                my_lock.release();
-                            }
-                        },
-                    ap);
-                    depth_file_read_freyja_holder += "NC_045512v2\t" + std::to_string(allele_pos+1) + "\t" + ref_seq[allele_pos-1] + "\t" + std::to_string(read_count) + "\n";
-                    allele_pos++;
-                }
-                depth_file_reads_freyja << depth_file_read_freyja_holder;
-            }
-            previous_pos = map.first;
-            map_count ++;
-        }
-
-        fprintf(stderr, "VCFs Written in %ld min\n\n", (timer.Stop() / (60 * 1000)));
-
-        boost::iostreams::close(outbuf_samples);
-        boost::iostreams::close(outbuf_reads);
-        boost::iostreams::close(outbuf_reads_freyja);
-        boost::iostreams::close(outbuf_reads_freyja_depth);
-        outfile_samples.close();
-        outfile_reads.close();
-        outfile_reads_freyja.close();
-        outfile_reads_freyja_depth.close();
     }
    
 
@@ -1194,9 +243,10 @@ void read_sample_vcf(std::vector<std::string> &vcf_samples, const std::string vc
 //Stoe the Reads from the VCF in read_map
 void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std::string vcf_filename_reads) {
     // Boost library used to stream the contents of the input VCF file
+    tbb::concurrent_hash_map<int8_t, std::vector<size_t>> mut_read_map;
+    double ignore_thresh = 0.005;
+
     timer.Start();
-    std::vector<size_t> missing_idx;
-    std::vector<struct read_info*> read_ids;
     std::string s;
     boost::filesystem::ifstream fileHandler(vcf_filename_reads);
     bool header_found = false;
@@ -1205,11 +255,12 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
         MAT::string_split(s, words);
         if (words.size() > 1) {
             //Checking for header
+            size_t field_offset = 9;
             if (words[1] == "POS") {
                 header_found = true;
                 //Leave certain fields based on our VCF format
-                for (size_t j=9; j < words.size(); j++) {
-                    struct read_info * rp = new struct read_info;
+                for (size_t j = field_offset; j < words.size(); j++) {
+                    struct read_info* rp = new struct read_info;
                     rp->read = words[j];
                     //Get start-end positions and depth of the Read
                     std::regex rgx(".*READ_(\\w+)_(\\w+)_(\\w+)");
@@ -1225,8 +276,7 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
                         rp->end = 29903;
                         rp->depth = 1;
                     }
-                    read_ids.emplace_back(rp);
-                    missing_idx.emplace_back(j);
+                    read_map.insert({(j-field_offset), rp});
                 }
             }
             else if (header_found) {
@@ -1234,56 +284,124 @@ void read_vcf(std::unordered_map<size_t, struct read_info*> &read_map, const std
                 alleles.clear();
                 //Checking for different alleles at a site
                 MAT::string_split(words[4], ',', alleles);
-                size_t k = 0;
-                while (k < missing_idx.size()) {
-                    size_t j = missing_idx[k];
-                    auto iter = read_ids.begin();
-                    std::advance(iter, k);
-                    if (iter != read_ids.end()) {
-                        read_map.insert({k, (*iter)});
-                        MAT::Mutation m;
-                        m.chrom = words[0];
-                        m.position = std::stoi(words[1]);
-                        //Checking the mutating allele value within the allele sizes
-                        if (std::stoi(words[j]) > int(alleles.size())) {
-                            fprintf(stderr, "\n\nPosition: %d, k = %ld,\n", m.position, k);
-                            fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
-                        }
-                        m.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                        assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
-                        m.par_nuc = m.ref_nuc;
-                        // Alleles such as '.' should be treated as missing
-                        // data. if the word is numeric, it is an index to one
-                        // of the alleles
-                        if (isdigit(words[j][0])) {
-                            int allele_id = std::stoi(words[j]);
-                            if (allele_id > 0) {
-                                std::string allele = alleles[allele_id-1];
-                                if (allele[0] == 'N') {
-                                    m.is_missing = true;
-                                    m.mut_nuc = MAT::get_nuc_id('N');
-                                } else {
-                                    auto nuc = MAT::get_nuc_id(allele[0]);
-                                    if (nuc == MAT::get_nuc_id('N')) {
-                                        m.is_missing = true;
-                                    } else {
-                                        m.is_missing = false;
-                                    }
-                                    m.mut_nuc = nuc;
-                                }
-                                (*iter)->mutations.emplace_back(m);
+                static tbb::affinity_partitioner ap;
+                tbb::parallel_for(tbb::blocked_range<size_t>(0, read_map.size()),
+                    [&](tbb::blocked_range<size_t> i) {
+                        for (size_t k = i.begin(); k < i.end(); ++k) {
+                            bool mut_present = false;
+                            size_t j = k + field_offset;
+                            auto rp = read_map[k];
+                            MAT::Mutation m;
+                            m.chrom = words[0];
+                            m.position = std::stoi(words[1]);
+                            //Checking the mutating allele value within the allele sizes
+                            if (std::stoi(words[j]) > int(alleles.size())) {
+                                fprintf(stderr, "\n\nPosition: %d, k = %ld,\n", m.position, k);
+                                fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
                             }
-                        } else {
-                            m.is_missing = true;
-                            m.mut_nuc = MAT::get_nuc_id('N');
-                            (*iter)->mutations.emplace_back(m);
+                            m.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                            assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
+                            m.par_nuc = m.ref_nuc;
+                            // Alleles such as '.' should be treated as missing
+                            // data. if the word is numeric, it is an index to one
+                            // of the alleles
+                            if (isdigit(words[j][0])) {
+                                int allele_id = std::stoi(words[j]);
+                                if (allele_id > 0) {
+                                    mut_present = true;
+                                    std::string allele = alleles[allele_id-1];
+                                    if (allele[0] == 'N') {
+                                        m.is_missing = true;
+                                        m.mut_nuc = MAT::get_nuc_id('N');
+                                    } else {
+                                        auto nuc = MAT::get_nuc_id(allele[0]);
+                                        if (nuc == MAT::get_nuc_id('N')) {
+                                            m.is_missing = true;
+                                        } else {
+                                            m.is_missing = false;
+                                        }
+                                        m.mut_nuc = nuc;
+                                    }
+                                    rp->mutations.emplace_back(m);
+                                }
+                                else if ((!allele_id) && (m.position >= rp->start) && (m.position <= rp->end)) {
+                                    m.mut_nuc = m.ref_nuc;
+                                    mut_present = true;
+                                }
+
+                            } else {
+                                mut_present = true;
+                                m.is_missing = true;
+                                m.mut_nuc = MAT::get_nuc_id('N');
+                                rp->mutations.emplace_back(m);
+                            }
+                            
+                            //STORE the number of reads for each nucleotide
+                            if (mut_present) {
+                                tbb::concurrent_hash_map<int8_t, std::vector<size_t>>::accessor ac;
+                                auto created = mut_read_map.insert(ac, {m.mut_nuc, {k}});
+                                if (!created) 
+                                    ac->second.emplace_back(k);
+                                ac.release();
+                            }
                         }
-                    } 
-                    k++;
+                    },
+                ap);
+
+                //UPDATE mutations with read_coverage < ignore_thresh 
+                size_t total_mut_reads = 0, max_mut_reads = 0;
+                int8_t max_nuc = 0b1111;
+                //Get total_mut_reads and max_mut
+                for (const auto& mut_reads: mut_read_map) {
+                    auto curr_reads = mut_reads.second.size();
+                    total_mut_reads += curr_reads;
+                    if (curr_reads > max_mut_reads) {
+                        max_mut_reads = curr_reads;
+                        max_nuc = mut_reads.first;
+                    }
                 }
+                //Update mutation on reads
+                for (const auto& mut_reads: mut_read_map) {
+                    auto curr_reads = mut_reads.second.size();
+                    double coverage_frac = static_cast<double>(curr_reads) / total_mut_reads;
+                    if ((abs(coverage_frac - ignore_thresh) < 1e-9) || (coverage_frac < ignore_thresh)) {
+                        /*
+                            1. If max_nuc is ref_nuc then remove mutation from reads
+                            2. If curr_nuc is ref_nuc then introduce mutation in reads
+                            3. Replace mut_nuc in reads with max_nuc
+                        */
+                        int8_t ref_nuc = MAT::get_nuc_id(words[3][0]);
+                        for (const auto& rd_idx: mut_reads.second) {
+                            auto rp = read_map[rd_idx];
+                            //Remove last added mutation
+                            if (ref_nuc == max_nuc)
+                                rp->mutations.pop_back();
+                            //Introduce mutation
+                            else if (ref_nuc == mut_reads.first) {
+                                MAT::Mutation m;
+                                m.chrom = words[0];
+                                m.position = std::stoi(words[1]);
+                                m.ref_nuc = ref_nuc;
+                                m.par_nuc = m.ref_nuc;
+                                m.is_missing = false;
+                                m.mut_nuc = max_nuc;
+                                rp->mutations.emplace_back(m);
+                            }
+                            //Replace mut_nuc
+                            else {
+                                auto &m = rp->mutations.back();
+                                m.is_missing = false;
+                                m.mut_nuc = max_nuc; 
+                            }
+                            
+                        }
+                    }
+                }
+                mut_read_map.clear();
             }
         }
     }
+
     fprintf(stderr,"%s parsed in %ld sec\n\n", vcf_filename_reads.c_str(), (timer.Stop() / 1000));   
 }
 
