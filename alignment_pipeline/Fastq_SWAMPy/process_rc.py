@@ -4,6 +4,7 @@ if len(sys.argv) != 3:
     print("Usage: python3 process_rc.py <input_sam> <fastq>")
     exit()
 
+unknown_count = 0
 input_sam = sys.argv[1]
 fastq = sys.argv[2]
 out_fastq = fastq[:-6] + "_processed.fastq"
@@ -20,7 +21,12 @@ f.close()
 for i in range(len(sam_lines)):
     lines = sam_lines[i].strip().split('\t')
     read_name = lines[0]
-    flag = int(lines[1])
+    try:
+        flag = int(lines[1])
+    except ValueError:
+        unknown_count += 1
+        read_name = 'Unknown-' + str(unknown_count)
+        flag = int(lines[2])
     
     # Check for reverse complement
     if flag & 16:
