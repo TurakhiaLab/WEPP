@@ -68,7 +68,7 @@ python new_alignment_positions.py intermediate_files/alignment_2.sam intermediat
 
 # Check if include_indels is true
 if [ "$include_indels" = true ]; then
-    python sam_to_vcf.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
+    ./sam_to_vcf intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf 4
 else
     python sam_to_vcf_no_indels.py intermediate_files/alignment_modified.sam $reference_fasta intermediate_files/vcf_unsorted.vcf
 fi
