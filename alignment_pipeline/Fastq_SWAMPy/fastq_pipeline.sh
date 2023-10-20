@@ -48,6 +48,7 @@ fi
 rm -f $3
 
 # Remove intermediate files if they already exist
+rm -rf intermediate_files
 mkdir -p intermediate_files
 
 # Read in the arguments
@@ -74,6 +75,7 @@ else
 fi
 
 ./sort_vcf intermediate_files/vcf_unsorted.vcf intermediate_files/vcf_sorted.vcf
+rm intermediate_files/vcf_unsorted.vcf
 ./group_vcf intermediate_files/vcf_sorted.vcf $output_vcf
 ./generate_freyja_files intermediate_files/vcf_sorted.vcf $reference_fasta $output_vcf_freyja $output_vcf_depth $output_vcf
 
