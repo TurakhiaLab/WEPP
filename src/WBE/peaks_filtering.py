@@ -143,7 +143,7 @@ for lin, abun in lineages.items():
 csv_write_header = ['Haplotype', 'Abundance']
 csv_write_data = np.vstack((haplotypes, abundances)).T
 csv_write_data = np.vstack((csv_write_header, csv_write_data))
-write_csv_file(csv_write_data, file_prefix + "_haploype_abundance.csv")
+write_csv_file(csv_write_data, file_prefix + "_haplotype_abundance.csv")
 
 #Write VCF
 write_vcf_file(file_prefix + "_haplotypes.vcf", mut_hap_matrix, haplotypes, mutations)
