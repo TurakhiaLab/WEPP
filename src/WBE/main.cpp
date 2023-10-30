@@ -34,6 +34,8 @@ int main (int argc, char** argv) {
        detectPeaks(parsed);
     } else if (cmd == "refinePeaks") {
        refinePeaks(parsed);
+    } else if (cmd == "selectHaplotypes") {
+       selectHaplotypes(parsed);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

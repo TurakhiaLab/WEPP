@@ -44,6 +44,8 @@ struct node_pair_clade {
 
 po::variables_map parseWBEcommand(po::parsed_options);
 
+void selectHaplotypes (po::parsed_options);
+
 void filterLineages(po::parsed_options);
 
 void detectPeaks (po::parsed_options);
