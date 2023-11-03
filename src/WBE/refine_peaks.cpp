@@ -70,7 +70,49 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
             itr++;
         }
         printf("Node: %s, Closest_node: %s, mutationDistance: %d\n", sample.c_str(), best_node.c_str(), min_dist);
-        
+    }
+
+    //Samples' avg mut distance from other haplotypes of lineage
+    printf("\n\nINTRA-LINEAGE AVG MUTATION DISTANCE:\n");
+    //Depth first expansion to get all nodes in the tree
+    std::vector<MAT::Node*> dfs = T.depth_first_expansion(); 
+    for (auto sample: vcf_samples) {
+        std::vector<MAT::Node*> hap_list;
+        //Find all haplotypes of the lineage
+        auto curr_clade = getLineage(T, T.get_node(sample));
+        for (auto n: dfs) {
+            if (n->clade_annotations[1] == curr_clade) {
+                std::queue<MAT::Node*> remaining_nodes;
+                remaining_nodes.push(n);
+                while (remaining_nodes.size() > 0) {
+                    MAT::Node* curr_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    if ((curr_node->clade_annotations[1] == "") || (curr_node->clade_annotations[1] == curr_clade)) {
+                        if (curr_node->children.size() == 0)
+                            hap_list.emplace_back(curr_node);
+                        else {
+                            for (auto c: curr_node->children) {
+                                remaining_nodes.push(c);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        //Compute Intra-lineage mutation distance
+        double avg_distance = 0.0;
+        auto sample_mutations = getMutations(T, sample);
+        for (auto hap: hap_list) {
+            std::string hap_name = hap->identifier;
+            if (hap_name != sample) {
+                auto hap_mutations = getMutations(T, hap_name);
+                avg_distance += mutationDistance(sample_mutations, hap_mutations);
+            }
+        }
+        avg_distance /= (int)hap_list.size() - 1;
+        hap_list.clear();
+        printf("Node: %s, avg_mutation_distance: %f\n", sample.c_str(), avg_distance);
     }
 }
 
