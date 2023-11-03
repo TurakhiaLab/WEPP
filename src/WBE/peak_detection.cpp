@@ -88,8 +88,11 @@ void analyzeReads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::unorder
     //Initializing remaining_reads
     for (size_t i = 0; i < read_map.size(); i++)
         remaining_reads[i] = i;
+    
+    //PREVENTS "DUMMY-OG" from becoming a Peak 
+    prohibited_nodes.emplace_back(T.root);
 
-    //Iterate till no reads left
+    //ITERATE till no reads left
     while ((int)remaining_reads.size() > 0) {
         printf("\n");
         fprintf(stderr, "\n");
@@ -391,9 +394,6 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::vecto
                 //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
                 MAT::Node* anc_node = NULL;
                 for (const auto& n: T.rsearch(peak->identifier, true)) {
-                    //PREVENTS addition of "DUMMY-OG" root node 
-                    if (n == T.root)
-                        break;
                     int m_dist = mutationDistance(T, T, n, peak);
                     if (m_dist <= neighbor_dist_thresh)
                         anc_node = n;
