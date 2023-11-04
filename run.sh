@@ -8,6 +8,11 @@ cd ../
 wbe filterLineages -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v my_vcf -f test/NC_045512v2.fa
 echo -e "\nFREYJA - LINEAGE FILTER"
 python src/WBE/peaks_filtering.py my_vcf
+mv my_vcf_haplotype_abundance.csv my_vcf_haplotypeLINEAGE_abundance.csv
+mv my_vcf_haplotypes.vcf my_vcf_haplotypesLINEAGE.vcf
+mv my_vcf_peaks.vcf my_vcf_peaksLINEAGE.vcf
+mv my_vcf_barcode.csv my_vcf_barcodeLINEAGE.csv
+
 wbe detectPeaks -T 48 -i public-2021-05-31.all.masked.nextclade.pangolin.pb -v my_vcf -f test/NC_045512v2.fa
 echo -e "\nFREYJA - PEAKS FILTER"
 python src/WBE/peaks_filtering.py my_vcf
