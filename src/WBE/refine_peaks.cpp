@@ -49,6 +49,49 @@ void refinePeaks(po::parsed_options parsed) {
     readSampleVCF(vcf_samples, vcf_filename_samples);
     readVCF(hap_map, hap_vcf_filename, ref_seq.size(), false);
     computeDistance(T, hap_map, vcf_samples);
+
+    ///////////////////////////////
+    std::vector<std::string> clade_list = {
+"B.1.1.28",
+"B.1.429",
+"P.1",
+"B.1.177.50",
+"B.11",
+"B.1.160",
+"B.1.426",
+"R.1",
+"B.1.160.7",
+"B.1.177.7",
+"B.1.243",
+"B.61"
+    };
+
+    int hap_count = 0;
+    std::vector<MAT::Node*> dfs = T.depth_first_expansion(); 
+    for (const auto& curr_clade: clade_list) {
+        for (auto n: dfs) {
+            if (n->clade_annotations[1] == curr_clade) {
+                std::queue<MAT::Node*> remaining_nodes;
+                remaining_nodes.push(n);
+                while (remaining_nodes.size() > 0) {
+                    MAT::Node* curr_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    if ((curr_node->clade_annotations[1] == "") || (curr_node->clade_annotations[1] == curr_clade)) {
+                        if (curr_node->children.size() == 0)
+                            hap_count++;
+                        else {
+                            for (auto c: curr_node->children) {
+                                remaining_nodes.push(c);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+    }
+    fprintf(stderr, "HAP count = %d\n", hap_count);
 }
 
 //Computes distance between peaks and given samples
@@ -114,58 +157,4 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         hap_list.clear();
         printf("Node: %s, avg_mutation_distance: %f\n", sample.c_str(), avg_distance);
     }
-}
-
-//Function to calculation distance between two nodes
-int mutationDistance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
-    std::sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
-    std::sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-    auto n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        bool found_both = false;
-        auto n2_itr = node2_mutations.begin();
-        while (n2_itr != node2_mutations.end()) {
-            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-                node2_mutations.erase(n2_itr);
-                found_both = true;
-                break;
-            }
-            else if (n2_itr->position == n1_itr->position) {
-                node2_mutations.erase(n2_itr);
-                break;
-            }
-            n2_itr++;
-        }
-        if (found_both)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
-    }
-    return (int)(node1_mutations.size() + node2_mutations.size());
-}
-
-//Getting all mutations of a haplotype
-std::vector<MAT::Mutation> getMutations(const MAT::Tree& T, const std::string sample) {
-    std::vector<MAT::Mutation> sample_mutations;
-    for (auto anc: T.rsearch(sample, true)) { //Checking all ancestors of a node
-        for (auto mut: anc->mutations) {
-            auto sm_itr = sample_mutations.begin();
-            while (sm_itr != sample_mutations.end()) {
-                if (sm_itr->position == mut.position)
-                    break;
-                sm_itr++;
-            }
-            if (sm_itr == sample_mutations.end())
-                sample_mutations.emplace_back(mut);
-        }
-    }
-    //Remove Back-Mutations
-    auto sm_itr = sample_mutations.begin();
-    while (sm_itr != sample_mutations.end()) {
-        if (sm_itr->ref_nuc == sm_itr->mut_nuc)
-            sm_itr = sample_mutations.erase(sm_itr);
-        else
-            sm_itr++;
-    }
-    return sample_mutations;
 }
