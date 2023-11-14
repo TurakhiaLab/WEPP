@@ -63,9 +63,7 @@ void refinePeaks(po::parsed_options parsed) {
             std::string condensed_name = hm.second->read.substr(0, last_underscore);
             auto node_names_list = condensed_nodeNames_map[condensed_name];
             for (size_t i = 0 ; i < node_names_list.size(); i++) {
-                auto full_name = node_names_list[i];
-                last_underscore = full_name.find_last_of('_');
-                auto node_name  = full_name.substr(0, last_underscore);
+                auto node_name = node_names_list[i];
                 if (!i)
                     hm.second->read = node_name;
                 else {
@@ -79,6 +77,7 @@ void refinePeaks(po::parsed_options parsed) {
     }
 
     computeDistance(T, hap_map, vcf_samples);
+
     ////////////////////////////////////////////////////REMOVE
     ////readVCF(read_map, vcf_filename_reads, ref_seq.size(), false);
     //readCSV(hap_abun_map, hap_csv_filename);
