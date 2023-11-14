@@ -49,7 +49,7 @@ void detectPeaks (po::parsed_options parsed) {
     readSampleVCF(vcf_samples, vcf_filename_samples);
     //Get the input reads data
     std::unordered_map<size_t, struct read_info*> read_map;
-    readVCF(read_map, vcf_filename_reads, ref_seq.size(), false);
+    readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     
     //CREATE new tree containg only selected_lineage_list
     //Get haplotype abundances and condensed node names
