@@ -119,7 +119,7 @@ file_prefix = sys.argv[1]
 barcode_file_path = file_prefix + "_barcode.csv"
 mutations, haplotypes, hap_mut_matrix = read_barcode_csv_file(barcode_file_path)
 
-vcf_file = file_prefix + "_peaks.vcf"
+vcf_file = file_prefix + "_read_data.vcf"
 af_values, depth_values = read_vcf_file(vcf_file)
 
 #Solving abundance

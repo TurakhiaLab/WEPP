@@ -209,6 +209,30 @@ void readCSV(std::unordered_map<std::string, double>& hap_abun_map, const std::s
     file.close();
 }
 
+//Function to read csv containing condensed nodes
+void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condensed_nodes_map, const std::string &condensed_nodes_csv) {
+    std::ifstream file(condensed_nodes_csv);
+    if (!file.is_open()) {
+        std::cout << "Failed to open the csv file" << std::endl;
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::vector<std::string> node_name_list;
+        std::string key;
+        if (std::getline(iss, key, ',')) {
+            std::string node_name;
+            while (std::getline(iss, node_name, ','))
+                node_name_list.emplace_back(node_name);
+        }
+        condensed_nodes_map[key] = node_name_list;
+        node_name_list.clear();
+    }
+    file.close();
+}
+
 //PLACING reads using small range trees
 void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<size_t, struct read_info*>& read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*>& peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double>& node_score_map, std::vector<size_t>& remove_reads, const int& seq_len, const int& tree_increment, const int& tree_range) {
     static tbb::affinity_partitioner ap;
@@ -663,8 +687,8 @@ int mutationDistance(const MAT::Tree &T1, const MAT::Tree &T2, const MAT::Node* 
 
 //Function to calculation distance between two nodes
 int mutationDistance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
-    std::sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
-    std::sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
+    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
+    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
     auto n1_itr = node1_mutations.begin();
     while (n1_itr != node1_mutations.end()) {
         bool found_both = false;
@@ -776,9 +800,12 @@ size_t getNumLeaves(const MAT::Tree &T, MAT::Node* node) {
     return leaves.size();
 }
 
-//Comparing mutations for sorting a vector 
+//Comparing mutations for sorting a mutation vector 
 bool compareMutations(const MAT::Mutation &a, const MAT::Mutation &b) {
-    return a.position < b.position;
+    if (a.position != b.position)
+        return a.position < b.position;
+    else
+        return a.mut_nuc < b.mut_nuc;
 }
 
 //Get MAT within range
@@ -1097,11 +1124,127 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::vecto
     return final_neighbors;
 }
 
-//Generate regression based estimate algorithm data
-void generateFilteringData(const MAT::Tree &T, const std::vector<MAT::Node*> &peak_nodes, const std::unordered_map<size_t, struct read_info*> &read_map, const std::string &barcode_file, const std::string &read_mutation_depth_vcf) {
+//Add neighboring nodes to peaks
+void addNeighborNodes(const MAT::Tree &T, std::vector<MAT::Node*> &peak_nodes, const int &neighbor_dist_thresh, const int &neighbor_peaks_thresh) {
     timer.Start();
-    //Get Mutations of Peaks for deconvolution method
-    //Create a map of peak node mutations 
+    std::vector<MAT::Node*> neighbor_nodes;
+    using my_mutex_t = tbb::queuing_mutex;
+    my_mutex_t my_mutex;
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                MAT::Node* peak = peak_nodes[i];
+                int neighbor_added = 0, branch_length_limit = 0, feasible_branch_length = 0;
+                std::vector<MAT::Node*> prev_visited_nodes;
+                
+                //Keep looking for neighbors until neighbors added == neighbor_peaks_thresh AND neighbors within branch_length_limit 
+                while ((neighbor_added < neighbor_peaks_thresh) && (feasible_branch_length == branch_length_limit)) {
+                    // 1. Search children nodes within branch_length_limit
+                    branch_length_limit++;
+                    auto curr_node = peak;
+                    int curr_branch_length = 0;
+                    feasible_branch_length = childNodesAddition(T, my_mutex, peak_nodes, neighbor_nodes, neighbor_added, prev_visited_nodes, peak, curr_node, curr_branch_length, branch_length_limit, neighbor_peaks_thresh, neighbor_dist_thresh);
+                    
+                    // 2. Search parent nodes within branch_length_limit
+                    while ((curr_branch_length < branch_length_limit) && (neighbor_added < neighbor_peaks_thresh)) {
+                        if (curr_node->parent == NULL)
+                            break;
+                        curr_node = curr_node->parent;
+                        curr_branch_length++;
+                        int temp_feasible_branch_length = childNodesAddition(T, my_mutex, peak_nodes, neighbor_nodes, neighbor_added, prev_visited_nodes, peak, curr_node, curr_branch_length, branch_length_limit, neighbor_peaks_thresh, neighbor_dist_thresh);
+                        if (temp_feasible_branch_length > feasible_branch_length)
+                            feasible_branch_length = temp_feasible_branch_length;
+                    }
+                }
+                prev_visited_nodes.clear();
+            }
+        },
+    ap);
+    
+    //Reserve more memory to ensure there are no segmentation faults
+    peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
+    peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
+    neighbor_nodes.clear();
+    printf("\nPost neighbor adding PEAK nodes: %d\n", (int)peak_nodes.size());
+    fprintf(stderr, "\nNeighbor addition done in %ld sec\n", (timer.Stop()/1000));
+}
+
+//Function to search for child nodes within given branch length
+int childNodesAddition(const MAT::Tree &T, my_mutex_t& my_mutex, const std::vector<MAT::Node*>& peak_nodes, std::vector<MAT::Node*>& neighbor_nodes, int& neighbor_added, std::vector<MAT::Node*>& prev_visited_nodes, MAT::Node* peak, MAT::Node* init_node, const int& init_branch_length, const int& branch_length_thresh, const int& neighbor_peaks_thresh, const int& neighbor_dist_thresh) {
+    std::vector<MAT::Node*> selected_neighbors;
+    std::queue<struct node_branch> remaining_nodes_branch;
+    struct node_branch init_node_branch = {init_node, init_branch_length};
+    remaining_nodes_branch.push(init_node_branch);
+    int last_branch_length = -1;
+    
+    //Conditions to check: neighbor_peaks_thresh, neighbor_dist_thresh, {prev_visited_nodes, neighbor_nodes}, branch_length_thresh 
+    while(remaining_nodes_branch.size() > 0) {
+        struct node_branch curr_node_branch = remaining_nodes_branch.front();
+        remaining_nodes_branch.pop();
+        //Only analyze if neighbor_peaks_thresh NOT reached
+        if (neighbor_added < neighbor_peaks_thresh) {
+            int m_dist = mutationDistance(T, T, curr_node_branch.node, peak);
+            //Only analyze nodes and their children within neighbor_dist_thresh
+            if (m_dist <= neighbor_dist_thresh) {
+                last_branch_length = curr_node_branch.branch_length;
+                //Do further checks on this node if NOT analyzed before
+                if (std::find(prev_visited_nodes.begin(), prev_visited_nodes.end(), curr_node_branch.node) == prev_visited_nodes.end()) {
+                    prev_visited_nodes.emplace_back(curr_node_branch.node);
+                    bool found = false;
+                    //Check if a peak with same mutations is NOT already present
+                    //Not going for exact node match as we want single representative of mutation vector
+                    for (const auto& hap: peak_nodes) {
+                        int mut_dist = mutationDistance(T, T, hap, curr_node_branch.node);
+                        if (!mut_dist) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    //Check if neighbor peak with same mutations is already accounted
+                    if (!found) {
+                        my_mutex_t::scoped_lock my_lock{my_mutex};
+                        for (const auto& hap: neighbor_nodes) {
+                            int mut_dist = mutationDistance(T, T, hap, curr_node_branch.node);
+                            if (!mut_dist) {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    //Only add if similar node hasn't been accounted
+                    if (!found) {
+                        my_mutex_t::scoped_lock my_lock;
+                        my_lock.acquire(my_mutex);
+                        neighbor_nodes.emplace_back(curr_node_branch.node);
+                        my_lock.release();
+                        neighbor_added++;
+                    }
+                }
+                //Only add current node's children in list if within branch_length_thresh
+                auto child_branch_length = curr_node_branch.branch_length + 1;
+                if (child_branch_length <= branch_length_thresh) {
+                    for (auto child: curr_node_branch.node->children) {
+                        struct node_branch child_node_branch = {child, child_branch_length};
+                        remaining_nodes_branch.push(child_node_branch);
+                    }
+                }
+            }
+        }
+
+        //Stop checking for neighbors if neighbor_added == neighbor_peak_thresh
+        else {
+            while (!remaining_nodes_branch.empty())
+                remaining_nodes_branch.pop();
+        }
+    }
+    return last_branch_length;
+}
+
+//Generate regression based estimate algorithm data
+void generateFilteringData(const MAT::Tree &T, const std::string &ref_seq, const std::vector<MAT::Node*> &peak_nodes, const std::unordered_map<size_t, struct read_info*> &read_map, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
+    timer.Start();
+    //MAP of peak_node mutations 
     tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>> peak_mut_map;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
@@ -1137,161 +1280,275 @@ void generateFilteringData(const MAT::Tree &T, const std::vector<MAT::Node*> &pe
             }
         },
     ap);
-
-    //REMOVE the mutations that are common to all peak nodes
-    auto ref_pk_itr = peak_mut_map.begin();
-    //Iterating though mutations of ref_peak;
-    auto ref_mut_itr = ref_pk_itr->second.begin();
-    while (ref_mut_itr != ref_pk_itr->second.end()) {
-        int common_mut_count = 1;
-        //Iterating through rest of peak nodes
-        auto peak_itr = std::next(ref_pk_itr,1);
-        while (peak_itr != peak_mut_map.end()) {
-            //Iterating though mutations of rest of peaks;
-            auto cmp_mut_itr = peak_itr->second.begin();
-            while (cmp_mut_itr != peak_itr->second.end()) {
-                if ((cmp_mut_itr->position == ref_mut_itr->position) && (cmp_mut_itr->mut_nuc == ref_mut_itr->mut_nuc)) {
-                    common_mut_count++;
-                    break;
+    
+    //MAP of site_read
+    std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_read_map;
+    for (size_t i = 0; i < read_map.size(); ++i) {
+        auto rp = read_map.find(i)->second;
+        auto nuc_pos = rp->start;
+        for (const auto& mut: rp->mutations) {
+            //Store the coverage of nucleotides leading up to the mutating nucleotide
+            while (nuc_pos < mut.position) {
+                char curr_nuc = ref_seq[nuc_pos-1];
+                if (site_read_map.find(nuc_pos) == site_read_map.end()) 
+                    site_read_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                else {
+                    bool found = false;
+                    for (size_t vec_idx = 0; vec_idx < site_read_map[nuc_pos].size(); vec_idx++) {
+                        if (site_read_map[nuc_pos][vec_idx].first == curr_nuc) {
+                            site_read_map[nuc_pos][vec_idx].second++;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                        site_read_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
                 }
-                cmp_mut_itr++;
+                nuc_pos++;
             }
-            //If mutation not found then don't check rest of peaks
-            if (cmp_mut_itr == peak_itr->second.end())
-                break;
-            peak_itr++;
-        }
-        //Remove common mutation across all peaks
-        if (common_mut_count == (int)peak_mut_map.size()) {
-            //Iterating through rest of peak nodes
-            peak_itr = std::next(ref_pk_itr,1);
-            while (peak_itr != peak_mut_map.end()) {
-                //Iterating though mutations of rest of peaks;
-                auto cmp_mut_itr = peak_itr->second.begin();
-                while (cmp_mut_itr != peak_itr->second.end()) {
-                    if ((cmp_mut_itr->position == ref_mut_itr->position) && (cmp_mut_itr->mut_nuc == ref_mut_itr->mut_nuc)) {
-                        peak_itr->second.erase(cmp_mut_itr);
+            //Store the coverage of mutating nucleotide
+            char curr_nuc = MAT::get_nuc(mut.mut_nuc);
+            if (site_read_map.find(mut.position) == site_read_map.end()) 
+                site_read_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+            else {
+                bool found = false;
+                for (size_t vec_idx = 0; vec_idx < site_read_map[mut.position].size(); vec_idx++) {
+                    if (site_read_map[mut.position][vec_idx].first == curr_nuc) {
+                        site_read_map[mut.position][vec_idx].second++;
+                        found = true;
                         break;
                     }
-                    cmp_mut_itr++;    
                 }
-                peak_itr++;
+                if (!found)
+                    site_read_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
             }
-            //Erase mutation in ref peak as well
-            ref_mut_itr = ref_pk_itr->second.erase(ref_mut_itr);
+            nuc_pos++;
         }
-        else 
-            ref_mut_itr++;
+        //Store the coverage of nucleotide remaining after mutating ones
+        while (nuc_pos <= rp->end) {
+            char curr_nuc = ref_seq[nuc_pos-1]; 
+            if (site_read_map.find(nuc_pos) == site_read_map.end()) 
+                site_read_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+            else {
+                bool found = false;
+                for (size_t vec_idx = 0; vec_idx < site_read_map[nuc_pos].size(); vec_idx++) {
+                    if (site_read_map[nuc_pos][vec_idx].first == curr_nuc) {
+                        site_read_map[nuc_pos][vec_idx].second++;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    site_read_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+            }
+            nuc_pos++;
+        }
     }
+
+    //REMOVE mutation sites not covered by site_read_map
+    using rwmutex_t = tbb::queuing_rw_mutex;
+    rwmutex_t my_mutex_rw;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::accessor ac;
+                auto pk = peak_nodes[i];
+                if (peak_mut_map.find(ac, pk)) {
+                    //Iterate through mutations of each peak and REMOVE the mutations not found
+                    auto mut_itr = ac->second.begin();
+                    while (mut_itr != ac->second.end()) {
+                        std::unordered_map<int, std::vector<std::pair<char, size_t>>>::iterator sr_itr;
+                        {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
+                            sr_itr = site_read_map.find(mut_itr->position);
+                        }
+                        //Remove mutation site if NOT covered by reads
+                        if (sr_itr == site_read_map.end()) {
+                            mut_itr = ac->second.erase(mut_itr);
+                        }
+                        //Add nucleotide if NOT present in site_read_map
+                        else {
+                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
+                            sr_itr = site_read_map.find(mut_itr->position);
+                            if (sr_itr->second.size() < 4) {
+                                bool found = false;
+                                for (size_t vec_idx = 0; vec_idx < sr_itr->second.size(); vec_idx++) {
+                                    if (sr_itr->second[vec_idx].first == MAT::get_nuc(mut_itr->mut_nuc)) {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found)
+                                    sr_itr->second.emplace_back(std::make_pair(MAT::get_nuc(mut_itr->mut_nuc), 0));
+                            }
+                            mut_itr++;
+                        }
+                    }
+                    //SORT peak mutations
+                    tbb::parallel_sort(ac->second.begin(), ac->second.end(), compareMutations);
+                } 
+            }
+        },
+    ap);
+
+    timer.Start();
+    //MAP of unique peaks
+    std::unordered_map<std::string, std::vector<MAT::Node*>> mut_condensedPeaks_map;
+    auto ref_pk_itr = peak_mut_map.begin();
+    auto curr_idx = 0;
+    while (ref_pk_itr != peak_mut_map.end()) {
+        //STORING mutations of first peak as they're unique
+        std::string peak_muts;
+        for (const auto& mut: ref_pk_itr->second)
+            peak_muts += "_" + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
+        mut_condensedPeaks_map[peak_muts] = {ref_pk_itr->first};
+        //Iterating through rest of peak nodes
+        auto cmp_pk_itr = std::next(ref_pk_itr, 1);
+        while (cmp_pk_itr != peak_mut_map.end()) {
+            //Check if cmp_pk_itr has already been accounted
+            if (ref_pk_itr->second.size() == cmp_pk_itr->second.size()) {
+                bool found = false;
+                auto mcp_itr = mut_condensedPeaks_map.begin();
+                while (mcp_itr != mut_condensedPeaks_map.end()) {
+                    tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::const_accessor k_ac;
+                    peak_mut_map.find(k_ac, mcp_itr->second.front());
+                    if (k_ac->second.size() == cmp_pk_itr->second.size()) {
+                        if (std::find(mcp_itr->second.begin(), mcp_itr->second.end(), cmp_pk_itr->first) != mcp_itr->second.end()) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    mcp_itr++;
+                }
+                if (!found) {
+                    int peak_dist = mutationDistance(ref_pk_itr->second, cmp_pk_itr->second);
+                    if (!peak_dist)
+                        mut_condensedPeaks_map[peak_muts].emplace_back(cmp_pk_itr->first);
+                }
+            }
+            cmp_pk_itr++;
+        }
+
+        //Moving to next peak
+        ref_pk_itr++;
+        while (ref_pk_itr != peak_mut_map.end()) {
+            curr_idx++;
+            //Check if next ref_pk_itr already been accounted
+            bool found = false;
+            auto mcp_itr = mut_condensedPeaks_map.begin();
+            while (mcp_itr != mut_condensedPeaks_map.end()) {
+                tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::const_accessor k_ac;
+                peak_mut_map.find(k_ac, mcp_itr->second.front());
+                if (k_ac->second.size() == ref_pk_itr->second.size()) {
+                    if (std::find(mcp_itr->second.begin(), mcp_itr->second.end(), ref_pk_itr->first) != mcp_itr->second.end()) {
+                        found = true;
+                        break;
+                    }
+                }
+                mcp_itr++;
+            }
+            if (found)
+                ref_pk_itr++;
+            else
+                break;
+        }
+        peak_muts.clear();
+    }
+    peak_mut_map.clear();
 
     //Initialize the buffers for writing files
     std::ofstream outfile_barcode(barcode_file, std::ios::out | std::ios::binary);
     std::ofstream outfile_vcf(read_mutation_depth_vcf, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_barcode, outbuf_vcf;
+    std::ofstream outfile_condensed(condensed_nodes_csv, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_barcode, outbuf_vcf, outbuf_condensed_nodes;
     if (barcode_file.find(".gz\0") != std::string::npos) {
             outbuf_barcode.push(boost::iostreams::gzip_compressor());
     }
     if (read_mutation_depth_vcf.find(".gz\0") != std::string::npos) {
             outbuf_vcf.push(boost::iostreams::gzip_compressor());
     }
+    if (condensed_nodes_csv.find(".gz\0") != std::string::npos) {
+            outbuf_condensed_nodes.push(boost::iostreams::gzip_compressor());
+    }
     outbuf_barcode.push(outfile_barcode);
     outbuf_vcf.push(outfile_vcf);
+    outbuf_condensed_nodes.push(outfile_condensed);
     std::ostream barcode(&outbuf_barcode);
     std::ostream vcf(&outbuf_vcf);
-
-    //ADD unique mutations captured from readVCF first
-    std::vector<MAT::Mutation> peak_mut_list;
-    auto rm_itr = read_map.begin();
-    while (rm_itr != read_map.end()) {
-        for (auto read_mut: rm_itr->second->mutations) {
-            auto pm_itr = peak_mut_list.begin();
-            while (pm_itr != peak_mut_list.end()) {
-                if ((pm_itr->position == read_mut.position) && (pm_itr->mut_nuc == read_mut.mut_nuc))
-                    break;
-                pm_itr++;
-            }
-            if (pm_itr == peak_mut_list.end())
-                peak_mut_list.emplace_back(read_mut);
-        }
-        rm_itr++;
-    }
-
-    //Storing unique mutations from the peak nodes
-    auto peak_mut_itr = peak_mut_map.begin();
-    while (peak_mut_itr != peak_mut_map.end()) {
-        //Iterating through mutations of current peak
-        auto mut_itr = peak_mut_itr->second.begin();
-        while (mut_itr != peak_mut_itr->second.end()) {
-            //Only add unique mutations to the list
-            auto pm_itr = peak_mut_list.begin();
-            while (pm_itr != peak_mut_list.end()) {
-                if ((pm_itr->position == mut_itr->position) && (pm_itr->mut_nuc == mut_itr->mut_nuc))
-                    break;
-                pm_itr++;                
-            }
-            if (pm_itr == peak_mut_list.end())
-                peak_mut_list.emplace_back(*mut_itr);
-            mut_itr++;
-        }
-        peak_mut_itr++;
-    }
-    //VCF needs mutations in sorted order
-    tbb::parallel_sort(peak_mut_list.begin(), peak_mut_list.end(), compareMutations);
+    std::ostream condensed(&outbuf_condensed_nodes);
+    
     //WRITING the header mutations in barcode file and complete VCF
-    std::string barcode_print, vcf_print;
+    std::vector<std::pair<int, char>> read_mutations_list; 
+    std::string barcode_print, vcf_print, condensed_print;
     vcf_print += "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tDEPTH\n";
-    for (auto mut: peak_mut_list) {
-        //Write the mutations header in barcode file
-        barcode_print += ",";
-        barcode_print += MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
-        //Calculate AF
-        int total_reads = 0;
-        int match_reads = 0;
-        auto rm_itr = read_map.begin();
-        while (rm_itr != read_map.end()) {
-            if ((mut.position >= rm_itr->second->start) && (mut.position <= rm_itr->second->end)) {
-                total_reads++;
-                for (auto read_mut: rm_itr->second->mutations) {
-                    if ((read_mut.position == mut.position) && (read_mut.mut_nuc == mut.mut_nuc)) {
-                        match_reads++;
-                        break;
-                    }
+    for (int i = 1; i < (int)ref_seq.size(); i++) {
+        if (site_read_map.find(i) != site_read_map.end()) {
+            //Calculate AF
+            int total_reads = 0;
+            //Iterate through all observed alleles at given position
+            for (const auto& mut_count: site_read_map[i])
+                total_reads += mut_count.second;
+            for (const auto& mut_count: site_read_map[i]) {
+                //Only consider mutating nucleotides
+                auto par_nuc = ref_seq[i-1];
+                if (mut_count.first != par_nuc) {
+                    //Write the mutations header in barcode file
+                    barcode_print += ",";
+                    barcode_print += par_nuc + std::to_string(i) + mut_count.first;
+                    read_mutations_list.emplace_back(std::make_pair(i, mut_count.first));
+                    float af = (float)mut_count.second / (float)total_reads;
+                    vcf_print += "NC_045512v2\t" + std::to_string(i) + "\t" + par_nuc + std::to_string(i) + mut_count.first + "\t" + par_nuc + "\t" + mut_count.first + "\t.\t.\tAF=";
+                    vcf_print += std::to_string(af) + "\t" + std::to_string(total_reads) + "\n";
                 }
             }
-            rm_itr++;
         }
-        float af = 0.0;
-        if (total_reads > 0)
-            af = (float)match_reads / (float)total_reads;
-        vcf_print += "NC_045512v2\t" + std::to_string(mut.position) + "\t" + MAT::get_nuc(mut.par_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc) + "\t" + MAT::get_nuc(mut.par_nuc) + "\t" + MAT::get_nuc(mut.mut_nuc) + "\t.\t.\tAF=";
-        vcf_print += std::to_string(af) + "\t" + std::to_string(total_reads) + "\n";
     } 
     vcf << vcf_print;
     vcf_print.clear();
 
     //WRITING peak mutations in barcode
-    peak_mut_itr = peak_mut_map.begin();
-    while (peak_mut_itr != peak_mut_map.end()) {
+    size_t uniq_condensedPeak_count = 0;
+    auto mut_pk_itr = mut_condensedPeaks_map.begin();
+    while (mut_pk_itr != mut_condensedPeaks_map.end()) {
         //Write peak name in barcode file
         barcode_print += "\n";
-        barcode_print += peak_mut_itr->first->identifier + "_" + getLineage(T, peak_mut_itr->first);
-        //Iterating through mutations of this peak to store indices its mutations from peak_mut_list
-        std::vector<size_t> mut_idx_list;
-        auto mut_itr = peak_mut_itr->second.begin();
-        while (mut_itr != peak_mut_itr->second.end()) {
-            //Search for mutation in the peak_mut_list
-            auto pm_itr = peak_mut_list.begin();
-            while (pm_itr != peak_mut_list.end()) {
-                if ((pm_itr->position == mut_itr->position) && (pm_itr->mut_nuc == mut_itr->mut_nuc))
-                    break;
-                pm_itr++;                
-            }
-            mut_idx_list.emplace_back(pm_itr - peak_mut_list.begin());
-            mut_itr++;
+        if (mut_pk_itr->second.size() > 1) {
+            barcode_print += "CONDENSED-" + std::to_string(++uniq_condensedPeak_count) + "_" + getLineage(T, mut_pk_itr->second.front());
+            condensed_print += "CONDENSED-" + std::to_string(uniq_condensedPeak_count);
+            for (const auto& condensed_node: mut_pk_itr->second)
+                condensed_print += "," + condensed_node->identifier + "_" + getLineage(T, condensed_node);
+            condensed_print += "\n";
         }
-        //Sort the mutation indexes before writing to barcode
-        tbb::parallel_sort(mut_idx_list.begin(), mut_idx_list.end());
-        
+        else
+            barcode_print += mut_pk_itr->second.front()->identifier + "_" + getLineage(T, mut_pk_itr->second.front());
+        //Iterating through mutations of this peak to store indices of its mutations from read_mutations_list
+        std::vector<size_t> mut_idx_list;
+        std::string peak_muts = mut_pk_itr->first;
+        // Define a regular expression pattern for matching the desired substrings
+        std::regex pattern("_([0-9]+)([A-Za-z])");
+        // Create an iterator pointing to the beginning of the string
+        std::sregex_iterator regex_iter(peak_muts.begin(), peak_muts.end(), pattern);
+        // Create an iterator pointing to the end of the string
+        std::sregex_iterator end;
+        // Iterate over matches and print the captured substrings
+        while (regex_iter != end) {
+            std::smatch match = *regex_iter;
+            // Convert the captured substrings to int and char
+            int mut_position = std::stoi(match.str(1));
+            char mut_nuc = match.str(2)[0];  // Extract the first character
+            //Search for mutation in read_mutations_list
+            auto rm_itr = std::find(read_mutations_list.begin(), read_mutations_list.end(), std::make_pair(mut_position, mut_nuc));
+            if (rm_itr != read_mutations_list.end())
+                mut_idx_list.emplace_back(rm_itr - read_mutations_list.begin());
+            else {
+                if (site_read_map.find(mut_position) != site_read_map.end())
+                    fprintf(stderr, "%d%c: NOT found in read_mutations_list \n", mut_position, mut_nuc);
+                else
+                    fprintf(stderr, "%d%c: NOT found in site_read_map\n", mut_position, mut_nuc);
+            }
+            regex_iter++;
+        }
+
         //Write peak mutations in barcode file
         size_t idx = 0;
         for (const auto& m_idx: mut_idx_list) {
@@ -1304,15 +1561,17 @@ void generateFilteringData(const MAT::Tree &T, const std::vector<MAT::Node*> &pe
                 idx++;
             }
         }
-        while (idx < peak_mut_list.size()) {
+        while (idx < read_mutations_list.size()) {
             barcode_print += ",0";
             idx++;
         }
         mut_idx_list.clear();
-        peak_mut_itr++;
+        mut_pk_itr++;
     }
     barcode << barcode_print;
+    condensed << condensed_print;
     barcode_print.clear();
+    condensed_print.clear();
         
     fprintf(stderr,"Barcode and VCF file writing took %ld sec\n\n", (timer.Stop() / 1000));
 }
