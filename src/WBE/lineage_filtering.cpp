@@ -55,7 +55,8 @@ void filterLineages (po::parsed_options parsed) {
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string mismatch_matrix_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_mismatch_matrix.csv";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
-    std::string read_mutation_depth_vcf = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_peaks.vcf";
+    std::string condensed_nodes_csv = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_condensed_nodes.csv";
+    std::string read_mutation_depth_vcf = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_read_data.vcf";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -140,5 +141,5 @@ void filterLineages (po::parsed_options parsed) {
     lineage_node_map.clear();
     fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
     
-    generateFilteringData(T, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf);
+    generateFilteringData(T, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }
