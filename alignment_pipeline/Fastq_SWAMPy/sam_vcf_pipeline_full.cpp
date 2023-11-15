@@ -1,0 +1,273 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
+#include <set>
+#include <regex>
+#include <thread>
+#include <mutex>
+#include <cstdlib>
+#include <omp.h>
+
+struct Variant {
+    std::string ref_name;
+    int position;
+    std::string ref_base;
+    std::map<std::string, int> alt_bases;
+    std::map<std::string, std::set<std::string>> read_names;
+};
+
+std::string read_reference(const std::string& reference_file) {
+    std::ifstream file(reference_file);
+    std::string line, ref_genome = "";
+    
+    while (std::getline(file, line)) {
+        if (line.rfind('>', 0) == 0) continue; // Skip line if it starts with '>'
+        ref_genome += line;
+    }
+    
+    file.close();
+    return ref_genome;
+}
+
+std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::string& mdz, const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome) {
+    std::vector<std::tuple<int, std::string, std::string>> mismatches;
+    std::regex token_regex(R"((\d+|\^[A-Z]+|[A-Z]))");
+    std::sregex_iterator tokens(mdz.begin(), mdz.end(), token_regex), end;
+
+    int read_pos = 0, ref_pos = pos;
+
+    std::regex cigar_regex(R"((\d+)([MIDNSHPX=]))");
+    std::sregex_iterator cigar_tokens(cigar.begin(), cigar.end(), cigar_regex);
+
+    for (; tokens != end; ++tokens) {
+        std::string token = (*tokens)[1];
+        if (token.find('^') != std::string::npos) { // deletion
+            int del_len = token.length() - 1;
+            ref_pos += del_len;
+            mismatches.emplace_back(ref_pos, token.substr(1), "-");
+        } else if (std::isdigit(token[0])) { // matching bases
+            int length = std::stoi(token);
+            read_pos += length;
+            ref_pos += length;
+        } else { // mismatch
+            char ref_base = ref_genome[ref_pos - 1];
+            char alt_base = seq[read_pos];
+            mismatches.emplace_back(ref_pos, std::string(1, ref_base), std::string(1, alt_base));
+            read_pos++;
+            ref_pos++;
+        }
+    }
+
+    for (; cigar_tokens != end; ++cigar_tokens) {
+        int count = std::stoi((*cigar_tokens)[1]);
+        char operation = (*cigar_tokens)[2].str()[0];
+        if (operation == 'I') { // Insertion
+            std::string alt_base = seq.substr(read_pos, count);
+            mismatches.emplace_back(ref_pos, "-", alt_base);
+            read_pos += count;
+        } else if (operation == 'D' || operation == 'N') { // Deletion
+            ref_pos += count;
+        }
+    }
+
+    return mismatches;
+}
+
+std::tuple<std::string, std::string, int, std::string, std::string, std::string> parse_sam_line(const std::string& line) {
+    std::istringstream iss(line);
+    std::string read_name, flag, ref_name, pos, mapq, cigar, rnext, pnext, tlen, seq, qual, tag, tags_str;
+    iss >> read_name >> flag >> ref_name >> pos >> mapq >> cigar >> rnext >> pnext >> tlen >> seq >> qual;
+    std::map<std::string, std::string> tags;
+    while (iss >> tag) {
+        if (tag.rfind("MD:Z:", 0) == 0) {
+            tags.emplace("MD", tag.substr(5));
+            break;
+        }
+    }
+    return {read_name, ref_name, std::stoi(pos), seq, tags["MD"], cigar};
+}
+
+// Function to extract start and end positions from the read name
+std::pair<int, int> parse_read_positions(const std::string& read_name) {
+    std::pair<int, int> positions(0, 0);
+    std::size_t start_pos_tag = read_name.rfind("_READ_");
+    std::size_t end_pos_tag = read_name.rfind("_", start_pos_tag + 6);
+    if (start_pos_tag != std::string::npos && end_pos_tag != std::string::npos) {
+        positions.first = std::stoi(read_name.substr(start_pos_tag + 6, end_pos_tag - (start_pos_tag + 6)));
+        positions.second = std::stoi(read_name.substr(end_pos_tag + 1));
+    }
+    return positions;
+}
+
+// Function to append the average depth to the end of the read name
+std::string append_depth(const std::string& read_name, int depth) {
+    std::string depth_str = std::to_string(depth);
+    std::size_t start_pos_tag = read_name.rfind("_READ_");
+    std::size_t end_pos_tag = read_name.rfind("_", start_pos_tag + 6);
+    if (start_pos_tag != std::string::npos && end_pos_tag != std::string::npos) {
+        return read_name.substr(0, end_pos_tag + 1) + "_" + depth_str;
+    }
+    return read_name;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 7) {
+        std::cerr << "Usage: " << argv[0] << " <sam_file> <reference_file> <vcf_file> <freyja_vcf_file> <freyja_depth_file> <num_threads>" << std::endl;
+        return 1;
+    }
+
+    std::string sam_file = argv[1];
+    std::string reference_file = argv[2];
+    std::string vcf_file = argv[3];
+    std::string freyja_vcf_file = argv[4];
+    std::string freyja_depth_file = argv[5];
+    int num_threads = std::atoi(argv[6]);
+
+    omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
+
+    std::string ref_genome = read_reference(reference_file);
+
+    std::vector<std::string> lines;
+    std::string line;
+    std::ifstream file(sam_file);
+    while (std::getline(file, line)) {
+        if (line.rfind('@', 0) == 0) continue; // Skip header
+        lines.push_back(line);
+    }
+
+    std::map<std::pair<std::string, int>, Variant> variants_map;
+    std::set<std::string> reads;
+    std::vector<int> depth(ref_genome.size(), 0);
+
+    #pragma omp parallel
+    {
+        std::map<std::pair<std::string, int>, Variant> local_variants_map;
+        std::set<std::string> local_reads;
+
+        #pragma omp for schedule(dynamic) nowait
+        for (size_t i = 0; i < lines.size(); ++i) {
+            auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
+            auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome);
+
+            local_reads.insert(read_name); // since this is a set, duplicates will be ignored
+            for (const auto& [position, ref_base, alt_base] : mismatches) {
+                std::pair<std::string, int> key = {ref_name, position};
+                auto& var = local_variants_map[key];
+                var.ref_name = ref_name;
+                var.position = position;
+                var.ref_base = ref_base;
+
+                // Encode each variant with a unique number at this position
+                // e.g. A -> 1, C -> 2, G -> 3, T -> 4
+                int code = var.alt_bases.size() + 1;
+                if (var.alt_bases.find(alt_base) == var.alt_bases.end()) {
+                    var.alt_bases[alt_base] = code;
+                }
+
+                // Insert read names for this specific alternate allele
+                var.read_names[alt_base].insert(read_name);
+            }
+        }
+
+        #pragma omp critical
+        {
+            reads.insert(local_reads.begin(), local_reads.end());
+            for (const auto& kv : local_variants_map) {
+                auto& var = variants_map[kv.first];
+                if (var.read_names.empty()) {
+                    var = kv.second;
+                } else {
+                    for (const auto& alt_kv : kv.second.alt_bases) {
+                        const auto& alt_base = alt_kv.first;
+                        int alt_code = alt_kv.second;
+                        var.alt_bases[alt_base] = alt_code;
+                        var.read_names[alt_base].insert(kv.second.read_names.at(alt_base).begin(),
+                                                        kv.second.read_names.at(alt_base).end());
+                    }
+                }
+            }
+        }
+    }
+
+    // Generate Freyja VCF and depth files
+    std::ofstream freyja_vcf_out(freyja_vcf_file);
+    std::ofstream freyja_depth_out(freyja_depth_file);
+
+    // After parallel region, calculate depth for each position
+    for (const auto& read : reads) {
+        auto positions = parse_read_positions(read);
+        for (int i = positions.first; i <= positions.second && i <= static_cast<int>(ref_genome.size()); ++i) {
+            depth[i - 1]++;  // Increment depth count for covered positions
+        }
+    }
+    
+    // Write headers for Freyja VCF
+    freyja_vcf_out << "##fileformat=VCFv4.2\n";
+    freyja_vcf_out << "##source=alignmentpipeline\n";
+    freyja_vcf_out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+
+    // Process each variant for Freyja VCF and depth file entries
+    for (const auto& [key, var] : variants_map) {
+        for (const auto& [alt_base, code] : var.alt_bases) {
+            freyja_vcf_out << var.ref_name << '\t'
+                           << var.position << '\t'
+                           << '.' << '\t' // ID is '.' if unknown
+                           << var.ref_base << '\t'
+                           << alt_base << '\t'
+                           << '.' << '\t'
+                           << '.' << '\t'
+                           << "AF=" << static_cast<double>(var.read_names.at(alt_base).size()) / reads.size() << '\n';
+        }
+    }
+
+    // Write the depth information for each position into Freyja depth file
+    for (size_t i = 0; i < ref_genome.size(); ++i) {
+        freyja_depth_out << "NC_045512v2" << '\t' << (i + 1) << '\t'
+                         << ref_genome[i] << '\t' << depth[i] << '\n';
+    }
+
+    freyja_vcf_out.close();
+    freyja_depth_out.close();
+
+    std::ofstream out(vcf_file);
+    out << "##fileformat=VCFv4.2\n";
+    out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+    for (const auto& read : reads) {
+        out << read << '\t';
+    }
+    out << '\n';
+
+    for (const auto& [key, var] : variants_map) {
+        out << var.ref_name << '\t'
+            << var.position << '\t'
+            << '.' << '\t'
+            << var.ref_base << '\t';
+
+        // Concatenate all alternate alleles
+        std::string alts;
+        for (const auto& [alt_base, _] : var.alt_bases) {
+            if (!alts.empty()) alts += ",";
+            alts += alt_base;
+        }
+        out << alts << "\t.\t.\t.\tGT\t";
+
+        for (const auto& read : reads) {
+            int alt_code = 0;
+            for (const auto& [alt_base, code] : var.alt_bases) {
+                if (var.read_names.at(alt_base).find(read) != var.read_names.at(alt_base).end()) {
+                    alt_code = code; // Get the code of the alt allele present for this read
+                    break;
+                }
+            }
+            out << alt_code << '\t'; // Write the code (0 if not present, otherwise the allele code)
+        }
+        out << '\n';
+    }
+
+    out.close();
+
+    return 0;
+}
