@@ -32,7 +32,7 @@ std::string read_reference(const std::string& reference_file) {
     return ref_genome;
 }
 
-std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::string& mdz, const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome) {
+std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::string& mdz, const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome, bool no_indels) {
     std::vector<std::tuple<int, std::string, std::string>> mismatches;
     std::regex token_regex(R"((\d+|\^[A-Z]+|[A-Z]))");
     std::sregex_iterator tokens(mdz.begin(), mdz.end(), token_regex), end;
@@ -45,6 +45,7 @@ std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::stri
     for (; tokens != end; ++tokens) {
         std::string token = (*tokens)[1];
         if (token.find('^') != std::string::npos) { // deletion
+            if (no_indels) continue;
             int del_len = token.length() - 1;
             ref_pos += del_len;
             mismatches.emplace_back(ref_pos, token.substr(1), "-");
@@ -65,10 +66,12 @@ std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::stri
         int count = std::stoi((*cigar_tokens)[1]);
         char operation = (*cigar_tokens)[2].str()[0];
         if (operation == 'I') { // Insertion
+            if (no_indels) continue;
             std::string alt_base = seq.substr(read_pos, count);
             mismatches.emplace_back(ref_pos, "-", alt_base);
             read_pos += count;
         } else if (operation == 'D' || operation == 'N') { // Deletion
+            if (no_indels) continue;
             ref_pos += count;
         }
     }
@@ -87,6 +90,7 @@ std::tuple<std::string, std::string, int, std::string, std::string, std::string>
             break;
         }
     }
+
     return {read_name, ref_name, std::stoi(pos), seq, tags["MD"], cigar};
 }
 
@@ -113,10 +117,32 @@ std::string append_depth(const std::string& read_name, int depth) {
     return read_name;
 }
 
+// Function to find the average depth of a read (i.e. the average value of depth for all positions covered by the read)
+int find_read_depth(const std::string& read_name, const std::vector<int>& depth) {
+    auto positions = parse_read_positions(read_name);
+    int read_depth = 0;
+    for (int i = positions.first; i <= positions.second && i <= static_cast<int>(depth.size()); ++i) {
+        read_depth += depth[i - 1];
+    }
+    return read_depth / (positions.second - positions.first + 1);
+}
+
 int main(int argc, char* argv[]) {
-    if (argc != 7) {
-        std::cerr << "Usage: " << argv[0] << " <sam_file> <reference_file> <vcf_file> <freyja_vcf_file> <freyja_depth_file> <num_threads>" << std::endl;
+    if (argc < 7) {
+        std::cerr << "Usage: " << argv[0] << " <sam_file> <reference_file> <vcf_file> <freyja_vcf_file> <freyja_depth_file> <num_threads> [--no-indels]" << std::endl;
         return 1;
+    }
+
+    // Optional argument --no-indels
+    bool no_indels = false;
+    if (argc == 8) {
+        std::string arg = argv[7];
+        if (arg == "--no-indels") {
+            no_indels = true;
+        } else {
+            std::cerr << "Usage: " << argv[0] << " <sam_file> <reference_file> <vcf_file> <freyja_vcf_file> <freyja_depth_file> <num_threads> [--no-indels]" << std::endl;
+            return 1;
+        }
     }
 
     std::string sam_file = argv[1];
@@ -150,7 +176,7 @@ int main(int argc, char* argv[]) {
         #pragma omp for schedule(dynamic) nowait
         for (size_t i = 0; i < lines.size(); ++i) {
             auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
-            auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome);
+            auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
 
             local_reads.insert(read_name); // since this is a set, duplicates will be ignored
             for (const auto& [position, ref_base, alt_base] : mismatches) {
@@ -233,18 +259,16 @@ int main(int argc, char* argv[]) {
     freyja_depth_out.close();
 
     std::ofstream out(vcf_file);
-    out << "##fileformat=VCFv4.2\n";
-    out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+    std::string vcf_file_contents = "";
+    vcf_file_contents += "##fileformat=VCFv4.2\n";
+    vcf_file_contents += "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
     for (const auto& read : reads) {
-        out << read << '\t';
+        vcf_file_contents += append_depth(read, find_read_depth(read, depth)) + '\t';
     }
-    out << '\n';
+    vcf_file_contents += '\n';
 
     for (const auto& [key, var] : variants_map) {
-        out << var.ref_name << '\t'
-            << var.position << '\t'
-            << '.' << '\t'
-            << var.ref_base << '\t';
+        vcf_file_contents += var.ref_name + '\t' + std::to_string(var.position) + '\t' + '.' + '\t' + var.ref_base + '\t';
 
         // Concatenate all alternate alleles
         std::string alts;
@@ -252,7 +276,7 @@ int main(int argc, char* argv[]) {
             if (!alts.empty()) alts += ",";
             alts += alt_base;
         }
-        out << alts << "\t.\t.\t.\tGT\t";
+        vcf_file_contents += alts + "\t.\t.\t.\tGT\t";
 
         for (const auto& read : reads) {
             int alt_code = 0;
@@ -262,11 +286,12 @@ int main(int argc, char* argv[]) {
                     break;
                 }
             }
-            out << alt_code << '\t'; // Write the code (0 if not present, otherwise the allele code)
+            vcf_file_contents += std::to_string(alt_code) + '\t'; // Write the code (0 if not present, otherwise the allele code)
         }
-        out << '\n';
+        vcf_file_contents += '\n';
     }
 
+    out << vcf_file_contents;
     out.close();
 
     return 0;

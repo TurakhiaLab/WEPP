@@ -21,14 +21,14 @@ include_indels=true
 # Check if the optional argument was passed in
 if [ $# -gt 3 ]; then
 
-    if [ "$4" == "--compile" ] || [ "$5" == "--compile" ]; then
+    if [ "$4" = "--compile" ] || [ "$5" = "--compile" ]; then
         echo "Compiling C++ code"
         g++ -o sort_vcf sort_vcf.cpp
         g++ -o group_vcf group_vcf.cpp
         g++ -o generate_freyja_files generate_freyja_files.cpp
     fi
 
-    if [ "$4" == "--no-indels" ] || [ "$5" == "--no-indels" ]; then
+    if [ "$4" = "--no-indels" ] || [ "$5" = "--no-indels" ]; then
         echo "Running without indels"
         include_indels=false
     fi
@@ -81,6 +81,11 @@ time python new_alignment_positions.py intermediate_files/alignment_2.sam interm
 
 # ./sam_vcf_pipeline_2  intermediate_files/alignment_modified.sam $reference_fasta $output_vcf 4
 
-./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 4
+if [ "$include_indels" = true ]; then
+    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 4
+else
+    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 4 --no-indels
+fi
 
-python plotting_data.py $output_vcf > mutation_counts_grouped.txt
+
+# python plotting_data.py $output_vcf > mutation_counts_grouped.txt
