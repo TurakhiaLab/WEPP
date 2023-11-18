@@ -56,10 +56,11 @@ void refinePeaks(po::parsed_options parsed) {
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
 
     //ADD haplotypes in the hap_map if CONDENSED nodes are found
-    std::string check_string = "CONDENSED";
+    std::vector<struct read_info*> uncondensed_nodes;
     for (const auto& hm: hap_map) {
-        size_t last_underscore = hm.second->read.find_last_of('_');
-        if (hm.second->read.find(check_string) != std::string::npos) {
+        fprintf(stderr, "%ld: %s\n", hm.first, hm.second->read.c_str());
+        if (hm.second->read.find("CONDENSED") != std::string::npos) {
+            size_t last_underscore = hm.second->read.find_last_of('_');
             std::string condensed_name = hm.second->read.substr(0, last_underscore);
             auto node_names_list = condensed_nodeNames_map[condensed_name];
             for (size_t i = 0 ; i < node_names_list.size(); i++) {
@@ -70,16 +71,26 @@ void refinePeaks(po::parsed_options parsed) {
                     struct read_info* rp = new struct read_info;
                     rp->read = node_name;
                     rp->mutations = hm.second->mutations;
-                    hap_map.insert({hap_map.size(), rp});
+                    uncondensed_nodes.emplace_back(rp);
                 }
             }
         }
     }
+    //Insert uncondensed nodes in hap_map
+    for (const auto& hap: uncondensed_nodes)
+        hap_map.insert({hap_map.size(), hap});
+    uncondensed_nodes.clear();
 
     computeDistance(T, hap_map, vcf_samples);
 
-    ////////////////////////////////////////////////////REMOVE
-    ////readVCF(read_map, vcf_filename_reads, ref_seq.size(), false);
+    ///////////////////////////////////////////////////// Read Mapping
+    //readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
+    //placeReads(T, read_map, hap_map);
+
+
+
+
+    ////////////////////////////////////////////////////Multiple Freyja Iteration
     //readCSV(hap_abun_map, hap_csv_filename);
     ////Extract lineages from haplotype names
     //std::vector<MAT::Node*> hap_list; 
@@ -102,17 +113,17 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         int min_dist = 100000;
         auto sample_mutations = getMutations(T, sample);
         std::string best_node = "";
-        auto itr = hap_map.begin();
-        while (itr != hap_map.end()) {
-            size_t last_underscore = itr->second->read.find_last_of('_');
-            std::string curr_hap_name = itr->second->read.substr(0,last_underscore);
+        auto hap_itr = hap_map.begin();
+        while (hap_itr != hap_map.end()) {
+            size_t last_underscore = hap_itr->second->read.find_last_of('_');
+            std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
             auto hap_mutations = getMutations(T, curr_hap_name);
             int curr_dist = mutationDistance(sample_mutations, hap_mutations);
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
-                best_node = itr->second->read;
+                best_node = hap_itr->second->read;
             }
-            itr++;
+            hap_itr++;
         }
         printf("Node: %s, Closest_node: %s, mutationDistance: %d\n", sample.c_str(), best_node.c_str(), min_dist);
     }

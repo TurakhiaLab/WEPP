@@ -87,7 +87,7 @@ void filterLineages (po::parsed_options parsed) {
     
     //Get the peak_nodes
     timer.Start();
-    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 7;
+    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 5;
     std::vector<MAT::Node*> peak_nodes;
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     tbb::concurrent_vector<std::pair<MAT::Node*, double>> node_score_vector;
