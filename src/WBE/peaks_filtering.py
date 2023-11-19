@@ -14,14 +14,12 @@ def read_barcode_csv_file(file_path):
         mutations = mutations[1:]
         haplotypes = []
         hap_mut_matrix = []
-        
         for row in csv_reader:
             hap_mut_matrix.append(row[1:])
-            haplotypes.append(row[0])
-        
+            haplotypes.append(row[0])   
         #Convert to NumPy array of integers
         hap_mut_matrix = np.array([[int(elem) for elem in row] for row in hap_mut_matrix])
-
+    
     return mutations, haplotypes, hap_mut_matrix
 
 def read_vcf_file(file_path):
@@ -29,7 +27,6 @@ def read_vcf_file(file_path):
         vcf_reader = csv.reader(file, delimiter='\t')
         af_values = []
         depth_values = []
-
         for row in vcf_reader:
             if not row[0].startswith('#'):  # Skip header rows
                 af_field = row[-2]
@@ -40,6 +37,20 @@ def read_vcf_file(file_path):
     depth = np.log2(depth_values)
     depth = depth / np.max(depth)
     return np.array(af_values), depth
+
+def read_condensed_csv_file(file_path):
+    # Create an empty dictionary to store the data
+    condensed_nodes_map = {}
+    with open(file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)   
+        # Iterate through each row in the CSV file
+        for row in csv_reader:
+            # Extract the key (CONDENSED-*) and values from the row
+            key, *values = row
+            # Store the values in a list in the dictionary
+            condensed_nodes_map[key] = values
+
+    return condensed_nodes_map
 
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
@@ -122,22 +133,55 @@ mutations, haplotypes, hap_mut_matrix = read_barcode_csv_file(barcode_file_path)
 vcf_file = file_prefix + "_read_data.vcf"
 af_values, depth_values = read_vcf_file(vcf_file)
 
+condensed_file_path = file_prefix + "_condensed_nodes.csv"
+condensed_nodes_map = read_condensed_csv_file(condensed_file_path)
+
 #Solving abundance
 mut_hap_matrix, haplotypes, abundances, mutations = solve_abundance(hap_mut_matrix, af_values, depth_values, haplotypes, mutations)
 
 #Abundance of lineages
 lineages = {}
+uncertain_lineages = {}
 for i, hap in enumerate(haplotypes):
-    split_parts = hap.split('_')
-    #Extract the part after the last '_'
-    if split_parts[-1] not in lineages:
-        lineages[split_parts[-1]] = abundances[i]
+    #Check if it is a condensed node
+    if "CONDENSED" in hap:
+        condensed_lineages = set()
+        idx = hap.rfind('_')
+        #Get all the lineages from condensed nodes
+        for nodes in condensed_nodes_map[hap[:idx]]:
+            split_parts = nodes.split('_')
+            if split_parts[-1] not in condensed_lineages:
+                condensed_lineages.add(split_parts[-1])
+        #Add the abundance if single lineage is present
+        if len(condensed_lineages) == 1:
+            lin = condensed_lineages.pop()
+            if lin not in lineages:
+                lineages[lin] = abundances[i]
+            else:
+                lineages[lin] += abundances[i]
+        #Multiple lineages
+        else:
+            abun = abundances[i]
+            for lin in condensed_lineages:
+                if abun not in uncertain_lineages:
+                    uncertain_lineages[abun] = [lin]
+                else:
+                    uncertain_lineages[abun].append(lin)
     else:
-        lineages[split_parts[-1]] += abundances[i]
+        #Extract the part after the last '_'
+        split_parts = hap.split('_')
+        if split_parts[-1] not in lineages:
+            lineages[split_parts[-1]] = abundances[i]
+        else:
+            lineages[split_parts[-1]] += abundances[i]
 
 print("\nLINEAGE ABUNDANCE (ORIG):")
 for lin, abun in lineages.items():
     print(lin, abun)
+
+for abun, lin in uncertain_lineages.items():
+    lin_str = ', '.join(lin)
+    print(lin_str, abun) 
 
 #Write abundance of haplotypes in csv
 csv_write_header = ['Haplotype', 'Abundance']
