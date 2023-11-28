@@ -10,6 +10,8 @@
 #include <mutex>
 #include <cstdlib>
 #include <omp.h>
+#include <tuple>
+#include <cctype>
 
 struct Variant {
     std::string ref_name;
@@ -45,17 +47,21 @@ std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::stri
     for (; tokens != end; ++tokens) {
         std::string token = (*tokens)[1];
         if (token.find('^') != std::string::npos) { // deletion
-            if (no_indels) continue;
+   
             int del_len = token.length() - 1;
+       
             ref_pos += del_len;
             mismatches.emplace_back(ref_pos, token.substr(1), "-");
         } else if (std::isdigit(token[0])) { // matching bases
+        
             int length = std::stoi(token);
+      
             read_pos += length;
             ref_pos += length;
         } else { // mismatch
             char ref_base = ref_genome[ref_pos - 1];
             char alt_base = seq[read_pos];
+       
             mismatches.emplace_back(ref_pos, std::string(1, ref_base), std::string(1, alt_base));
             read_pos++;
             ref_pos++;
@@ -66,12 +72,10 @@ std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::stri
         int count = std::stoi((*cigar_tokens)[1]);
         char operation = (*cigar_tokens)[2].str()[0];
         if (operation == 'I') { // Insertion
-            if (no_indels) continue;
             std::string alt_base = seq.substr(read_pos, count);
             mismatches.emplace_back(ref_pos, "-", alt_base);
             read_pos += count;
         } else if (operation == 'D' || operation == 'N') { // Deletion
-            if (no_indels) continue;
             ref_pos += count;
         }
     }
@@ -79,30 +83,78 @@ std::vector<std::tuple<int, std::string, std::string>> parse_mdz(const std::stri
     return mismatches;
 }
 
-std::tuple<std::string, std::string, int, std::string, std::string, std::string> parse_sam_line(const std::string& line) {
+std::tuple<std::string, std::string, int, std::string, std::string> parse_sam_line(const std::string& line) {
     std::istringstream iss(line);
     std::string read_name, flag, ref_name, pos, mapq, cigar, rnext, pnext, tlen, seq, qual, tag, tags_str;
     iss >> read_name >> flag >> ref_name >> pos >> mapq >> cigar >> rnext >> pnext >> tlen >> seq >> qual;
-    std::map<std::string, std::string> tags;
-    while (iss >> tag) {
-        if (tag.rfind("MD:Z:", 0) == 0) {
-            tags.emplace("MD", tag.substr(5));
-            break;
+
+    return {read_name, ref_name, std::stoi(pos), seq,  cigar};
+}
+
+std::vector<std::tuple<int, std::string, std::string>> parse_cigar(const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome) {
+    std::vector<std::tuple<int, std::string, std::string>> mutations;
+    std::regex cigar_regex(R"((\d+)([MIDNSHPX=]))");
+    std::sregex_iterator cigar_tokens(cigar.begin(), cigar.end(), cigar_regex);
+
+    int read_pos = 0, ref_pos = pos - 1; // Adjust for 0-based index
+
+    for (; cigar_tokens != std::sregex_iterator(); ++cigar_tokens) {
+        int count = std::stoi((*cigar_tokens)[1]);
+        char operation = (*cigar_tokens)[2].str()[0];
+
+        switch (operation) {
+            case 'M': { // Match or Mismatch
+                for (int i = 0; i < count; ++i) {
+                    char ref_base = ref_genome[ref_pos + i];
+                    char alt_base = seq[read_pos + i];
+                    if (ref_base != alt_base) { // Mismatch
+                        mutations.emplace_back(ref_pos + i + 1, std::string(1, ref_base), std::string(1, alt_base));
+                    }
+                }
+                read_pos += count;
+                ref_pos += count;
+                break;
+            }
+            case 'I': { // Insertion
+                std::string alt_base = seq.substr(read_pos, count);
+                mutations.emplace_back(ref_pos + 1, "-", alt_base);
+                read_pos += count;
+                break;
+            }
+            case 'D': { // Deletion
+                std::string ref_base = ref_genome.substr(ref_pos, count);
+                mutations.emplace_back(ref_pos + 1, ref_base, "-");
+                ref_pos += count;
+                break;
+            }
+            // Other CIGAR operations can be handled as needed
         }
     }
 
-    return {read_name, ref_name, std::stoi(pos), seq, tags["MD"], cigar};
+    return mutations;
 }
 
 // Function to extract start and end positions from the read name
 std::pair<int, int> parse_read_positions(const std::string& read_name) {
     std::pair<int, int> positions(0, 0);
-    std::size_t start_pos_tag = read_name.rfind("_READ_");
-    std::size_t end_pos_tag = read_name.rfind("_", start_pos_tag + 6);
-    if (start_pos_tag != std::string::npos && end_pos_tag != std::string::npos) {
-        positions.first = std::stoi(read_name.substr(start_pos_tag + 6, end_pos_tag - (start_pos_tag + 6)));
-        positions.second = std::stoi(read_name.substr(end_pos_tag + 1));
+    
+    size_t readPos = read_name.rfind("_READ_");
+    
+    if (readPos == std::string::npos) {
+        std::cerr << "Invalid format: '_READ_' not found" << std::endl;
+        return positions;
     }
+
+    std::string numbersPart = read_name.substr(readPos + 6); // 6 is length of "_READ_"
+    size_t underscorePos = numbersPart.find('_');
+    if (underscorePos == std::string::npos) {
+        std::cerr << "Invalid format: second '_' not found" << std::endl;
+        return positions;
+    }
+
+    positions.first = std::stoi(numbersPart.substr(0, underscorePos));
+    positions.second = std::stoi(numbersPart.substr(underscorePos + 1));
+
     return positions;
 }
 
@@ -164,9 +216,12 @@ int main(int argc, char* argv[]) {
         lines.push_back(line);
     }
 
+    // Print the number of lines in the SAM file, which is the number of reads
+    std::cout << "Number of lines in SAM file: " << lines.size() << std::endl;
+
     std::map<std::pair<std::string, int>, Variant> variants_map;
     std::set<std::string> reads;
-    std::vector<int> depth(ref_genome.size(), 0);
+    std::vector<int> depth(ref_genome.size(), 0); // Initialize depth vector with 0s
 
     #pragma omp parallel
     {
@@ -175,8 +230,11 @@ int main(int argc, char* argv[]) {
 
         #pragma omp for schedule(dynamic) nowait
         for (size_t i = 0; i < lines.size(); ++i) {
-            auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
-            auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
+            // auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
+            // auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
+            auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
+            auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
+
 
             local_reads.insert(read_name); // since this is a set, duplicates will be ignored
             for (const auto& [position, ref_base, alt_base] : mismatches) {
@@ -226,11 +284,13 @@ int main(int argc, char* argv[]) {
     for (const auto& read : reads) {
         auto positions = parse_read_positions(read);
         for (int i = positions.first; i <= positions.second && i <= static_cast<int>(ref_genome.size()); ++i) {
-            depth[i - 1]++;  // Increment depth count for covered positions
+            depth[i - 1]++;
         }
     }
-    
-    // Write headers for Freyja VCF
+
+    std::cout << "Writing Freyja VCF file..." << std::endl;
+
+        // Write headers for Freyja VCF
     freyja_vcf_out << "##fileformat=VCFv4.2\n";
     freyja_vcf_out << "##source=alignmentpipeline\n";
     freyja_vcf_out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
@@ -238,16 +298,24 @@ int main(int argc, char* argv[]) {
     // Process each variant for Freyja VCF and depth file entries
     for (const auto& [key, var] : variants_map) {
         for (const auto& [alt_base, code] : var.alt_bases) {
+            // if the ref base equals the alt base, print a message and skip
+            if (var.ref_base == alt_base) {
+                continue;
+            }
+
+            if (no_indels && (var.ref_base == "-" || alt_base == "-")) continue; // Skip indels if --no-indels flag is set
             freyja_vcf_out << var.ref_name << '\t'
                            << var.position << '\t'
-                           << '.' << '\t' // ID is '.' if unknown
+                           << var.ref_base << var.position << alt_base <<'\t'
                            << var.ref_base << '\t'
                            << alt_base << '\t'
                            << '.' << '\t'
                            << '.' << '\t'
-                           << "AF=" << static_cast<double>(var.read_names.at(alt_base).size()) / reads.size() << '\n';
+                           << "AF=" << std::to_string(static_cast<double>(var.read_names.at(alt_base).size()) / depth[var.position - 1]) << '\n';
         }
     }
+
+    std::cout << "Writing Freyja depth file..." << std::endl;
 
     // Write the depth information for each position into Freyja depth file
     for (size_t i = 0; i < ref_genome.size(); ++i) {
@@ -257,6 +325,8 @@ int main(int argc, char* argv[]) {
 
     freyja_vcf_out.close();
     freyja_depth_out.close();
+
+    std::cout << "Writing WEPP VCF file..." << std::endl;
 
     std::ofstream out(vcf_file);
     std::string vcf_file_contents = "";
@@ -268,19 +338,33 @@ int main(int argc, char* argv[]) {
     vcf_file_contents += '\n';
 
     for (const auto& [key, var] : variants_map) {
-        vcf_file_contents += var.ref_name + '\t' + std::to_string(var.position) + '\t' + '.' + '\t' + var.ref_base + '\t';
-
+        if (no_indels && (var.ref_base == "-")) continue; // Skip indels if --no-indels flag is set
         // Concatenate all alternate alleles
         std::string alts;
+        std::vector<std::string> alt_list;
         for (const auto& [alt_base, _] : var.alt_bases) {
+            if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
+            if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
             if (!alts.empty()) alts += ",";
             alts += alt_base;
+            alt_list.push_back(alt_base);
         }
-        vcf_file_contents += alts + "\t.\t.\t.\tGT\t";
+
+        vcf_file_contents += var.ref_name + '\t' + std::to_string(var.position) + '\t';
+        for (const auto& alt_base : alt_list) {
+            vcf_file_contents += var.ref_base + std::to_string(var.position) + alt_base + ",";
+        }
+
+        vcf_file_contents.pop_back(); // Remove the last comma
+        
+        vcf_file_contents += '\t' + var.ref_base + '\t';
+        vcf_file_contents += alts + "\t.\t.\t.\t.\t";
 
         for (const auto& read : reads) {
             int alt_code = 0;
             for (const auto& [alt_base, code] : var.alt_bases) {
+                if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
+                if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
                 if (var.read_names.at(alt_base).find(read) != var.read_names.at(alt_base).end()) {
                     alt_code = code; // Get the code of the alt allele present for this read
                     break;
