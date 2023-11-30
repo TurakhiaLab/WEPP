@@ -161,12 +161,7 @@ std::pair<int, int> parse_read_positions(const std::string& read_name) {
 // Function to append the average depth to the end of the read name
 std::string append_depth(const std::string& read_name, int depth) {
     std::string depth_str = std::to_string(depth);
-    std::size_t start_pos_tag = read_name.rfind("_READ_");
-    std::size_t end_pos_tag = read_name.rfind("_", start_pos_tag + 6);
-    if (start_pos_tag != std::string::npos && end_pos_tag != std::string::npos) {
-        return read_name.substr(0, end_pos_tag + 1) + "_" + depth_str;
-    }
-    return read_name;
+    return read_name + "_" + depth_str;
 }
 
 // Function to find the average depth of a read (i.e. the average value of depth for all positions covered by the read)
@@ -235,7 +230,6 @@ int main(int argc, char* argv[]) {
             auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
             auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
 
-
             local_reads.insert(read_name); // since this is a set, duplicates will be ignored
             for (const auto& [position, ref_base, alt_base] : mismatches) {
                 std::pair<std::string, int> key = {ref_name, position};
@@ -300,6 +294,9 @@ int main(int argc, char* argv[]) {
         for (const auto& [alt_base, code] : var.alt_bases) {
             // if the ref base equals the alt base, print a message and skip
             if (var.ref_base == alt_base) {
+                // std::cout << "Ref base equals alt base at " << var.ref_name << ":" << var.position << std::endl;
+                // std::cout << "Ref base: " << var.ref_base << std::endl;
+                // std::cout << "Alt base: " << alt_base << std::endl;
                 continue;
             }
 
