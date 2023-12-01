@@ -218,57 +218,94 @@ int main(int argc, char* argv[]) {
     std::set<std::string> reads;
     std::vector<int> depth(ref_genome.size(), 0); // Initialize depth vector with 0s
 
-    #pragma omp parallel
-    {
-        std::map<std::pair<std::string, int>, Variant> local_variants_map;
-        std::set<std::string> local_reads;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
+        auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
 
-        #pragma omp for schedule(dynamic) nowait
-        for (size_t i = 0; i < lines.size(); ++i) {
-            // auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
-            // auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
-            auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
-            auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
+        reads.insert(read_name); // since this is a set, duplicates will be ignored
+        for (const auto& [position, ref_base, alt_base] : mismatches) {
+            std::pair<std::string, int> key = {ref_name, position};
+            auto& var = variants_map[key];
+            var.ref_name = ref_name;
+            var.position = position;
+            var.ref_base = ref_base;
 
-            local_reads.insert(read_name); // since this is a set, duplicates will be ignored
-            for (const auto& [position, ref_base, alt_base] : mismatches) {
-                std::pair<std::string, int> key = {ref_name, position};
-                auto& var = local_variants_map[key];
-                var.ref_name = ref_name;
-                var.position = position;
-                var.ref_base = ref_base;
-
-                // Encode each variant with a unique number at this position
-                // e.g. A -> 1, C -> 2, G -> 3, T -> 4
-                int code = var.alt_bases.size() + 1;
-                if (var.alt_bases.find(alt_base) == var.alt_bases.end()) {
-                    var.alt_bases[alt_base] = code;
-                }
-
-                // Insert read names for this specific alternate allele
-                var.read_names[alt_base].insert(read_name);
+            // Encode each variant with a unique number at this position
+            // e.g. A -> 1, C -> 2, G -> 3, T -> 4
+            int code = var.alt_bases.size() + 1;
+            if (var.alt_bases.find(alt_base) == var.alt_bases.end()) {
+                var.alt_bases[alt_base] = code;
+                
             }
-        }
 
-        #pragma omp critical
-        {
-            reads.insert(local_reads.begin(), local_reads.end());
-            for (const auto& kv : local_variants_map) {
-                auto& var = variants_map[kv.first];
-                if (var.read_names.empty()) {
-                    var = kv.second;
-                } else {
-                    for (const auto& alt_kv : kv.second.alt_bases) {
-                        const auto& alt_base = alt_kv.first;
-                        int alt_code = alt_kv.second;
-                        var.alt_bases[alt_base] = alt_code;
-                        var.read_names[alt_base].insert(kv.second.read_names.at(alt_base).begin(),
-                                                        kv.second.read_names.at(alt_base).end());
-                    }
-                }
-            }
+            // Insert read names for this specific alternate allele
+            var.read_names[alt_base].insert(read_name);
         }
     }
+
+    // #pragma omp parallel
+    // {
+    //     std::map<std::pair<std::string, int>, Variant> local_variants_map;
+    //     std::set<std::string> local_reads;
+
+    //     #pragma omp for schedule(dynamic) nowait
+    //     for (size_t i = 0; i < lines.size(); ++i) {
+    //         // auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
+    //         // auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
+    //         auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
+    //         auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
+
+    //         local_reads.insert(read_name); // since this is a set, duplicates will be ignored
+    //         for (const auto& [position, ref_base, alt_base] : mismatches) {
+    //             std::pair<std::string, int> key = {ref_name, position};
+    //             auto& var = local_variants_map[key];
+    //             var.ref_name = ref_name;
+    //             var.position = position;
+    //             var.ref_base = ref_base;
+
+    //             // Encode each variant with a unique number at this position
+    //             // e.g. A -> 1, C -> 2, G -> 3, T -> 4
+    //             int code = var.alt_bases.size() + 1;
+    //             if (var.alt_bases.find(alt_base) == var.alt_bases.end()) {
+    //                 var.alt_bases[alt_base] = code;
+                    
+    //             }
+
+    //             // Insert read names for this specific alternate allele
+    //             var.read_names[alt_base].insert(read_name);
+    //         }
+    //     }
+
+    //     #pragma omp critical
+    //     {
+    //         reads.insert(local_reads.begin(), local_reads.end());
+    //         for (const auto& kv : local_variants_map) {
+    //             auto& var = variants_map[kv.first];
+    //             if (var.read_names.empty()) {
+    //                 var = kv.second;
+    //             } else {
+    //                 for (const auto& alt_kv : kv.second.alt_bases) {
+    //                     const auto& alt_base = alt_kv.first;
+    //                     int alt_code = alt_kv.second;
+    //                     var.alt_bases[alt_base] = alt_code;
+    //                     var.read_names[alt_base].insert(kv.second.read_names.at(alt_base).begin(),
+    //                                                     kv.second.read_names.at(alt_base).end());
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // For each variant, print the ref name, position, ref base, alt bases and their codes
+    // for (const auto& [key, var] : variants_map) {
+    //     std::cout << var.ref_name << '\t'
+    //               << var.position << '\t'
+    //               << var.ref_base << '\t';
+    //     for (const auto& [alt_base, code] : var.alt_bases) {
+    //         std::cout << alt_base << ':' << code << '\t';
+    //     }
+    //     std::cout << std::endl;
+    // }
 
     // Generate Freyja VCF and depth files
     std::ofstream freyja_vcf_out(freyja_vcf_file);
