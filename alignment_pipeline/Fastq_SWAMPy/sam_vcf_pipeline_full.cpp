@@ -13,6 +13,11 @@
 #include <tuple>
 #include <cctype>
 
+// can get rid of position
+// and ref name
+// and Mutation_Read_List instead of Variant
+// using ints instead of string for looking up read names
+
 struct Variant {
     std::string ref_name;
     int position;
@@ -91,7 +96,7 @@ std::tuple<std::string, std::string, int, std::string, std::string> parse_sam_li
     return {read_name, ref_name, std::stoi(pos), seq,  cigar};
 }
 
-std::vector<std::tuple<int, std::string, std::string>> parse_cigar(const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome) {
+std::vector<std::tuple<int, std::string, std::string>> parse_cigar(const std::string& cigar, const std::string& seq, int pos, const std::string& ref_genome, bool no_indels) {
     std::vector<std::tuple<int, std::string, std::string>> mutations;
     std::regex cigar_regex(R"((\d+)([MIDNSHPX=]))");
     std::sregex_iterator cigar_tokens(cigar.begin(), cigar.end(), cigar_regex);
@@ -116,12 +121,14 @@ std::vector<std::tuple<int, std::string, std::string>> parse_cigar(const std::st
                 break;
             }
             case 'I': { // Insertion
+                if (no_indels) break; // Skip indels if --no-indels flag is set
                 std::string alt_base = seq.substr(read_pos, count);
                 mutations.emplace_back(ref_pos + 1, "-", alt_base);
                 read_pos += count;
                 break;
             }
             case 'D': { // Deletion
+                if (no_indels) break; // Skip indels if --no-indels flag is set
                 std::string ref_base = ref_genome.substr(ref_pos, count);
                 mutations.emplace_back(ref_pos + 1, ref_base, "-");
                 ref_pos += count;
@@ -220,7 +227,7 @@ int main(int argc, char* argv[]) {
 
     for (size_t i = 0; i < lines.size(); ++i) {
         auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
-        auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
+        auto mismatches = parse_cigar(cigar, seq, pos, ref_genome, no_indels);
 
         reads.insert(read_name); // since this is a set, duplicates will be ignored
         for (const auto& [position, ref_base, alt_base] : mismatches) {
@@ -331,9 +338,9 @@ int main(int argc, char* argv[]) {
         for (const auto& [alt_base, code] : var.alt_bases) {
             // if the ref base equals the alt base, print a message and skip
             if (var.ref_base == alt_base) {
-                // std::cout << "Ref base equals alt base at " << var.ref_name << ":" << var.position << std::endl;
-                // std::cout << "Ref base: " << var.ref_base << std::endl;
-                // std::cout << "Alt base: " << alt_base << std::endl;
+                std::cout << "Ref base equals alt base at " << var.ref_name << ":" << var.position << std::endl;
+                std::cout << "Ref base: " << var.ref_base << std::endl;
+                std::cout << "Alt base: " << alt_base << std::endl;
                 continue;
             }
 
