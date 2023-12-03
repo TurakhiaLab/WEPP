@@ -23,9 +23,7 @@ if [ $# -gt 3 ]; then
 
     if [ "$4" = "--compile" ] || [ "$5" = "--compile" ]; then
         echo "Compiling C++ code"
-        g++ -o sort_vcf sort_vcf.cpp
-        g++ -o group_vcf group_vcf.cpp
-        g++ -o generate_freyja_files generate_freyja_files.cpp
+        g++ -fopenmp -o sam_vcf_pipeline_full sam_vcf_pipeline_full.cpp
     fi
 
     if [ "$4" = "--no-indels" ] || [ "$5" = "--no-indels" ]; then
