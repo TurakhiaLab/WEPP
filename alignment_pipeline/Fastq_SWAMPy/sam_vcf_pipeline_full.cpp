@@ -1,3 +1,8 @@
+// can get rid of position
+// and ref name
+// and Mutation_Read_List instead of Variant
+// using ints instead of string for looking up read names
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -9,14 +14,8 @@
 #include <thread>
 #include <mutex>
 #include <cstdlib>
-#include <omp.h>
 #include <tuple>
 #include <cctype>
-
-// can get rid of position
-// and ref name
-// and Mutation_Read_List instead of Variant
-// using ints instead of string for looking up read names
 
 struct Variant {
     std::string ref_name;
@@ -181,6 +180,59 @@ int find_read_depth(const std::string& read_name, const std::vector<int>& depth)
     return read_depth / (positions.second - positions.first + 1);
 }
 
+void process_variants(const std::vector<std::pair<std::string, int>>& keys, 
+                      const std::map<std::pair<std::string, int>, Variant>& variants_map,
+                      size_t start, size_t end, 
+                      const std::set<std::string>& reads, bool no_indels,
+                      std::vector<std::pair<int, std::string>>& local_vcf_lines) {
+
+    for (size_t i = start; i < end; ++i) {
+        const auto& key = keys[i];
+        const auto& var = variants_map.at(key);
+
+        if (no_indels && (var.ref_base == "-")) continue;
+
+        std::string vcf_line = var.ref_name + '\t' + std::to_string(var.position) + '\t';
+        
+        std::string alts;
+        std::vector<std::string> alt_list;
+
+        for (const auto& [alt_base, code] : var.alt_bases) {
+            if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base
+            if (no_indels && (alt_base == "-")) continue; // Skip indels if flag is set
+            if (!alts.empty()) alts += ",";
+            alts += alt_base;
+            alt_list.push_back(alt_base);
+        }
+
+        for (const auto& alt_base : alt_list) {
+            vcf_line += var.ref_base + std::to_string(var.position) + alt_base + ",";
+        }
+
+        if (!alt_list.empty()) {
+            vcf_line.pop_back(); // Remove the last comma
+        }
+        
+        vcf_line += '\t' + var.ref_base + '\t';
+        vcf_line += alts + "\t.\t.\t.\t.\t";
+
+        for (const auto& read : reads) {
+            int alt_code = 0;
+            for (const auto& [alt_base, code] : var.alt_bases) {
+                if (var.ref_base == alt_base) continue;
+                if (no_indels && (alt_base == "-")) continue;
+                if (var.read_names.at(alt_base).find(read) != var.read_names.at(alt_base).end()) {
+                    alt_code = code; // Get the code of the alt allele present for this read
+                    break;
+                }
+            }
+            vcf_line += std::to_string(alt_code) + '\t'; // Write the code (0 if not present, otherwise the allele code)
+        }
+
+        local_vcf_lines.emplace_back(var.position, vcf_line);
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 7) {
         std::cerr << "Usage: " << argv[0] << " <sam_file> <reference_file> <vcf_file> <freyja_vcf_file> <freyja_depth_file> <num_threads> [--no-indels]" << std::endl;
@@ -204,9 +256,7 @@ int main(int argc, char* argv[]) {
     std::string vcf_file = argv[3];
     std::string freyja_vcf_file = argv[4];
     std::string freyja_depth_file = argv[5];
-    int num_threads = std::atoi(argv[6]);
-
-    omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
+    int num_threads = 8;
 
     std::string ref_genome = read_reference(reference_file);
 
@@ -249,70 +299,6 @@ int main(int argc, char* argv[]) {
             var.read_names[alt_base].insert(read_name);
         }
     }
-
-    // #pragma omp parallel
-    // {
-    //     std::map<std::pair<std::string, int>, Variant> local_variants_map;
-    //     std::set<std::string> local_reads;
-
-    //     #pragma omp for schedule(dynamic) nowait
-    //     for (size_t i = 0; i < lines.size(); ++i) {
-    //         // auto [read_name, ref_name, pos, seq, mdz, cigar] = parse_sam_line(lines[i]);
-    //         // auto mismatches = parse_mdz(mdz, cigar, seq, pos, ref_genome, no_indels);
-    //         auto [read_name, ref_name, pos, seq, cigar] = parse_sam_line(lines[i]);
-    //         auto mismatches = parse_cigar(cigar, seq, pos, ref_genome);
-
-    //         local_reads.insert(read_name); // since this is a set, duplicates will be ignored
-    //         for (const auto& [position, ref_base, alt_base] : mismatches) {
-    //             std::pair<std::string, int> key = {ref_name, position};
-    //             auto& var = local_variants_map[key];
-    //             var.ref_name = ref_name;
-    //             var.position = position;
-    //             var.ref_base = ref_base;
-
-    //             // Encode each variant with a unique number at this position
-    //             // e.g. A -> 1, C -> 2, G -> 3, T -> 4
-    //             int code = var.alt_bases.size() + 1;
-    //             if (var.alt_bases.find(alt_base) == var.alt_bases.end()) {
-    //                 var.alt_bases[alt_base] = code;
-                    
-    //             }
-
-    //             // Insert read names for this specific alternate allele
-    //             var.read_names[alt_base].insert(read_name);
-    //         }
-    //     }
-
-    //     #pragma omp critical
-    //     {
-    //         reads.insert(local_reads.begin(), local_reads.end());
-    //         for (const auto& kv : local_variants_map) {
-    //             auto& var = variants_map[kv.first];
-    //             if (var.read_names.empty()) {
-    //                 var = kv.second;
-    //             } else {
-    //                 for (const auto& alt_kv : kv.second.alt_bases) {
-    //                     const auto& alt_base = alt_kv.first;
-    //                     int alt_code = alt_kv.second;
-    //                     var.alt_bases[alt_base] = alt_code;
-    //                     var.read_names[alt_base].insert(kv.second.read_names.at(alt_base).begin(),
-    //                                                     kv.second.read_names.at(alt_base).end());
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    // For each variant, print the ref name, position, ref base, alt bases and their codes
-    // for (const auto& [key, var] : variants_map) {
-    //     std::cout << var.ref_name << '\t'
-    //               << var.position << '\t'
-    //               << var.ref_base << '\t';
-    //     for (const auto& [alt_base, code] : var.alt_bases) {
-    //         std::cout << alt_base << ':' << code << '\t';
-    //     }
-    //     std::cout << std::endl;
-    // }
 
     // Generate Freyja VCF and depth files
     std::ofstream freyja_vcf_out(freyja_vcf_file);
@@ -367,56 +353,117 @@ int main(int argc, char* argv[]) {
     freyja_vcf_out.close();
     freyja_depth_out.close();
 
-    std::cout << "Writing WEPP VCF file..." << std::endl;
+    // std::cout << "Writing WEPP VCF file..." << std::endl;
+
+    // std::ofstream out(vcf_file);
+    // std::string vcf_file_contents = "";
+    // vcf_file_contents += "##fileformat=VCFv4.2\n";
+    // vcf_file_contents += "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+    // for (const auto& read : reads) {
+    //     vcf_file_contents += append_depth(read, find_read_depth(read, depth)) + '\t';
+    // }
+    // vcf_file_contents += '\n';
+
+    // for (const auto& [key, var] : variants_map) {
+    //     if (no_indels && (var.ref_base == "-")) continue; // Skip indels if --no-indels flag is set
+    //     // Concatenate all alternate alleles
+    //     std::string alts;
+    //     std::vector<std::string> alt_list;
+    //     for (const auto& [alt_base, _] : var.alt_bases) {
+    //         if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
+    //         if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
+    //         if (!alts.empty()) alts += ",";
+    //         alts += alt_base;
+    //         alt_list.push_back(alt_base);
+    //     }
+
+    //     vcf_file_contents += var.ref_name + '\t' + std::to_string(var.position) + '\t';
+    //     for (const auto& alt_base : alt_list) {
+    //         vcf_file_contents += var.ref_base + std::to_string(var.position) + alt_base + ",";
+    //     }
+
+    //     vcf_file_contents.pop_back(); // Remove the last comma
+        
+    //     vcf_file_contents += '\t' + var.ref_base + '\t';
+    //     vcf_file_contents += alts + "\t.\t.\t.\t.\t";
+
+    //     for (const auto& read : reads) {
+    //         int alt_code = 0;
+    //         for (const auto& [alt_base, code] : var.alt_bases) {
+    //             if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
+    //             if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
+    //             if (var.read_names.at(alt_base).find(read) != var.read_names.at(alt_base).end()) {
+    //                 alt_code = code; // Get the code of the alt allele present for this read
+    //                 break;
+    //             }
+    //         }
+    //         vcf_file_contents += std::to_string(alt_code) + '\t'; // Write the code (0 if not present, otherwise the allele code)
+    //     }
+    //     vcf_file_contents += '\n';
+    // }
+
+    // out << vcf_file_contents;
+    // out.close();
+
+    // return 0;
+
+     std::cout << "Writing WEPP VCF file..." << std::endl;
 
     std::ofstream out(vcf_file);
-    std::string vcf_file_contents = "";
-    vcf_file_contents += "##fileformat=VCFv4.2\n";
-    vcf_file_contents += "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+    std::string vcf_file_header = "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
     for (const auto& read : reads) {
-        vcf_file_contents += append_depth(read, find_read_depth(read, depth)) + '\t';
+        vcf_file_header += append_depth(read, find_read_depth(read, depth)) + '\t';
     }
-    vcf_file_contents += '\n';
+    vcf_file_header += '\n';
 
-    for (const auto& [key, var] : variants_map) {
-        if (no_indels && (var.ref_base == "-")) continue; // Skip indels if --no-indels flag is set
-        // Concatenate all alternate alleles
-        std::string alts;
-        std::vector<std::string> alt_list;
-        for (const auto& [alt_base, _] : var.alt_bases) {
-            if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
-            if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
-            if (!alts.empty()) alts += ",";
-            alts += alt_base;
-            alt_list.push_back(alt_base);
-        }
-
-        vcf_file_contents += var.ref_name + '\t' + std::to_string(var.position) + '\t';
-        for (const auto& alt_base : alt_list) {
-            vcf_file_contents += var.ref_base + std::to_string(var.position) + alt_base + ",";
-        }
-
-        vcf_file_contents.pop_back(); // Remove the last comma
-        
-        vcf_file_contents += '\t' + var.ref_base + '\t';
-        vcf_file_contents += alts + "\t.\t.\t.\t.\t";
-
-        for (const auto& read : reads) {
-            int alt_code = 0;
-            for (const auto& [alt_base, code] : var.alt_bases) {
-                if (var.ref_base == alt_base) continue; // Skip if ref base equals alt base (i.e. no variant)
-                if (no_indels && (alt_base == "-")) continue; // Skip indels if --no-indels flag is set
-                if (var.read_names.at(alt_base).find(read) != var.read_names.at(alt_base).end()) {
-                    alt_code = code; // Get the code of the alt allele present for this read
-                    break;
-                }
-            }
-            vcf_file_contents += std::to_string(alt_code) + '\t'; // Write the code (0 if not present, otherwise the allele code)
-        }
-        vcf_file_contents += '\n';
+    // Create a vector of keys from variants_map
+    std::vector<std::pair<std::string, int>> keys;
+    for (const auto& kv : variants_map) {
+        keys.push_back(kv.first);
     }
 
-    out << vcf_file_contents;
+    std::mutex vcf_lines_mutex;
+    std::vector<std::pair<int, std::string>> vcf_lines;
+
+    std::vector<std::thread> threads;
+    size_t chunk_size = keys.size() / num_threads;
+
+    // Lambda function for thread work
+    auto thread_work = [&](size_t start_idx, size_t end_idx) {
+        std::vector<std::pair<int, std::string>> local_vcf_lines;
+        process_variants(keys, variants_map, start_idx, end_idx, reads, no_indels, local_vcf_lines);
+
+        // Lock and merge results
+        std::lock_guard<std::mutex> lock(vcf_lines_mutex);
+        vcf_lines.insert(vcf_lines.end(), local_vcf_lines.begin(), local_vcf_lines.end());
+    };
+
+    // Create threads
+    for (size_t i = 0; i < num_threads; ++i) {
+        size_t start = i * chunk_size;
+        size_t end = (i + 1) * chunk_size;
+        if (i == num_threads - 1 || end > keys.size()) {
+            end = keys.size();
+        }
+        threads.emplace_back(thread_work, start, end);
+    }
+
+    // Wait for threads to finish
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+
+    // Sort the VCF lines based on position
+    std::sort(vcf_lines.begin(), vcf_lines.end());
+
+    // Write all VCF lines
+    out << vcf_file_header;
+    for (const auto& [_, vcf_line] : vcf_lines) {
+        out << vcf_line << '\n';
+    }
+
     out.close();
 
     return 0;

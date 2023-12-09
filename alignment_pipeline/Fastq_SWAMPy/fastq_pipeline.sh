@@ -80,9 +80,9 @@ time python new_alignment_positions.py intermediate_files/alignment_2.sam interm
 # ./sam_vcf_pipeline_2  intermediate_files/alignment_modified.sam $reference_fasta $output_vcf 4
 
 if [ "$include_indels" = true ]; then
-    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 4
+    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 16
 else
-    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 4 --no-indels
+    time ./sam_vcf_pipeline_full intermediate_files/alignment_modified.sam $reference_fasta $output_vcf $output_vcf_freyja $output_vcf_depth 16 --no-indels
 fi
 
 
