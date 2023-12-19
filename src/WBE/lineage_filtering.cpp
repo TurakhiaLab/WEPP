@@ -1,47 +1,8 @@
 #include "wbe.hpp"
 
-po::variables_map parseWBEcommand(po::parsed_options parsed) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-    po::variables_map vm;
-    po::options_description conv_desc("place_read options");
-    conv_desc.add_options()
-    ("input-mat,i", po::value<std::string>()->required(),
-     "Input mutation-annotated tree file [REQUIRED]")
-    ("output-directory,o", po::value<std::string>()->default_value("./"),
-     "Write output files to the target directory. Default is current directory.")
-    ("output-files-prefix,v", po::value<std::string>()->default_value(""),
-     "Output files prefix.")
-    ("ref-fasta,f", po::value<std::string>()->default_value(""),
-     "Input Fasta file representing reference sequence")
-    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-    ("help,h", "Print help messages");
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try {
-        po::store(po::command_line_parser(opts)
-                  .options(conv_desc)
-                  .run(), vm);
-        po::notify(vm);
-    } catch(std::exception &e) {
-        std::cerr << conv_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
 void filterLineages (po::parsed_options parsed) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
 
     boost::filesystem::path path(dir_prefix);
@@ -52,6 +13,7 @@ void filterLineages (po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
+    std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string mismatch_matrix_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_mismatch_matrix.csv";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
@@ -73,9 +35,9 @@ void filterLineages (po::parsed_options parsed) {
         std::getline(fasta_f, temp);
         ref_seq += temp;
     }
-    fprintf(stderr, "\nLoading input MAT files %s\n", input_mat_filename.c_str());
 
     // Load input MAT and uncondense tree
+    fprintf(stderr, "\nLoading input MAT files %s\n", input_mat_filename.c_str());
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld sec \n\n", (timer.Stop() / 1000));
@@ -87,7 +49,7 @@ void filterLineages (po::parsed_options parsed) {
     
     //Get the peak_nodes
     timer.Start();
-    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 5;
+    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 7;
     std::vector<MAT::Node*> peak_nodes;
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     tbb::concurrent_vector<std::pair<MAT::Node*, double>> node_score_vector;
@@ -135,6 +97,7 @@ void filterLineages (po::parsed_options parsed) {
         curr_prohibited_nodes.clear();
     }
     printf("\nPeak Nodes: %lu, Lineages: %lu\n\n", peak_nodes.size(), lineage_node_map.size());
+
     node_score_vector.clear();
     node_score_map.clear();
     prohibited_nodes.clear();

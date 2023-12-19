@@ -52,6 +52,17 @@ def read_condensed_csv_file(file_path):
 
     return condensed_nodes_map
 
+def read_loss_mutations_file(file_path):
+    # Create an empty dictionary to store the data
+    loss_mutations = []
+    with open(file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)   
+        # Iterate through each row in the CSV file
+        for row in csv_reader:
+            loss_mutations.append(row[0])
+
+    return loss_mutations
+
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
         file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
@@ -95,11 +106,12 @@ def cp_solve(A, b, d):
     return x.value, cost.value
 
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
+    global cost_thresh
     #Setting the variables for the regression problem
     A = hap_mut_matrix.T
     #Running the loop twice to ensure abundances sum up to 1
     for i in range(2):
-        sol, _ = cp_solve(A, read_af, depth_values)
+        sol, ref_cost = cp_solve(A, read_af, depth_values)
         #Make the proportion to be 0 for anything < eps
         sol[sol < eps] = 0
         #Removing haplotypes that are < 0 in abundance
@@ -108,33 +120,36 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
         A = np.delete(A, hap_idx_remove, axis = 1)
         haplotypes = [val for i, val in enumerate(haplotypes) if i not in hap_idx_remove]
     
-    #Remove rows with all zeros (due to removal of haplotypes)
+    #Remove rows (mutations) with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A == 0, axis=1)
     mut_idx_remove = np.where(zero_rows)[0]
     A = np.delete(A, mut_idx_remove, axis=0)
     mutations = [val for i, val in enumerate(mutations) if i not in mut_idx_remove]
-
     return A, haplotypes, sol, mutations
 
 #Check arguments
-if len(sys.argv) != 2:
-    printf("USAGE: python lineage_abundance.py file_prefix")
+if len(sys.argv) != 3:
+    printf("USAGE: python lineage_abundance.py <file_prefix> <directory>")
     sys.exit(1)
 
 # Start time
 start_time = time.time()
 eps = 1e-2
+cost_thresh = 0.02
 file_prefix = sys.argv[1]
+directory = sys.argv[2]
 
 # Reading File
-barcode_file_path = file_prefix + "_barcode.csv"
+barcode_file_path = directory + "/" + file_prefix + "_barcode.csv"
 mutations, haplotypes, hap_mut_matrix = read_barcode_csv_file(barcode_file_path)
 
-vcf_file = file_prefix + "_read_data.vcf"
+vcf_file = directory + "/" + file_prefix + "_read_data.vcf"
 af_values, depth_values = read_vcf_file(vcf_file)
 
-condensed_file_path = file_prefix + "_condensed_nodes.csv"
+condensed_file_path = directory + "/" + file_prefix + "_condensed_nodes.csv"
 condensed_nodes_map = read_condensed_csv_file(condensed_file_path)
+
+loss_mutations_file_path = directory + "/" + file_prefix + "_loss_mutations.csv"
 
 #Solving abundance
 mut_hap_matrix, haplotypes, abundances, mutations = solve_abundance(hap_mut_matrix, af_values, depth_values, haplotypes, mutations)
@@ -187,10 +202,10 @@ for abun, lin in uncertain_lineages.items():
 csv_write_header = ['Haplotype', 'Abundance']
 csv_write_data = np.vstack((haplotypes, abundances)).T
 csv_write_data = np.vstack((csv_write_header, csv_write_data))
-write_csv_file(csv_write_data, file_prefix + "_haplotype_abundance.csv")
+write_csv_file(csv_write_data, directory + "/" + file_prefix + "_haplotype_abundance.csv")
 
 #Write VCF
-write_vcf_file(file_prefix + "_haplotypes.vcf", mut_hap_matrix, haplotypes, mutations)
+write_vcf_file(directory + "/" + file_prefix + "_haplotypes.vcf", mut_hap_matrix, haplotypes, mutations)
 
 # End time
 print(f"\nElapsed time: {time.time() - start_time} seconds")

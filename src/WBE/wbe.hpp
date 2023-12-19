@@ -23,7 +23,6 @@ struct read_info {
    std::vector<MAT::Mutation> mutations;
    int start;
    int end;
-   int depth;
 };
 
 struct parsimony {
@@ -48,6 +47,8 @@ struct node_branch {
 };
 
 po::variables_map parseWBEcommand(po::parsed_options);
+
+void sam2VCF(po::parsed_options);
 
 void selectHaplotypes (po::parsed_options);
 
@@ -101,4 +102,10 @@ void sortNodeScore(const MAT::Tree &, const tbb::concurrent_hash_map<MAT::Node*,
 
 void placeReadHelper(MAT::Node*, const std::unordered_map<size_t, struct read_info*> &, std::vector<size_t>, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<size_t>&, const int &, const int &, const int &);
 
-void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &);
+void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &);
+
+void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
+
+void readSAM(const std::string &, std::unordered_map<size_t, std::string> &, std::unordered_map<int, std::vector<std::pair<char, std::vector<size_t>>>> &);
+
+bool compareIdx(const std::pair<int, size_t> &, const std::pair<int, size_t> &);
