@@ -1,4 +1,50 @@
 #include "wbe.hpp"
+//Paring the commands
+po::variables_map parseWBEcommand(po::parsed_options parsed) {
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+    po::variables_map vm;
+    po::options_description conv_desc("Given Switch options");
+    conv_desc.add_options()
+    ("input-mat,i", po::value<std::string>()->default_value(""),
+     "Input mutation-annotated tree file")
+    ("output-directory,o", po::value<std::string>()->default_value("./"),
+     "Write output files to the target directory. Default is current directory.")
+    ("output-files-prefix,v", po::value<std::string>()->default_value(""),
+    "Prefix to be used for dumping all intermediate files.")
+    ("ref-fasta,f", po::value<std::string>()->default_value(""),
+     "Input fasta file representing reference sequence")
+    ("align-sam,s", po::value<std::string>()->default_value(""),
+     "Input sam file representing reference sequence")
+    ("distribution,d", po::value<std::string>()->default_value(""),
+     "Give the distribution of samples, comma delimited.")
+    ("haplotype-samples,w", po::value<int>()->default_value(10),
+     "Give the number of haplotype samples")
+    ("lineage,l", po::value<std::string>()->default_value(""),
+     "Give lineage of samples, comma delimited.")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try {
+        po::store(po::command_line_parser(opts)
+                  .options(conv_desc)
+                  .run(), vm);
+        po::notify(vm);
+    } catch(std::exception &e) {
+        std::cerr << conv_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
 
 //Get the names of samples prsent in samples.vcf
 void readSampleVCF(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
@@ -42,18 +88,17 @@ void readVCF(std::unordered_map<size_t, struct read_info*> &read_map, const std:
                     struct read_info* rp = new struct read_info;
                     rp->read = words[j];
                     //Get start-end positions and depth of the Read
-                    std::regex rgx(".*READ_(\\w+)_(\\w+)_(\\w+)");
+                    std::regex rgx(".*READ_(\\w+)_(\\w+)");
                     std::smatch match;
+
                     if (std::regex_search(words[j], match, rgx)) {
                         rp->start = std::stoi(match[1]);
                         rp->end = std::stoi(match[2]);
-                        rp->depth = std::stoi(match[3]);
                     }
                     //Consider the entire genome
                     else {
                         rp->start = 1;
                         rp->end = seq_len;
-                        rp->depth = 1;
                     }
                     read_map.insert({(j-field_offset), rp});
                 }
@@ -542,6 +587,7 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
                 return x + y;
             }
         );
+        
         double score = 1.0 / log2(num_nodes+1);
         
         //Update node_score_map in parallel
@@ -1574,4 +1620,248 @@ void generateFilteringData(const MAT::Tree &T, const std::string &ref_seq, const
     condensed_print.clear();
         
     fprintf(stderr,"Barcode and VCF file writing took %ld sec\n\n", (timer.Stop() / 1000));
+}
+
+//Map reads to haplotypes
+void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*>& read_map, const std::unordered_map<size_t, struct read_info*>& hap_map) {
+    //1. STORE mutations of reads with parsimony > 0 in mut_AFDepth_map
+    tbb::concurrent_hash_map<std::pair<int, char>, size_t> mut_AFDepth_map;
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                auto rp = read_map.find(i)->second;
+                //Find the most parsimonious positions
+                std::vector<size_t> epp_list;
+                int min_dist = std::numeric_limits<int>::max();
+                std::vector<MAT::Mutation> mutations_in_range;
+                auto hap_itr = hap_map.begin();
+                while (hap_itr != hap_map.end()) {
+                    for (auto m: hap_itr->second->mutations) {
+                        if ((m.position >= rp->start) && (m.position <= rp->end))
+                            mutations_in_range.emplace_back(m);
+                    }
+                    int curr_dist = mutationDistance(rp->mutations, mutations_in_range);
+                    mutations_in_range.clear();
+                    if (curr_dist <= min_dist) {
+                        if (curr_dist < min_dist) {
+                            epp_list.clear();
+                            min_dist = curr_dist;
+                        }
+                        epp_list.emplace_back(hap_itr->first);
+                    }
+                    hap_itr++;
+                }
+
+                //STORE read mutations when parsimony > 0
+                if (min_dist) {
+                    tbb::concurrent_hash_map<std::pair<int, char>, size_t>::accessor ac;
+                    for (const auto& mut: rp->mutations) {
+                        auto created = mut_AFDepth_map.insert(ac, std::make_pair(std::make_pair(mut.position, MAT::get_nuc(mut.mut_nuc)), 1));
+                        if (!created) 
+                            ac->second++;
+                        ac.release();
+                    }
+                    epp_list.clear();
+                }
+            }
+        },
+    ap);
+
+    //2. CREATE site_reads_map
+    std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
+    for (size_t i = 0; i < read_map.size(); i++) {
+        auto rp = read_map.find(i)->second;
+        auto nuc_pos = rp->start;
+        for (const auto& mut: rp->mutations) {
+            //Store the coverage of nucleotides leading up to the mutating nucleotide
+            while (nuc_pos < mut.position) {
+                char curr_nuc = ref_seq[nuc_pos-1];
+                if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+                    site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                else {
+                    bool found = false;
+                    for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+                        if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                            site_reads_map[nuc_pos][vec_idx].second++;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                        site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+                }
+                nuc_pos++;
+            }
+            //Store the coverage of mutating nucleotide
+            char curr_nuc = MAT::get_nuc(mut.mut_nuc);
+            if (site_reads_map.find(mut.position) == site_reads_map.end()) 
+                site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+            else {
+                bool found = false;
+                for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
+                    if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
+                        site_reads_map[mut.position][vec_idx].second++;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
+            }
+            nuc_pos++;
+        }
+        //Store the coverage of nucleotide remaining after mutating ones
+        while (nuc_pos <= rp->end) {
+            char curr_nuc = ref_seq[nuc_pos-1]; 
+            if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+                site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+            else {
+                bool found = false;
+                for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+                    if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                        site_reads_map[nuc_pos][vec_idx].second++;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+            }
+            nuc_pos++;
+        }
+    }
+    
+    //COMPUTE average_read_depth and AF and read_depth of mutations in mut_AFDepth_map
+    double average_read_depth = 0.0;
+    for (const auto& sr_list: site_reads_map) {
+        for (const auto& mut_count: sr_list.second)
+            average_read_depth += mut_count.second;
+    }
+    average_read_depth /= site_reads_map.size();
+
+    /////////////////////////////////////////
+    //for (double af_thresh = 0.05; af_thresh < 0.5; af_thresh += 0.05) {
+    //    for (double rel_depth_thresh = 0.1; rel_depth_thresh <= 1; rel_depth_thresh += 0.1) {
+    //        size_t depth_thresh = rel_depth_thresh * average_read_depth;
+    //        size_t tp = 0, fp = 0;
+    //        //Iterating through mut_AFDepth_map to get mutations satisfying the thresholds
+    //        for (const auto& m_ad: mut_AFDepth_map) {
+    //            size_t total_reads = 0, mut_reads = 0;
+    //            int pos = m_ad.first.first;
+    //            char mut_nuc = m_ad.first.second;
+    //            for (const auto& mut_count: site_reads_map[pos]) {
+    //                if (mut_count.first == mut_nuc)
+    //                    mut_reads = mut_count.second;
+    //                total_reads += mut_count.second;
+    //            }
+    //            double curr_af = (double)mut_reads / (double)total_reads;
+    //        }
+    //        printf("AF_thresh: %f, Depth_thresh_rel_avg_depth: %f, TP: %lu, FP: %lu\n", af_thresh, rel_depth_thresh, tp, fp);
+    //    }
+    //}
+
+    ////Iterate through hap_read_map to check Allele Frequency at every site of haplotype
+    //for (const auto& hr: hap_read_map) {
+    //    auto hap_idx = hr.first;
+    //    auto reads_idx_list = hr.second;
+    //    //Get Allele Frequency of read with non-zero parsimony
+    //    tbb::concurrent_hash_map<size_t, std::vector<size_t>>::const_accessor k_ac;
+    //    if (hap_nonZeroreads_map.find(k_ac, hap_idx)) {
+    //        if (hap_map.find(hap_idx)->second->read == "CONDENSED-28_B.39") {
+    //            printf("\nHAP: %s\n", hap_map.find(hap_idx)->second->read.c_str());
+    //            for (const auto& mut: hap_map.find(hap_idx)->second->mutations)
+    //                printf("%d%c\n", mut.position, MAT::get_nuc(mut.mut_nuc));
+    //            printf("\n Read Mutations\n");
+    //        }
+    //        auto nonZeroread_idx_list = k_ac->second;
+    //        //Get max_read_depth
+    //        size_t max_read_depth = 0;
+    //        for (const auto& sr_list: site_read_map) {
+    //            size_t curr_read_depth = 0;
+    //            for (const auto& mut_count: sr_list.second)
+    //                curr_read_depth += mut_count.second;
+    //            if (curr_read_depth > max_read_depth)
+    //                max_read_depth = curr_read_depth;
+    //        }
+    //        //Analyze the mutations of non-zero reads
+    //        for (const auto& rd_idx: nonZeroread_idx_list) {
+    //            auto rp = read_map.find(rd_idx)->second;
+    //            for (const auto& mut: rp->mutations) {
+    //                size_t total_reads = 0;
+    //                for (const auto& mut_count: site_read_map[mut.position])
+    //                    total_reads += mut_count.second;
+    //                for (const auto& mut_count: site_read_map[mut.position]) {
+    //                    if (mut_count.first == MAT::get_nuc(mut.mut_nuc)) {
+    //                        if (hap_map.find(hap_idx)->second->read == "CONDENSED-28_B.39")
+    //                        printf("%d%c -> %f, %f\n", mut.position, mut_count.first,  ((double)mut_count.second / (double)total_reads), ((double)mut_count.second) / (double)max_read_depth);
+    //                        break;
+    //                    }
+    //                }
+    //            }
+    //        }    
+    //    }
+    //    site_read_map.clear();
+    //}
+}
+
+//Comparing rd_idx for sorting a rd_idx_vector 
+bool compareIdx(const std::pair<int, size_t> &a, const std::pair<int, size_t> &b) {
+    return a.second < b.second;
+}
+
+//Store the Reads from the SAM in read_map and site_MutReads_map
+void readSAM(const std::string &sam_file, std::unordered_map<size_t, std::string> &read_map, std::unordered_map<int, std::vector<std::pair<char, std::vector<size_t>>>> &site_MutReads_map) {
+    boost::filesystem::ifstream fileHandler(sam_file);
+    std::string s;
+    while (getline(fileHandler, s)) {
+        std::vector<std::string> words;
+        MAT::string_split(s, words);
+        if (words.size() > 1) {
+            //Skip header
+            if (words[0][0] == '@')
+                continue;
+            else {
+                //ONLY considering substitutions
+                std::regex cigar_pattern(R"(\d+[A-Za-z])"); // Matches one or more digits followed by a character
+                std::sregex_iterator iter(words[5].begin(), words[5].end(), cigar_pattern);
+                std::sregex_iterator end;
+                int uniq_indels = std::distance(iter, end);
+                //Skip reads if INDELS present OR UNMAPPED
+                if ((uniq_indels > 1) || (std::stoi(words[1]) == 4))
+                    continue;
+                //Find mutations in read_seq
+                int start_idx = std::stoi(words[3]);
+                std::string read_seq = words[9];
+                int end_idx = start_idx + read_seq.size() - 1;
+                //Add read to read_map
+                auto rd_idx = read_map.size();
+                read_map.insert({rd_idx, (words[0] + "_READ_" + std::to_string(start_idx) + "_" + std::to_string(end_idx))});
+                for (int i = 0; i < (int)read_seq.size(); i++) {
+                    char alt_nuc = read_seq[i];
+                    auto smr_itr = site_MutReads_map.find(start_idx + i);
+                    //Current position NOT in site_MutReads_map
+                    if (smr_itr == site_MutReads_map.end()) {
+                        std::vector<std::pair<char, std::vector<size_t>>> newEntry;
+                        newEntry.emplace_back(alt_nuc, std::vector<size_t>(1, rd_idx));
+                        site_MutReads_map[start_idx + i] = newEntry;
+                    }
+                    else {
+                        bool found = false;
+                        //Add rd_idx to alt_nuc if PRESENT
+                        for (auto& mr_pair: smr_itr->second) {
+                            if (mr_pair.first == alt_nuc) {
+                                mr_pair.second.emplace_back(rd_idx);
+                                found = true;
+                                break;
+                            }
+                        }
+                        //Else add alt_nuc to smr_itr->second
+                        if (!found)
+                            smr_itr->second.emplace_back(alt_nuc, std::vector<size_t>(1, rd_idx));
+                    }
+                }
+            } 
+        }
+    }
 }

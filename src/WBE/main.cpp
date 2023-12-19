@@ -36,6 +36,8 @@ int main (int argc, char** argv) {
        refinePeaks(parsed);
     } else if (cmd == "selectHaplotypes") {
        selectHaplotypes(parsed);
+    } else if (cmd == "sam2VCF") {
+       sam2VCF(parsed);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

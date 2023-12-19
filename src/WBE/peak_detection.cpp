@@ -3,7 +3,6 @@
 void detectPeaks (po::parsed_options parsed) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
 
     boost::filesystem::path path(dir_prefix);
@@ -14,6 +13,7 @@ void detectPeaks (po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
+    std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
@@ -80,7 +80,7 @@ void detectPeaks (po::parsed_options parsed) {
                 selected_lineage_list.emplace_back(curr_lineage);
         }
     }
-    
+
     //CREATE smaller lineage tree
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     MAT::Tree T_new;
@@ -113,7 +113,7 @@ void analyzeReads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::string 
     //ITERATE till no reads left
     while ((int)remaining_reads.size() > 0) {
         printf("\n");
-        fprintf(stderr, "\n");
+        //fprintf(stderr, "\n");
         
         //MAP reads to nodes
         placeReadHelper(T.root, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range);
@@ -168,7 +168,7 @@ void analyzeReads(const MAT::Tree &T, const MAT::Tree &T_ref, const std::string 
             curr_peak_nodes.emplace_back(ref_n_s.first);
             auto curr_clade = getLineage(T, ref_n_s.first);
             printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
-            fprintf(stderr,"PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
+            //fprintf(stderr,"PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             if ((++nodes_found) == top_n)
                 break;
             //Do neighbor check
