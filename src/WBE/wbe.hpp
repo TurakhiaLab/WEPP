@@ -106,6 +106,6 @@ void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct 
 
 void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
 
-void readSAM(const std::string &, std::unordered_map<size_t, std::string> &, std::unordered_map<int, std::vector<std::pair<char, std::vector<size_t>>>> &);
+void readSAM(const std::string &, const std::string &, std::unordered_map<size_t, std::string> &, std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> &);
 
 bool compareIdx(const std::pair<int, size_t> &, const std::pair<int, size_t> &);
