@@ -33,8 +33,8 @@ void sam2VCF(po::parsed_options parsed) {
 
     //Reading sam file
     std::unordered_map<size_t, std::string> read_map;
-    std::unordered_map<int, std::vector<std::pair<char, std::vector<size_t>>>> site_MutReads_map;
-    readSAM(sam_file, read_map, site_MutReads_map);
+    std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> site_MutReads_map;
+    readSAM(sam_file, ref_seq, read_map, site_MutReads_map);
 
     //Write VCFs
     std::ofstream outfile_vcf(vcf_filename_reads, std::ios::out | std::ios::binary);
@@ -68,41 +68,47 @@ void sam2VCF(po::parsed_options parsed) {
         char ref_nuc = ref_seq[i - 1];
         if (site_MutReads_map.find(i) != site_MutReads_map.end()) {
             size_t rd_count = 0;
-            int alt_count = 0;
-            bool found = false;
-            //Check if mutation is present at sit
-            for (auto& mr_pair: site_MutReads_map[i]) {
-                rd_count += mr_pair.second.size();
-                if (mr_pair.first != ref_nuc)
-                    found = true;
+            bool mut_found = false, no_indel_mut_found = false;;
+            //Check if mutation is present at site and create list of ref_nuc possibilities
+            for (auto& mr_tuple: site_MutReads_map[i]) {
+                rd_count += std::get<2>(mr_tuple).size();
+                if (std::get<0>(mr_tuple) != std::get<1>(mr_tuple)) {
+                    mut_found = true;
+                    if ((std::get<0>(mr_tuple) == std::string(1, ref_nuc)) && (std::get<1>(mr_tuple).size() == 1))
+                        no_indel_mut_found = true;
+                }
             }
             //Freyja Depth
             freyja_depth <<  "NC_045512v2\t" + std::to_string(i) + "\t" + std::string(1, ref_nuc) + "\t" + std::to_string(rd_count) + "\n";
 
-            if (found) {
+            if (mut_found) {
                 //Freyja VCF
-                for (auto& mr_pair: site_MutReads_map[i]) {
-                    if (mr_pair.first != ref_nuc)
-                        freyja_vcf << "\nNC_045512v2\t" + std::to_string(i) + "\t" + std::string(1, ref_nuc) + std::to_string(i) + std::string(1, mr_pair.first) + "\t" + std::string(1, ref_nuc) + "\t" + std::string(1, mr_pair.first) + "\t.\t.\tAF=" + std::to_string((double)mr_pair.second.size() / (double)rd_count);
+                for (auto& mr_tuple: site_MutReads_map[i]) {
+                    if (std::get<0>(mr_tuple) != std::get<1>(mr_tuple))
+                        freyja_vcf << "\nNC_045512v2\t" + std::to_string(i) + "\t" +std::get<0>(mr_tuple) + std::to_string(i) + std::get<1>(mr_tuple) + "\t" + std::get<0>(mr_tuple) + "\t" + std::get<1>(mr_tuple) + "\t.\t.\tAF=" + std::to_string((double)std::get<2>(mr_tuple).size() / (double)rd_count);
                 }
-                //VCF -> ID
+            }
+            if (no_indel_mut_found) {
+                //Only accounting substitutions for WEPP
+                //VCF -> ID 
+                int alt_count = 0;
                 vcf << "\nNC_045512v2\t" + std::to_string(i) + "\t";
-                for (auto& mr_pair: site_MutReads_map[i]) {
-                    if (mr_pair.first != ref_nuc) {
+                for (auto& mr_tuple: site_MutReads_map[i]) {
+                    if ((std::get<0>(mr_tuple) != std::get<1>(mr_tuple)) && (std::get<0>(mr_tuple) == std::string(1, ref_nuc)) && (std::get<1>(mr_tuple).size() == 1)) {
                         if (alt_count)
                             vcf << ",";
-                        vcf << std::string(1, ref_nuc) + std::to_string(i) + std::string(1, mr_pair.first);
+                        vcf << std::string(1, ref_nuc) + std::to_string(i) + std::get<1>(mr_tuple);
                         alt_count++;
                     }
                 }
                 vcf << "\t" + std::string(1, ref_nuc) + "\t";
                 //VCF -> ALT
                 alt_count = 0;
-                for (auto& mr_pair: site_MutReads_map[i]) {
-                    if (mr_pair.first != ref_nuc) {
+                for (auto& mr_tuple: site_MutReads_map[i]) {
+                    if ((std::get<0>(mr_tuple) != std::get<1>(mr_tuple)) && (std::get<0>(mr_tuple) == std::string(1, ref_nuc)) && (std::get<1>(mr_tuple).size() == 1)) {
                         if (alt_count)
                             vcf << ",";
-                        vcf << std::string(1, mr_pair.first);
+                        vcf << std::get<1>(mr_tuple);
                         alt_count++;
                     }
                 }
@@ -110,15 +116,15 @@ void sam2VCF(po::parsed_options parsed) {
                 //VCF -> read matrix
                 std::vector<std::pair<int, size_t>> nuc_read_list;
                 alt_count = 1;
-                for (auto& mr_pair: site_MutReads_map[i]) {
-                    if (mr_pair.first != ref_nuc) {
-                        for (const auto& rd_idx: mr_pair.second)
+                for (auto& mr_tuple: site_MutReads_map[i]) {
+                    if ((std::get<0>(mr_tuple) != std::get<1>(mr_tuple)) && (std::get<0>(mr_tuple) == std::string(1, ref_nuc)) && (std::get<1>(mr_tuple).size() == 1)) {
+                        for (const auto& rd_idx: std::get<2>(mr_tuple))
                             nuc_read_list.emplace_back(std::make_pair(alt_count, rd_idx));
                         alt_count++;
                     }
                 }
                 //Sort the reads based on read_map
-                tbb::parallel_sort(nuc_read_list.begin(), nuc_read_list.end(), compareIdx);
+                std::sort(nuc_read_list.begin(), nuc_read_list.end(), compareIdx);
                 auto nr_itr = nuc_read_list.begin();
                 for (size_t j = 0; j < read_map.size(); j++) {
                     if (nr_itr != nuc_read_list.end()) {
