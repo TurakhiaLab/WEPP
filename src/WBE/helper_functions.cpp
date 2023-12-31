@@ -366,6 +366,7 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
     auto dfs = T.depth_first_expansion();
     std::stack<struct parsimony> parsimony_stack;
     struct min_parsimony min_par;
+    std::unordered_set<size_t> common_mut_nodes;
     //Checking all nodes of the tree
     for (size_t i = 0; i < dfs.size(); i++) {
         auto curr_node = dfs[i];
@@ -391,19 +392,18 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
             //Only look at mutations within the read range
             if ((node_mut.position >= rp->start) && (node_mut.position <= rp->end)) {
                 bool found = false;
-                //Check in Mutation position found in parsimony of parent node
+                //Check mutation position in parsimony of parent node
                 auto curr_node_par_itr = curr_node_par_mut.begin();
                 while (curr_node_par_itr != curr_node_par_mut.end()) {
                     if (curr_node_par_itr->position == node_mut.position) {
                         //mut_nuc matches => remove mutation from parsimony
-                        if ((curr_node_par_itr->mut_nuc == node_mut.mut_nuc) || (curr_node_par_itr->mut_nuc == 0b1111)) {
-                           curr_node_par_mut.erase(curr_node_par_itr);
+                        if (curr_node_par_itr->mut_nuc == node_mut.mut_nuc) {
                            common_node_mut.emplace_back(*curr_node_par_itr);
+                           curr_node_par_mut.erase(curr_node_par_itr);
                         }
                         //Update the par_nuc in parsimony if only position matches
-                        else {
+                        else
                             curr_node_par_itr->par_nuc = node_mut.mut_nuc;
-                        }
                         found = true;
                         break;
                     }
@@ -485,63 +485,70 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
         }
 
         bool placed_child = false;
-        //Place as a sibling if common_node_mut is not empty and NOT root
-        if ((common_node_mut.size()) && (!curr_node->is_root())) {
-            //Checking min_parsimony
-            int new_min_par = -1; 
-            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
-            if (min_par.par_list.empty())
-                new_min_par = 1;
-            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
-            else if ((curr_node_par_mut.size() < min_par.par_list[0].size()))
-                new_min_par = 1;
-            // If cur_par_score == best_par_score -> APPEND
-            else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
-                new_min_par = 0;
-            
-            if (new_min_par == 1) {
-                min_par.idx_list.clear();
-                min_par.par_list.clear();
-                min_par.idx_list.emplace_back(i);
-                min_par.par_list.emplace_back(curr_node_par_mut);
+        //Ensure NOT accessing empty vector (new tree root node possibility) 
+        if (!node_mappings.find(curr_node)->second.empty()) {
+            //Place as a sibling if common_node_mut is not empty and NOT root in original tree
+            if ((common_node_mut.size()) && (!node_mappings.find(curr_node)->second.front()->is_root())) {
+                //ADD curr_node to common_mut_nodes if NOT leaf in original tree and uniq_curr_node_mut > 0
+                if ((!node_mappings.find(curr_node)->second.front()->is_leaf()) && (uniq_curr_node_mut.size()))
+                    common_mut_nodes.insert(i);
+                
+                //Checking min_parsimony
+                int new_min_par = -1; 
+                // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+                if (min_par.par_list.empty())
+                    new_min_par = 1;
+                // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+                else if ((curr_node_par_mut.size() < min_par.par_list[0].size()))
+                    new_min_par = 1;
+                // If cur_par_score == best_par_score -> APPEND
+                else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
+                    new_min_par = 0;
+                
+                if (new_min_par == 1) {
+                    min_par.idx_list.clear();
+                    min_par.par_list.clear();
+                    min_par.idx_list.emplace_back(i);
+                    min_par.par_list.emplace_back(curr_node_par_mut);
+                }
+                else if (new_min_par == 0) {
+                    min_par.idx_list.emplace_back(i);
+                    min_par.par_list.emplace_back(curr_node_par_mut);
+                }   
             }
-            else if (new_min_par == 0) {
-                min_par.idx_list.emplace_back(i);
-                min_par.par_list.emplace_back(curr_node_par_mut);
-            }   
-        }
-        //Place as a child if current node is NOT leaf node in original_tree or a ROOT node
-        else if (!node_mappings.find(curr_node)->second.front()->is_leaf()) {
-            placed_child = true;
-            //Updating parsimony to be stored as a child
-            for (auto uniq_mut: uniq_curr_node_mut) {
-                //Just reverse mut_nuc and par_nuc and add it to parsimony
-                int8_t temp = uniq_mut.par_nuc;
-                uniq_mut.par_nuc = uniq_mut.mut_nuc;
-                uniq_mut.mut_nuc = temp;
-                curr_node_par_mut.emplace_back(uniq_mut);
-            }
-            //Checking min_parsimony
-            int new_min_par = -1; 
-            // If best_par_score is empty and curr_par_score >= limit -> CHANGE
-            if (min_par.par_list.empty())
-                new_min_par = 1;
-            // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
-            else if (curr_node_par_mut.size() < min_par.par_list[0].size()) 
-                new_min_par = 1;
-            // If cur_par_score == best_par_score -> APPEND
-            else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
-                new_min_par = 0;
-            
-            if (new_min_par == 1) {
-                min_par.idx_list.clear();
-                min_par.par_list.clear();
-                min_par.idx_list.emplace_back(i);
-                min_par.par_list.emplace_back(curr_node_par_mut);
-            }
-            else if (new_min_par == 0) {
-                min_par.idx_list.emplace_back(i);
-                min_par.par_list.emplace_back(curr_node_par_mut);
+            //Place as a child if current node is NOT leaf node in original_tree or a ROOT node
+            else if (!node_mappings.find(curr_node)->second.front()->is_leaf()) {
+                placed_child = true;
+                //Updating parsimony to be stored as a child
+                for (auto uniq_mut: uniq_curr_node_mut) {
+                    //Just reverse mut_nuc and par_nuc and add it to parsimony
+                    int8_t temp = uniq_mut.par_nuc;
+                    uniq_mut.par_nuc = uniq_mut.mut_nuc;
+                    uniq_mut.mut_nuc = temp;
+                    curr_node_par_mut.emplace_back(uniq_mut);
+                }
+                //Checking min_parsimony
+                int new_min_par = -1; 
+                // If best_par_score is empty and curr_par_score >= limit -> CHANGE
+                if (min_par.par_list.empty())
+                    new_min_par = 1;
+                // If curr_par_score < best_par_score and curr_par_score >= limit -> CHANGE
+                else if (curr_node_par_mut.size() < min_par.par_list[0].size()) 
+                    new_min_par = 1;
+                // If cur_par_score == best_par_score -> APPEND
+                else if ((curr_node_par_mut.size() == min_par.par_list[0].size()))
+                    new_min_par = 0;
+                
+                if (new_min_par == 1) {
+                    min_par.idx_list.clear();
+                    min_par.par_list.clear();
+                    min_par.idx_list.emplace_back(i);
+                    min_par.par_list.emplace_back(curr_node_par_mut);
+                }
+                else if (new_min_par == 0) {
+                    min_par.idx_list.emplace_back(i);
+                    min_par.par_list.emplace_back(curr_node_par_mut);
+                }
             }
         }
 
@@ -579,7 +586,11 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
             [&](const tbb::blocked_range<size_t> &k, size_t block_num_nodes) -> size_t {
                 for (size_t i = k.begin(); i < k.end(); ++i) {
                     auto n_idx = min_par.idx_list[i];
-                    block_num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+                    //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
+                    if (common_mut_nodes.find(n_idx) == common_mut_nodes.end())
+                        block_num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+                    else
+                        block_num_nodes++;
                 }
                 return block_num_nodes;
             },
@@ -596,7 +607,18 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
             [&](tbb::blocked_range<size_t> k) {
                 for (size_t i = k.begin(); i < k.end(); ++i) {
                     auto n_idx = min_par.idx_list[i];
-                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                    //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
+                    if (common_mut_nodes.find(n_idx) == common_mut_nodes.end()) {
+                        for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+                            auto created = node_score_map.insert(ac, std::make_pair(node, score));
+                            if (!created)
+                                ac->second += score;
+                            ac.release();
+                        }
+                    }
+                    else {
+                        auto node = node_mappings.find(dfs[n_idx])->second.front();
                         tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
                         auto created = node_score_map.insert(ac, std::make_pair(node, score));
                         if (!created)
@@ -625,7 +647,18 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
                             continue;
                     }
                     auto n_idx = min_par.idx_list[i];
-                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                    //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
+                    if (common_mut_nodes.find(n_idx) == common_mut_nodes.end()) {
+                        for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                            if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
+                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    else {
+                        auto node = node_mappings.find(dfs[n_idx])->second.front();
                         if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
                             rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
                             found = true;
@@ -902,7 +935,7 @@ void createRangeTree(MAT::Node* ref_root, const int &start, const int &end, std:
 void createLineageTree(MAT::Node* ref_root, const std::vector<std::string> &lineage_list, MAT::Tree &T) {
     //Have a queue of current_node (from ref_Tree)and parent_node (from new_Tree) pair
     std::queue<struct node_pair_clade> remaining_nodes;
-    auto new_node = T.create_node("DUMMY-OG", -1.0, ref_root->clade_annotations.size());
+    auto new_node = T.create_node("DUMMY-LINEAGE", -1.0, ref_root->clade_annotations.size());
     struct node_pair_clade cur_node_pair_clade = {ref_root, new_node, ""};
     remaining_nodes.push(cur_node_pair_clade);
         
@@ -1937,4 +1970,56 @@ void readSAM(const std::string &sam_file, const std::string &ref_seq, std::unord
             } 
         }
     }
+}
+
+//Condense tree nodes based on read coverage
+void condenseTree(MAT::Node* ref_root, const std::unordered_map<size_t, struct read_info*> &read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, MAT::Tree &T) {
+    //MAP of site_read
+    std::unordered_set<int> site_read_map;
+    for (size_t i = 0; i < read_map.size(); i++) {
+        auto rp = read_map.find(i)->second;
+        for (int j = rp->start; j <= rp->end; j++)
+            site_read_map.insert(j);
+    }
+
+    //REMOVE sites not covered by reads
+    std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
+    auto new_node = T.create_node("DUMMY-CONDENSED", -1.0, ref_root->clade_annotations.size());
+    node_mappings[new_node] = std::vector<MAT::Node*>();
+    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(ref_root, new_node));
+    
+    //Add the new_node to the node_mappings
+    while(remaining_nodes.size() > 0) {
+        auto r_curr_node = remaining_nodes.front().first;
+        auto n_parent_node = remaining_nodes.front().second;
+        remaining_nodes.pop();
+        std::vector<MAT::Mutation> covered_mutations;
+        for (const auto& mut: r_curr_node->mutations) {
+            if (site_read_map.find(mut.position) != site_read_map.end())
+                covered_mutations.emplace_back(mut);
+        }
+
+        //Add a new node to tree if mutation found in range
+        if (!covered_mutations.empty()) {
+            //Create a new_node
+            auto new_node = T.create_node(r_curr_node->identifier, n_parent_node, -1.0);
+            //Add mutations to new_node
+            for (const auto& mut: covered_mutations)
+                new_node->mutations.emplace_back(mut);
+            covered_mutations.clear();
+            //Add new_node to the node_mappings
+            node_mappings[new_node] = {r_curr_node};
+            //Add children to remaining_nodes    
+            for (auto child: r_curr_node->children)
+                remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
+        }
+        //Without any mutation, can only be Placed as a child if r_curr_node is NOT leaf node
+        else if (!r_curr_node->is_leaf()) {
+            //Add current_node to the n_parent_node's list in node_mappings
+            node_mappings[n_parent_node].emplace_back(r_curr_node);
+            //Add children to remaining_nodes    
+            for (auto child: r_curr_node->children)
+                remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, n_parent_node));
+            }
+        }
 }
