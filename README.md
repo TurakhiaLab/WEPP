@@ -1,3 +1,11 @@
+# WBE-LLM Data Generation
+
+To generate mutation path data (as a .tsv file), run the following command:
+
+```bash
+matUtils mut_paths <path to MAT (.pb.gz file)> &> <path to output file (.tsv)>
+```
+
 # Ultrafast Sample Placement on Existing Trees (UShER)
 
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
