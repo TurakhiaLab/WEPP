@@ -63,9 +63,7 @@ void refinePeaks(po::parsed_options parsed) {
     for (size_t i = 0; i < hap_map.size(); i++) {
         auto hm = hap_map[i];
         if (hm->read.find("CONDENSED") != std::string::npos) {
-            size_t last_underscore = hm->read.find_last_of('_');
-            std::string condensed_name = hm->read.substr(0, last_underscore);
-            auto node_names_list = condensed_nodeNames_map[condensed_name];
+            auto node_names_list = condensed_nodeNames_map[hm->read];
             for (size_t i = 0 ; i < node_names_list.size(); i++) {
                 auto node_name = node_names_list[i];
                 if (!i) {
@@ -260,10 +258,10 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         std::vector<MAT::Mutation> best_hap_mutations;
         auto hap_itr = hap_map.begin();
         while (hap_itr != hap_map.end()) {
-            //size_t last_underscore = hap_itr->second->read.find_last_of('_');
-            //std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
-            //auto hap_mutations = getMutations(T, curr_hap_name);
-            auto hap_mutations = hap_itr->second->mutations;
+            size_t last_underscore = hap_itr->second->read.find_last_of('_');
+            std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
+            auto hap_mutations = getMutations(T, curr_hap_name);
+            //auto hap_mutations = hap_itr->second->mutations;
             int curr_dist = mutationDistance(sample_mutations, hap_mutations);
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
