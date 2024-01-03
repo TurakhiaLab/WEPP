@@ -142,6 +142,7 @@ directory = sys.argv[2]
 # Reading File
 barcode_file_path = directory + "/" + file_prefix + "_barcode.csv"
 mutations, haplotypes, hap_mut_matrix = read_barcode_csv_file(barcode_file_path)
+print(f'\nPeaks given for filtering: {len(haplotypes)}')
 
 vcf_file = directory + "/" + file_prefix + "_read_data.vcf"
 af_values, depth_values = read_vcf_file(vcf_file)
@@ -161,9 +162,8 @@ for i, hap in enumerate(haplotypes):
     #Check if it is a condensed node
     if "CONDENSED" in hap:
         condensed_lineages = set()
-        idx = hap.rfind('_')
         #Get all the lineages from condensed nodes
-        for nodes in condensed_nodes_map[hap[:idx]]:
+        for nodes in condensed_nodes_map[hap]:
             split_parts = nodes.split('_')
             if split_parts[-1] not in condensed_lineages:
                 condensed_lineages.add(split_parts[-1])

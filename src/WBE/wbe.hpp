@@ -66,7 +66,9 @@ void readCSV(std::unordered_map<std::string, double>& , const std::string &);
 
 void readCSV(std::unordered_map<std::string, std::vector<std::string>>&, const std::string &);
 
-int placeReads(const MAT::Tree &, const struct read_info*, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &);
+void placeReadHelper(MAT::Node*, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::unordered_map<size_t, struct read_info*> &, std::vector<size_t>, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<size_t>&, const int &, const int &, const int &);
+
+int placeReads(const MAT::Tree &, const struct read_info*, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &);
 
 void analyzeReads(const MAT::Tree &, const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &, const std::string &, const std::string &);
 
@@ -80,27 +82,27 @@ std::string getLineage(const MAT::Tree &, MAT::Node*);
 
 void updateProhibitedNodes(const MAT::Tree &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, const int&);
 
-std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
+std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
 void addNeighborNodes(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
 
 int childNodesAddition(const MAT::Tree &, my_mutex_t &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, int &, std::vector<MAT::Node*> &, MAT::Node *, MAT::Node *, const int &, const int &, const int &, const int &);
 
-void generateFilteringData(const MAT::Tree &, const std::string &, const std::vector<MAT::Node*> &, const std::unordered_map<size_t, struct read_info*> &, const std::string &, const std::string &, const std::string &);
+void generateFilteringData(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::string &, const std::vector<MAT::Node*> &, const std::unordered_map<size_t, struct read_info*> &, const std::string &, const std::string &, const std::string &);
 
 bool compareMutations(const MAT::Mutation &, const MAT::Mutation &);
 
-bool compareNodeScore(const MAT::Tree &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
+void sortNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_vector<std::pair<MAT::Node*, double>> &);
 
-size_t getNumLeaves(const MAT::Tree &, MAT::Node* );
+bool compareNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
 
-void createRangeTree(MAT::Node*, const int &, const int &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
+size_t getNumLeaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Node*);
+
+void createRangeTree(MAT::Node*, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const int &, const int &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
 
 void createLineageTree(MAT::Node*, const std::vector<std::string> &, MAT::Tree &);
 
-void sortNodeScore(const MAT::Tree &, const tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_vector<std::pair<MAT::Node*, double>> &);
-
-void placeReadHelper(MAT::Node*, const std::unordered_map<size_t, struct read_info*> &, std::vector<size_t>, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<size_t>&, const int &, const int &, const int &);
+void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct read_info*> &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
 
 void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &);
 

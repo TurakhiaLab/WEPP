@@ -49,8 +49,10 @@ void filterLineages (po::parsed_options parsed) {
     
     //Get the peak_nodes
     timer.Start();
-    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 7;
+    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 2;
+    MAT::Tree T_condensed;
     std::vector<MAT::Node*> peak_nodes;
+    std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     tbb::concurrent_vector<std::pair<MAT::Node*, double>> node_score_vector;
     std::vector<size_t> remaining_read_ids(read_map.size()), remove_read_ids;
@@ -58,23 +60,33 @@ void filterLineages (po::parsed_options parsed) {
     //Initializing remaining_read_ids
     for (size_t i = 0; i < read_map.size(); i++)
         remaining_read_ids[i] = i;
+
+    //Create smaller tree with only sites covered by reads 
+    createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
+    fprintf(stderr, "Condensed tree created in %ld sec \n\n", (timer.Stop() / 1000));
+
     //MAP reads to nodes
-    placeReadHelper(T.root, read_map, remaining_read_ids, peak_nodes, node_score_map, remove_read_ids, ref_seq.size(), tree_increment, tree_range);
+    timer.Start();
+    placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_read_ids, peak_nodes, node_score_map, remove_read_ids, ref_seq.size(), tree_increment, tree_range);
     fprintf(stderr, "Read mapping completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
     
     timer.Start();
     //SORT nodes
-    sortNodeScore(T, node_score_map, node_score_vector);
+    sortNodeScore(condensed_node_mappings, node_score_map, node_score_vector);
+    node_score_map.clear();
     
     //Only taking non-neighborhood nodes from top_n_node_scores
-    std::vector<MAT::Node*> prohibited_nodes, curr_prohibited_nodes;
+    std::vector<MAT::Node*> curr_prohibited_nodes;
+    std::unordered_set<MAT::Node*> prohibited_nodes;
     std::map<std::string, int> lineage_node_map;
+    
     for (int idx = 0; idx < (int)node_score_vector.size(); idx++) {
         auto ref_n_s = node_score_vector[idx];
-        if (std::find(prohibited_nodes.begin(), prohibited_nodes.end(), ref_n_s.first) != prohibited_nodes.end())
+        if (prohibited_nodes.find(ref_n_s.first) != prohibited_nodes.end())
             continue;
+        
         //Proceed further if ref_n_s not in nieghborhood
-        auto curr_clade = getLineage(T, ref_n_s.first);
+        auto curr_clade = getLineage(T_condensed, ref_n_s.first);
         auto cn_itr = lineage_node_map.find(curr_clade);
         if (cn_itr == lineage_node_map.end()){
             lineage_node_map.insert({curr_clade, 1});
@@ -86,23 +98,17 @@ void filterLineages (po::parsed_options parsed) {
         }
         
         //Do neighbor check
-        updateProhibitedNodes(T, {ref_n_s.first}, curr_prohibited_nodes, m_dist_thresh);
-        tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-        for (const auto& curr_node: curr_prohibited_nodes) {
-            if (node_score_map.find(ac, curr_node)) {
-                node_score_map.erase(ac);
-                prohibited_nodes.emplace_back(curr_node);
-            }       
-        }
+        updateProhibitedNodes(T_condensed, {ref_n_s.first}, curr_prohibited_nodes, m_dist_thresh);
+        for (const auto& curr_node: curr_prohibited_nodes)
+            prohibited_nodes.insert(curr_node);
         curr_prohibited_nodes.clear();
     }
     printf("\nPeak Nodes: %lu, Lineages: %lu\n\n", peak_nodes.size(), lineage_node_map.size());
 
     node_score_vector.clear();
-    node_score_map.clear();
     prohibited_nodes.clear();
     lineage_node_map.clear();
     fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
     
-    generateFilteringData(T, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
+    generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }
