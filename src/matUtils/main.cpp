@@ -6,6 +6,8 @@
 #include "introduce.hpp"
 #include "version.hpp"
 #include "experiment.hpp"
+#include "post_processing.hpp"
+#include "describe.hpp"
 
 Timer timer;
 
@@ -37,7 +39,7 @@ int main (int argc, char** argv) {
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "\nNo command selected. Help follows:\n\n");
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (int i = 0; i < (int)std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         //0 when no command is selected because that's what passes tests.
@@ -47,6 +49,8 @@ int main (int argc, char** argv) {
         extract_main(parsed);
     } else if (cmd == "place_read") { 
         simulate_and_place_reads(parsed);
+    } else if (cmd == "post_processing") { 
+        post_processing(parsed);
     } else if (cmd == "annotate") {
         annotate_main(parsed);
     } else if (cmd == "uncertainty") {
@@ -64,13 +68,20 @@ int main (int argc, char** argv) {
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (int i = 0; i < (int)std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(0);
+    }
+    else if (cmd == "mut_paths") {
+        MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
+        std::vector<std::string> mpaths = mutation_paths_all(&T);
+        for (auto& mpath: mpaths) {
+            fprintf(stderr, "%s\n", mpath.c_str());
+        }
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (int i = 0; i < (int)std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(1);
@@ -78,4 +89,3 @@ int main (int argc, char** argv) {
 
     return 0;
 }
-

@@ -41,12 +41,13 @@ int main(int argc, char* argv[]) {
         const std::string& sample_name = sample_names[sample_index];
         int start_position = 0;
         int end_position = ref_seq.size();
-        auto last_underscore = sample_name.find_last_of('_');
-        auto second_to_last_underscore = sample_name.find_last_of('_', last_underscore - 1);
-        if (second_to_last_underscore != std::string::npos) {
-            start_position = stoi(sample_name.substr(second_to_last_underscore + 1, last_underscore - second_to_last_underscore - 1)) - 1;
-            end_position = stoi(sample_name.substr(last_underscore + 1));
-        }
+        //auto last_underscore = sample_name.find_last_of('_');
+        //auto second_to_last_underscore = sample_name.find_last_of('_', last_underscore - 1);
+        //if (second_to_last_underscore != std::string::npos) {
+	//	std::cout << "Sample name: " << sample_name << std::endl;
+        //    start_position = stoi(sample_name.substr(second_to_last_underscore + 1, last_underscore - second_to_last_underscore - 1)) - 1;
+        //    end_position = stoi(sample_name.substr(last_underscore + 1));
+        // }
 
         start_positions[sample_index] = start_position;
         end_positions[sample_index] = end_position;
@@ -58,6 +59,7 @@ int main(int argc, char* argv[]) {
         std::istringstream iss(line);
         std::string chrom, pos_str, id, ref_base, alt_base;
         iss >> chrom >> pos_str >> id >> ref_base >> alt_base;
+	//std::cout << "Pos str: " << pos_str << std::endl;
         int pos = stoi(pos_str);
         if (alt_base.find(',') != std::string::npos) {
             alt_base = alt_base.substr(0, alt_base.find(','));

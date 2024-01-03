@@ -262,6 +262,8 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 
     output_file << "node_id\taa_mutations\tnt_mutations\tcodon_changes\tleaves_sharing_mutations" << '\n';
 
+     std::unordered_map<std::string, std::string> mutation_paths;
+
     // This maps each position in the reference to a vector of codons.
     // Some positions may be associated with multiple codons (frame shifts).
     // The Codons in the map are updated as the tree is traversed
@@ -284,9 +286,28 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
             }
         } // If we are visiting a child, we can continue mutating
         mutation_result = do_mutations(node->mutations, codon_map, false);
+
+        // Split mutation_result along \t and take the first part only, and store it in mutation_result
         if (mutation_result != "") {
-            output_file << node->identifier << '\t' << mutation_result << '\t' << T->get_leaves(node->identifier).size() << '\n';
+             mutation_result = split(mutation_result, '\t')[0];
+        }       
+
+        // if (mutation_result != "") {
+        //     output_file << node->identifier << '\t' << mutation_result << '\t' << T->get_leaves(node->identifier).size() << '\n';
+        // }
+
+        if (node->parent) {
+            std::string parent_path = mutation_paths[node->parent->identifier];
+            mutation_paths[node->identifier] = parent_path.empty() ? mutation_result : parent_path + ">" + mutation_result;
         }
+        else {
+            mutation_paths[node->identifier] = mutation_result;
+        }
+
+        if (!mutation_paths[node->identifier].empty()) {
+            output_file << node->identifier << '\t' << mutation_paths[node->identifier] << '\t' << T->get_leaves(node->identifier).size() << '\n';
+        }
+
         last_visited = node;
     }
 }

@@ -1,3 +1,6 @@
+install.packages("SQUAREM")
+install.packages("turboEM")
+
 suppressPackageStartupMessages({
   library("SQUAREM")
   library(turboEM)

@@ -35,7 +35,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
 
     ("within-distance,dist", po::value<std::string>()->default_value(""),
-    "Select a sample ID and the samples within a certain distance of it, formatted as sample:distance. E.g. -dist sample_1:50 gets sample 1 and the samples within 50 mutations of it as a subtree.")
+    "Select a sample ID and the samples within a certain distance of it, formatted as sample:distance. E.g. -dist sample_1:50 gets sample 1 and the samples within dist mutations of it as a subtree.")
 
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
      "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
@@ -200,6 +200,8 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
+
+    // fprintf(stderr, "within_distance = %s\n", within_distance.c_str());
 
 
     std::vector<std::string> additional_meta_fields;
@@ -425,11 +427,9 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             samples = sample_intersect(samples, nk_samples);
         }
     } 
-
-    fprintf(stderr, "Check within dist\n");
-
+    // fprintf(stderr, "within_distance = %s\n", within_distance.c_str());
     if (within_distance != "") {
-        fprintf(stderr, "Check within dist\n");
+        // fprintf(stderr, "within_distance = %s\n", within_distance.c_str());
         auto split_point = within_distance.find(":");
         if (split_point == std::string::npos) {
             fprintf(stderr, "ERROR: Invalid formatting of -dist argument. Requires input in the form of 'sample_id:distance' to get samples within distance of sample_id\n");
@@ -766,8 +766,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         timer.Start();
         fprintf(stderr, "Writing full node mutation information to %s\n", all_path_filename.c_str());
         std::ofstream outfile (all_path_filename);
-        auto apaths = all_nodes_paths(&T);
-        for (auto astr: apaths) {
+        // auto apaths = all_nodes_paths(&T);
+        // auto m_a_paths = mutation_paths(&T, samples);
+        auto m_a_paths = mutation_paths_all(&T);
+        for (auto astr: m_a_paths) {
             outfile << astr << "\n";
         }
         outfile.close();

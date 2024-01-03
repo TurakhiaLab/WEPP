@@ -294,12 +294,16 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     return leaves_to_keep;
 }
 
-std::vector<std::string> get_within_distance(MAT::Tree* T, std::string sample_id, uint32_t max_distance) {
-    // get all samples that are within a certain mutation distance from sample_id
-    MAT::Node* node = T->get_node(sample_id);
-    if (node == NULL) {
+// FUNCTION TO GET WITHIN DISTANCE
+
+std::vector<std::string> get_within_distance(MAT::Tree* T, std::string sample_id, uint32_t distance) {
+    // Returns all samples within X mutations of the sample_id.
+    
+    MAT::Node* query_node = T->get_node(sample_id);
+
+    if (query_node == NULL) {
         fprintf(stderr, "ERROR: %s is not present in the tree!\n", sample_id.c_str() );
-        return {};
+        return std::vector<std::string>();  // Return empty vector
     }
 
     struct NodeDist {
@@ -310,38 +314,39 @@ std::vector<std::string> get_within_distance(MAT::Tree* T, std::string sample_id
             node = n;
             num_mut = d;
         }
-
-        inline bool operator< (const NodeDist& n) const {
-            return ((*this).num_mut < n.num_mut);
-        }
     };
 
+    std::vector<std::string> within_distance;
     std::vector<NodeDist> node_distances;
+
     for (auto anc: T->rsearch(sample_id, true)) {
-        uint32_t dist = 0;
+
         for (auto l: T->get_leaves(anc->identifier)) {
+            uint32_t dist = 0;
             for (auto a: T->rsearch(l->identifier, true)) {
                 if (a == anc) {
                     break;
                 }
                 dist += a->mutations.size();
             }
-
-            if (dist <= max_distance) {
+            
+            if (dist <= distance) {
                 node_distances.emplace_back(NodeDist(l, dist));
             }
         }
     }
 
-    std::sort(node_distances.begin(), node_distances.end());
+    std::sort(node_distances.begin(), node_distances.end(), [](const NodeDist& a, const NodeDist& b) {
+        return a.num_mut < b.num_mut;
+    });
 
-    std::vector<std::string> leaves_within_distance;
     for (auto n: node_distances) {
-        leaves_within_distance.emplace_back(n.node->identifier);
+        within_distance.emplace_back(n.node->identifier);
     }
 
-    return leaves_within_distance;
+    return within_distance;
 }
+
 
 
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations) {
