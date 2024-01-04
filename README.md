@@ -3,8 +3,10 @@
 To generate mutation path data (as a .tsv file), run the following command:
 
 ```bash
-matUtils mut_paths <path to MAT (.pb.gz file)> &> <path to output file (.tsv)>
+matUtils mut_paths <path to MAT (.pb.gz)> <path to output file (.tsv)>
 ```
+
+Make sure to compile the code using `make -j` before running the command above.
 
 # Ultrafast Sample Placement on Existing Trees (UShER)
 
