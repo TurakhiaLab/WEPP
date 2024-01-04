@@ -76,8 +76,9 @@ int main (int argc, char** argv) {
     else if (cmd == "mut_paths") {
         MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
         std::vector<std::string> mpaths = mutation_paths_all(&T);
+        std::ofstream outfile(argv[3]);
         for (auto& mpath: mpaths) {
-            fprintf(stderr, "%s\n", mpath.c_str());
+            outfile << mpath << "\n";
         }
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");

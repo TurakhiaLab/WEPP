@@ -40,12 +40,19 @@ std::vector<std::string> mutation_paths_all(MAT:: Tree*T) {
         for (auto n2: root_to_sample) {
             for (size_t i=0; i<n2->mutations.size(); i++) {
                 cpath += n2->mutations[i].get_string();
-                cpath += ",";
+                if (i+1 < n2->mutations.size()) {
+                    cpath += ",";
+                }
             }
-            cpath += ">";
+            if (n2->mutations.size() > 0 && n2 != root_to_sample.back()) {
+                cpath += ">";
+            }
         }
         mpaths.push_back(cpath);
     }
+
+    return mpaths;
+}
 
     //  std::vector<std::string> lineages = {"Omicron", "Delta", "Alpha", "BA.1", "BA.1.1.X", "BA.2.X", "BA.2.12.X", "BA.4.X", "BA.5.X", "B.1.1.529", "AY.113", "AY.100", "AY.20", "AY.25", "AY.3", "AY.44", "AY.119", "AY.3.1", "AY.103", "AY.46.4", "AY.25.1", "AY.116", "AY.43.4", "Other Delta sub-lineages", "BA.2.75", "BA.4.6", "BQ.1.X", "BQ.1.1.X", "BF.7.X", "Recombinants", "BN.1.X", "XBB.X", "XBB.1.5.X", "XBB.1.9.X", "XBB.1.16.X", "XBB.2.3.X", "EG.5.X", "BA.2.86.X", "HV.1.X"};
     //  fprintf(stderr,"Lineage\tMutationPath\n");
@@ -124,9 +131,6 @@ std::vector<std::string> mutation_paths_all(MAT:: Tree*T) {
     //         }
     //     }
     // }
-
-    return mpaths;
-}
 
 std::vector<std::string> clade_paths(MAT::Tree* T) {
     //get the set of clade path strings for printing
