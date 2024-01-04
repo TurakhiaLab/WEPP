@@ -73,14 +73,45 @@ int main (int argc, char** argv) {
         }
         exit(0);
     }
-    else if (cmd == "mut_paths") {
-        MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
-        std::vector<std::string> mpaths = mutation_paths_all(&T);
-        std::ofstream outfile(argv[3]);
-        for (auto& mpath: mpaths) {
-            outfile << mpath << "\n";
+    else if (cmd == "mutation_paths") {
+        if (argc == 4) {
+            // matUtils mutation_paths <tree> <output>
+            MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
+            std::vector<std::string> mpaths = mutation_paths_all(&T);
+            std::ofstream outfile(argv[3]);
+            outfile << "sample_id\tpath_from_root\n";
+            for (auto& mpath: mpaths) {
+                outfile << mpath << "\n";
+            }
         }
-    } else {
+        else if (argc == 6 && std::string(argv[4]) == "--lineages") {
+            // matUtils mutation_paths <tree> <output> --lineages <lineages>
+            MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
+            std::vector<std::string> lineages;
+            std::string lineages_str = argv[5];
+            std::stringstream ss(lineages_str);
+            while (ss.good()) {
+                std::string lineage;
+                getline(ss, lineage, ',');
+                lineages.push_back(lineage);
+            }
+            std::vector<std::string> mpaths = mutation_paths_lineages(&T, lineages);
+            std::ofstream outfile(argv[3]);
+            outfile << "lineage\tpath_from_root\n";
+            for (auto& mpath: mpaths) {
+                outfile << mpath << "\n";
+            }
+        }
+        else {
+            fprintf(stderr, "\nInvalid command. Help follows:\n\n");
+            for (int i = 0; i < (int)std::size(cnames); ++i) {
+                fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
+            }
+            exit(1);
+        }
+    } 
+
+    else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
         for (int i = 0; i < (int)std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
