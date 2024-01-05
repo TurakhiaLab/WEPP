@@ -106,7 +106,6 @@ def cp_solve(A, b, d):
     return x.value, cost.value
 
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
-    global cost_thresh
     #Setting the variables for the regression problem
     A = hap_mut_matrix.T
     #Running the loop twice to ensure abundances sum up to 1
@@ -134,8 +133,7 @@ if len(sys.argv) != 3:
 
 # Start time
 start_time = time.time()
-eps = 1e-2
-cost_thresh = 0.02
+eps = 1e-3
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
 
