@@ -18,7 +18,7 @@ void refinePeaks(po::parsed_options parsed) {
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_vcf_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotypes.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
-    std::string lineage_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_freyja_results.csv";
+    std::string freyja_lineage_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_freyja_results.csv";
     std::string condensed_nodes_csv = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_condensed_nodes.csv";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -41,12 +41,12 @@ void refinePeaks(po::parsed_options parsed) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld sec \n\n", (timer.Stop() / 1000));
-    
+
     //Checking how close are input samples with peaks
     std::unordered_map<size_t, struct read_info*> read_map, hap_map;
     tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
     std::vector<std::string> vcf_samples;
-    std::unordered_map<std::string, double> hap_abun_map, lineage_abun_map;
+    std::unordered_map<std::string, double> hap_abun_map, freyja_lineage_abun_map;
     std::vector<MAT::Node*> peak_nodes;
     std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
     
@@ -56,7 +56,7 @@ void refinePeaks(po::parsed_options parsed) {
     readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
     //readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
-    readCSV(lineage_abun_map, lineage_csv_filename);
+    readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
 
     //UPDATE hap_map if CONDENSED nodes are found
     std::vector<struct read_info*> uncondensed_nodes;
@@ -83,7 +83,7 @@ void refinePeaks(po::parsed_options parsed) {
         hap_map.insert({hap_map.size(), hap});
     uncondensed_nodes.clear();
 
-    computeDistance(T, hap_map, vcf_samples, lineage_abun_map);
+    computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map);
     /////////////////////////////////////////////////////////////////
 
     ////FIND coverage of read mutations
@@ -243,11 +243,10 @@ void refinePeaks(po::parsed_options parsed) {
     //    //ref_read_name = ref_read_name.substr(0, last_underscore);
     //    printf("\n%s\t%s", rm.second->read.c_str(), rd_seq.c_str());  
     //}
-
 }
 
 //Computes distance between peaks and given samples
-void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &lineage_abun_map) {
+void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &freyja_lineage_abun_map) {
     fprintf(stderr, "Haplotypes: %d\n\n", (int)hap_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Closest distance of sample from peak
@@ -329,13 +328,13 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         int min_dist = 100000;
         auto sample_mutations = getMutations(T, sample);
         std::string best_node = "";
-        for (const auto& lin_abun: lineage_abun_map) {
+        for (const auto& lin_abun: freyja_lineage_abun_map) {
             auto curr_lin = lin_abun.first;
             //Find root haplotype of the lineage
-            for (auto curr_node: dfs) {
+            for (const auto& curr_node: dfs) {
                 if (curr_node->clade_annotations[1] == curr_lin) {
                     auto hap_mutations = getMutations(T, curr_node->identifier);
-                    int curr_dist = mutationDistance(sample_mutations, hap_mutations);
+                    int curr_dist = mutationDistance(hap_mutations, sample_mutations);
                     if (curr_dist < min_dist) {
                         min_dist = curr_dist;
                         best_node = curr_node->identifier;

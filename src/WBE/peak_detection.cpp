@@ -51,7 +51,7 @@ void detectPeaks (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     
-    ////////////////////////////////////////////////////////////////REMOVE
+    //////////////////////////////////////////////////////////////REMOVE
     //CREATE new tree containg only selected_lineage_list
     //Get haplotype abundances and condensed node names
     std::unordered_map<std::string, double> hap_abun_map;
@@ -268,12 +268,13 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         int min_dist = 100000;
         auto sample_node = T_ref.get_node(sample);
         MAT::Node* best_node = NULL;
-        for (auto pn: peak_nodes) {
-            auto peak_node = condensed_node_mappings.find(pn)->second.front();
-            int curr_dist = mutationDistance(T, T_ref, peak_node, sample_node);
-            if (curr_dist < min_dist) {
-                min_dist = curr_dist;
-                best_node = pn;
+        for (const auto &pn: peak_nodes) {
+            for (const auto &node: condensed_node_mappings.find(pn)->second) {
+                int curr_dist = mutationDistance(T_ref, T_ref, node, sample_node);
+                if (curr_dist < min_dist) {
+                    min_dist = curr_dist;
+                    best_node = pn;
+                }
             }
         }
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), min_dist);
