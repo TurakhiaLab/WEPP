@@ -84,7 +84,6 @@ void refinePeaks(po::parsed_options parsed) {
     uncondensed_nodes.clear();
 
     computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map);
-    /////////////////////////////////////////////////////////////////
 
     ////FIND coverage of read mutations
     //std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_read_map;

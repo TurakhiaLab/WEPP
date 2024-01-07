@@ -51,48 +51,48 @@ void detectPeaks (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     
-    //////////////////////////////////////////////////////////////REMOVE
-    //CREATE new tree containg only selected_lineage_list
-    //Get haplotype abundances and condensed node names
-    std::unordered_map<std::string, double> hap_abun_map;
-    std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
-    readCSV(hap_abun_map, hap_csv_filename);
-    readCSV(condensed_nodeNames_map, condensed_nodes_csv);
+    ////////////////////////////////////////////////////////////////REMOVE
+    ////CREATE new tree containg only selected_lineage_list
+    ////Get haplotype abundances and condensed node names
+    //std::unordered_map<std::string, double> hap_abun_map;
+    //std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
+    //readCSV(hap_abun_map, hap_csv_filename);
+    //readCSV(condensed_nodeNames_map, condensed_nodes_csv);
 
-    //Extract lineages from haplotype names
-    std::vector<std::string> selected_lineage_list; 
-    std::string check_string = "CONDENSED";
-    for (const auto& hap_abun: hap_abun_map) {
-        if (hap_abun.first.find(check_string) != std::string::npos) {
-            auto node_names_list = condensed_nodeNames_map[hap_abun.first];
-            for (const auto& node_name: node_names_list) {
-                size_t last_underscore = node_name.find_last_of('_');
-                std::string curr_lineage = node_name.substr(last_underscore + 1);
-                if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
-                    selected_lineage_list.emplace_back(curr_lineage);
-            }
+    ////Extract lineages from haplotype names
+    //std::vector<std::string> selected_lineage_list; 
+    //std::string check_string = "CONDENSED";
+    //for (const auto& hap_abun: hap_abun_map) {
+    //    if (hap_abun.first.find(check_string) != std::string::npos) {
+    //        auto node_names_list = condensed_nodeNames_map[hap_abun.first];
+    //        for (const auto& node_name: node_names_list) {
+    //            size_t last_underscore = node_name.find_last_of('_');
+    //            std::string curr_lineage = node_name.substr(last_underscore + 1);
+    //            if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
+    //                selected_lineage_list.emplace_back(curr_lineage);
+    //        }
 
-        }
-        else {
-            size_t last_underscore = hap_abun.first.find_last_of('_');
-            std::string curr_lineage = hap_abun.first.substr(last_underscore + 1);
-            if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
-                selected_lineage_list.emplace_back(curr_lineage);
-        }
-    }
-    ////////////////////////////////////////
+    //    }
+    //    else {
+    //        size_t last_underscore = hap_abun.first.find_last_of('_');
+    //        std::string curr_lineage = hap_abun.first.substr(last_underscore + 1);
+    //        if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
+    //            selected_lineage_list.emplace_back(curr_lineage);
+    //    }
+    //}
+    //////////////////////////////////////////
 
-    //std::vector<std::string> selected_lineage_list = {
-    //    "B.1.1.155",
-    //    "A.21",
-    //    "AE.6",
-    //    "B.1.1.285",
-    //    "B.1.1.47",
-    //    "B.1.567",
-    //    "B.35",
-    //    "U.1",
-    //    "C.27"
-    //};
+    std::vector<std::string> selected_lineage_list = {
+        "B.1.1.155",
+        "A.21",
+        "AE.6",
+        "B.1.1.285",
+        "B.1.1.47",
+        "B.1.567",
+        "B.35",
+        "U.1",
+        "C.27"
+    };
 
     //CREATE smaller lineage tree
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
