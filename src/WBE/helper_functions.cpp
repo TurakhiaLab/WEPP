@@ -1427,7 +1427,11 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
                     else
                         m_itr++;
                 }
-                //Insert peak and its mutations in peak_mut_map
+
+                //Sort mutations
+                tbb::parallel_sort(mut_list.begin(), mut_list.end(), compareMutations);
+                
+		        //Insert peak and its mutations in peak_mut_map
                 tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::accessor ac;
                 peak_mut_map.insert(ac, std::make_pair(pk, mut_list));
                 ac.release();
@@ -1436,6 +1440,7 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
         },
     ap);
     
+
     //MAP of site_reads
     std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_read_map;
     for (size_t i = 0; i < read_map.size(); ++i) {
@@ -1502,11 +1507,11 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
 
     //ADD mut_nuc in site_read_map from peak_nodes
     for (const auto& pk: peak_nodes) {
-        tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::accessor ac;
-        if (peak_mut_map.find(ac, pk)) {
+        tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Mutation>>::const_accessor k_ac;
+        if (peak_mut_map.find(k_ac, pk)) {
             //Iterate through mutations of each peak
-            auto mut_itr = ac->second.begin();
-            while (mut_itr != ac->second.end()) {
+            auto mut_itr = k_ac->second.begin();
+            while (mut_itr != k_ac->second.end()) {
                 auto sr_itr = site_read_map.find(mut_itr->position);
                 bool found = false;
                 for (size_t vec_idx = 0; vec_idx < sr_itr->second.size(); vec_idx++) {
@@ -1579,25 +1584,29 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
     std::vector<size_t> mut_idx_list;
     for (const auto &pk_mut: peak_mut_map) {
         //Write peak name in barcode file
-        barcode_print += "\n";
         auto uncondensed_peaks = condensed_node_mappings.find(pk_mut.first)->second;
+
         if (!uncondensed_peaks.empty()) {
             //DO NOT include DUMMY lineage node
             std::string check_string = "DUMMY";
             if (uncondensed_peaks.front()->identifier.find(check_string) != std::string::npos)
                 uncondensed_peaks.erase(uncondensed_peaks.begin());
-
-            if (uncondensed_peaks.size() > 1) {
-                std::string peak_name = "CONDENSED-" + std::to_string(++uniq_condensedPeak_count);
-                barcode_print += peak_name;
-                condensed_print += peak_name;
-                for (const auto& node: uncondensed_peaks)
-                    condensed_print += "," + node->identifier + "_" + getLineage(T_orig, node);
-                condensed_print += "\n";
-            }
-            else if (uncondensed_peaks.size() == 1)
-                barcode_print += uncondensed_peaks.front()->identifier + "_" + getLineage(T_orig, uncondensed_peaks.front());    
         }
+
+        if (uncondensed_peaks.empty())
+            continue;
+
+        barcode_print += "\n";
+        if (uncondensed_peaks.size() > 1) {
+            std::string peak_name = "CONDENSED-" + std::to_string(++uniq_condensedPeak_count);
+            barcode_print += peak_name;
+            condensed_print += peak_name;
+            for (const auto& node: uncondensed_peaks)
+                condensed_print += "," + node->identifier + "_" + getLineage(T_orig, node);
+            condensed_print += "\n";
+        }
+        else 
+            barcode_print += uncondensed_peaks.front()->identifier + "_" + getLineage(T_orig, uncondensed_peaks.front());    
 
         //Iterating through mutations of pk_mut to store indices of its mutations from read_mutations_list
         for (const auto& mut: pk_mut.second) {
@@ -1629,6 +1638,7 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
             barcode_print += ",0";
             idx++;
         }
+
         barcode << barcode_print;
         condensed << condensed_print;
         barcode_print.clear();

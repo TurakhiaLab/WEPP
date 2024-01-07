@@ -64,7 +64,7 @@ void filterLineages (po::parsed_options parsed) {
     //Create smaller tree with only sites covered by reads 
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
     fprintf(stderr, "Condensed tree created in %ld sec \n\n", (timer.Stop() / 1000));
-
+    
     //MAP reads to nodes
     timer.Start();
     placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_read_ids, peak_nodes, node_score_map, remove_read_ids, ref_seq.size(), tree_increment, tree_range);
@@ -109,6 +109,6 @@ void filterLineages (po::parsed_options parsed) {
     prohibited_nodes.clear();
     lineage_node_map.clear();
     fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
-    
+
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }
