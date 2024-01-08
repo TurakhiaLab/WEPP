@@ -46,6 +46,135 @@ po::variables_map parseWBEcommand(po::parsed_options parsed) {
     return vm;
 }
 
+//Store the Reads from the SAM in read_map and site_MutReads_map
+void readSAM(const std::string &sam_file, const std::string &ref_seq, std::unordered_map<size_t, std::string> &read_map, std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> &site_MutReads_map) {
+    //NOTE: Only considers I,D,N,M in CIGAR
+    boost::filesystem::ifstream fileHandler(sam_file);
+    std::string s;
+    while (getline(fileHandler, s)) {
+        std::vector<std::string> words;
+        MAT::string_split(s, words);
+        if (words.size() > 1) {
+            //Skip header
+            if (words[0][0] == '@')
+                continue;
+            else {
+                //Skip reads if UNMAPPED
+                if (std::stoi(words[1]) == 4)
+                    continue;
+
+                //Capturing CIGAR string
+                std::regex cigar_pattern(R"(\d+[A-Za-z])"); // Matches one or more digits followed by a character
+                std::sregex_iterator r_iter(words[5].begin(), words[5].end(), cigar_pattern);
+                std::sregex_iterator end;
+                std::vector<std::pair<int, char>> cigar_chunks;
+                int cigar_len = 0;
+                while (r_iter != end) {
+                    std::string sub_cigar = (*r_iter).str();
+                    //Capturing INDELS
+                    std::regex pos_char("([0-9]+)([A-Za-z])");
+                    std::sregex_iterator regex_iter(sub_cigar.begin(), sub_cigar.end(), pos_char);
+                    std::smatch pc_match = *regex_iter;
+                    //Convert the captured substrings to int and char and store in cigar_chunks
+                    cigar_chunks.emplace_back(std::make_pair(std::stoi(pc_match.str(1)), pc_match.str(2)[0]));
+                    //INSERTIONS don't increase length of sequence
+                    if (pc_match.str(2) != "I")
+                        cigar_len += std::stoi(pc_match.str(1));
+                    r_iter++;
+                } 
+
+                //Find start and end idx in read_seq
+                int start_idx = std::stoi(words[3]);
+                std::string read_seq = words[9];
+                int end_idx = start_idx + cigar_len - 1;
+
+                //Add read to read_map
+                auto rd_idx = read_map.size();
+                read_map.insert({rd_idx, (words[0] + "_READ_" + std::to_string(start_idx) + "_" + std::to_string(end_idx))});
+                
+                //Update site_MutReads_map
+                int curr_sub_len, seq_idx = 0, ins_count = 0, del_count = 0;
+                std::string alt_nuc, ref_nuc;
+                for (size_t i = 0; i < cigar_chunks.size(); i++) {
+                    auto [cig_len, cig_val] = cigar_chunks[i];
+                    curr_sub_len = 0;
+                    while (curr_sub_len < cig_len) {
+                        int nuc_pos = start_idx + seq_idx - ins_count + del_count;
+                        switch (cig_val) {
+                            case 'I':
+                                //Insertion at pos 1 requires ref_nuc at pos 1 after the alt_nuc
+                                if (nuc_pos == 1) {
+                                    ref_nuc = ref_seq[0];
+                                    alt_nuc = read_seq.substr(seq_idx, cig_len) + ref_nuc;
+                                }
+                                //Otherwise the ref_nuc needs to be from prev pos 
+                                else {
+                                    alt_nuc = ref_nuc + read_seq.substr(seq_idx, cig_len);
+                                    nuc_pos -= 1; 
+                                }
+                                curr_sub_len += cig_len;   
+                                seq_idx += cig_len;
+                                ins_count += cig_len;
+                                break;
+
+                            case 'D':
+                                //Deletion at pos 1 requires alt_nuc at pos 1 after the ref_nuc
+                                if (nuc_pos == 1) {
+                                    alt_nuc = ref_seq[cig_len];
+                                    ref_nuc = ref_seq.substr(0, cig_len) + alt_nuc;
+                                }
+                                else { 
+                                    alt_nuc = ref_nuc;
+                                    ref_nuc += ref_seq.substr(nuc_pos - 1, cig_len);
+                                    nuc_pos -= 1;
+                                }
+                                curr_sub_len += cig_len;   
+                                del_count += cig_len;
+                                break;
+                            
+                            case 'N': 
+                                ref_nuc = ref_seq[nuc_pos - 1]; 
+                                alt_nuc = "N";
+                                curr_sub_len++;   
+                                seq_idx++;
+                                break;
+
+                            default:
+                                ref_nuc = ref_seq[nuc_pos - 1]; 
+                                alt_nuc = std::string(1, read_seq[seq_idx]);
+                                curr_sub_len++;   
+                                seq_idx++;
+                        }
+                        
+                        auto smr_itr = site_MutReads_map.find(nuc_pos);
+                        //Current position NOT in site_MutReads_map
+                        if (smr_itr == site_MutReads_map.end()) {
+                            std::vector<std::tuple<std::string, std::string, std::vector<size_t>>> newEntry;
+                            newEntry.emplace_back(ref_nuc, alt_nuc, std::vector<size_t>(1, rd_idx));
+                            site_MutReads_map[nuc_pos] = newEntry;
+                        }
+                        else {
+                            bool found = false;
+                            //Add rd_idx to alt_nuc if PRESENT
+                            for (auto& mr_tuple: smr_itr->second) {
+                                if ((std::get<0>(mr_tuple) == ref_nuc) && (std::get<1>(mr_tuple) == alt_nuc)) {
+                                    auto& rd_idx_vector = std::get<2>(mr_tuple); 
+                                    rd_idx_vector.emplace_back(rd_idx);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            //Else add alt_nuc to smr_itr->second
+                            if (!found)
+                                smr_itr->second.emplace_back(ref_nuc, alt_nuc, std::vector<size_t>(1, rd_idx));
+                        }
+                    }
+                }
+            } 
+        }
+    }
+}
+
 //Get the names of samples prsent in samples.vcf
 void readSampleVCF(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
     // Boost library used to stream the contents of the input VCF file
@@ -225,7 +354,7 @@ void readVCF(std::unordered_map<size_t, struct read_info*> &read_map, const std:
         }
     }
     
-    fprintf(stderr,"%s parsed in %ld sec\n\n", vcf_filename_reads.c_str(), (timer.Stop() / 1000));   
+    fprintf(stderr,"%s parsed in %ld min\n\n", vcf_filename_reads.c_str(), (timer.Stop() / (60 * 1000)));   
 }
 
 //Function to read csv containing abundance of haplotypes
@@ -901,6 +1030,11 @@ bool compareMutations(const MAT::Mutation &a, const MAT::Mutation &b) {
         return a.mut_nuc < b.mut_nuc;
 }
 
+//Comparing rd_idx for sorting a rd_idx_vector 
+bool compareIdx(const std::pair<int, size_t> &a, const std::pair<int, size_t> &b) {
+    return a.second < b.second;
+}
+
 //Get MAT within range
 void createRangeTree(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const int &start, const int &end, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, MAT::Tree &T) {
     //Have a queue of current_node (from ref_Tree)and parent_node (from new_Tree) pair
@@ -1061,8 +1195,6 @@ void createCondensedTree(MAT::Node* ref_root, const std::unordered_map<size_t, s
         if (!covered_mutations.empty()) {
             //Create a new_node
             auto new_node = T.create_node(r_curr_node->identifier, n_parent_node, -1.0);
-            //Add lineage name
-            new_node->clade_annotations[1] = r_curr_node->clade_annotations[1];
             //Add mutations to new_node
             new_node->mutations.reserve(covered_mutations.size());
             new_node->mutations.insert(new_node->mutations.end(), covered_mutations.begin(), covered_mutations.end());
@@ -1832,138 +1964,4 @@ void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unord
     //    }
     //    site_read_map.clear();
     //}
-}
-
-//Comparing rd_idx for sorting a rd_idx_vector 
-bool compareIdx(const std::pair<int, size_t> &a, const std::pair<int, size_t> &b) {
-    return a.second < b.second;
-}
-
-//Store the Reads from the SAM in read_map and site_MutReads_map
-void readSAM(const std::string &sam_file, const std::string &ref_seq, std::unordered_map<size_t, std::string> &read_map, std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> &site_MutReads_map) {
-    //NOTE: Only considers I,D,N,M in CIGAR
-    boost::filesystem::ifstream fileHandler(sam_file);
-    std::string s;
-    while (getline(fileHandler, s)) {
-        std::vector<std::string> words;
-        MAT::string_split(s, words);
-        if (words.size() > 1) {
-            //Skip header
-            if (words[0][0] == '@')
-                continue;
-            else {
-                //Skip reads if UNMAPPED
-                if (std::stoi(words[1]) == 4)
-                    continue;
-
-                //Capturing CIGAR string
-                std::regex cigar_pattern(R"(\d+[A-Za-z])"); // Matches one or more digits followed by a character
-                std::sregex_iterator r_iter(words[5].begin(), words[5].end(), cigar_pattern);
-                std::sregex_iterator end;
-                std::vector<std::pair<int, char>> cigar_chunks;
-                int cigar_len = 0;
-                while (r_iter != end) {
-                    std::string sub_cigar = (*r_iter).str();
-                    //Capturing INDELS
-                    std::regex pos_char("([0-9]+)([A-Za-z])");
-                    std::sregex_iterator regex_iter(sub_cigar.begin(), sub_cigar.end(), pos_char);
-                    std::smatch pc_match = *regex_iter;
-                    //Convert the captured substrings to int and char and store in cigar_chunks
-                    cigar_chunks.emplace_back(std::make_pair(std::stoi(pc_match.str(1)), pc_match.str(2)[0]));
-                    //INSERTIONS don't increase length of sequence
-                    if (pc_match.str(2) != "I")
-                        cigar_len += std::stoi(pc_match.str(1));
-                    r_iter++;
-                } 
-
-                //Find start and end idx in read_seq
-                int start_idx = std::stoi(words[3]);
-                std::string read_seq = words[9];
-                int end_idx = start_idx + cigar_len - 1;
-
-                //Add read to read_map
-                auto rd_idx = read_map.size();
-                read_map.insert({rd_idx, (words[0] + "_READ_" + std::to_string(start_idx) + "_" + std::to_string(end_idx))});
-                
-                //Update site_MutReads_map
-                int curr_sub_len, seq_idx = 0, ins_count = 0, del_count = 0;
-                std::string alt_nuc, ref_nuc;
-                for (size_t i = 0; i < cigar_chunks.size(); i++) {
-                    auto [cig_len, cig_val] = cigar_chunks[i];
-                    curr_sub_len = 0;
-                    while (curr_sub_len < cig_len) {
-                        int nuc_pos = start_idx + seq_idx - ins_count + del_count;
-                        switch (cig_val) {
-                            case 'I':
-                                //Insertion at pos 1 requires ref_nuc at pos 1 after the alt_nuc
-                                if (nuc_pos == 1) {
-                                    ref_nuc = ref_seq[0];
-                                    alt_nuc = read_seq.substr(seq_idx, cig_len) + ref_nuc;
-                                }
-                                //Otherwise the ref_nuc needs to be from prev pos 
-                                else {
-                                    alt_nuc = ref_nuc + read_seq.substr(seq_idx, cig_len);
-                                    nuc_pos -= 1; 
-                                }
-                                curr_sub_len += cig_len;   
-                                seq_idx += cig_len;
-                                ins_count += cig_len;
-                                break;
-
-                            case 'D':
-                                //Deletion at pos 1 requires alt_nuc at pos 1 after the ref_nuc
-                                if (nuc_pos == 1) {
-                                    alt_nuc = ref_seq[cig_len];
-                                    ref_nuc = ref_seq.substr(0, cig_len) + alt_nuc;
-                                }
-                                else { 
-                                    alt_nuc = ref_nuc;
-                                    ref_nuc += ref_seq.substr(nuc_pos - 1, cig_len);
-                                    nuc_pos -= 1;
-                                }
-                                curr_sub_len += cig_len;   
-                                del_count += cig_len;
-                                break;
-                            
-                            case 'N': 
-                                ref_nuc = ref_seq[nuc_pos - 1]; 
-                                alt_nuc = "N";
-                                curr_sub_len++;   
-                                seq_idx++;
-                                break;
-
-                            default:
-                                ref_nuc = ref_seq[nuc_pos - 1]; 
-                                alt_nuc = std::string(1, read_seq[seq_idx]);
-                                curr_sub_len++;   
-                                seq_idx++;
-                        }
-                        
-                        auto smr_itr = site_MutReads_map.find(nuc_pos);
-                        //Current position NOT in site_MutReads_map
-                        if (smr_itr == site_MutReads_map.end()) {
-                            std::vector<std::tuple<std::string, std::string, std::vector<size_t>>> newEntry;
-                            newEntry.emplace_back(ref_nuc, alt_nuc, std::vector<size_t>(1, rd_idx));
-                            site_MutReads_map[nuc_pos] = newEntry;
-                        }
-                        else {
-                            bool found = false;
-                            //Add rd_idx to alt_nuc if PRESENT
-                            for (auto& mr_tuple: smr_itr->second) {
-                                if ((std::get<0>(mr_tuple) == ref_nuc) && (std::get<1>(mr_tuple) == alt_nuc)) {
-                                    auto& rd_idx_vector = std::get<2>(mr_tuple); 
-                                    rd_idx_vector.emplace_back(rd_idx);
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            //Else add alt_nuc to smr_itr->second
-                            if (!found)
-                                smr_itr->second.emplace_back(ref_nuc, alt_nuc, std::vector<size_t>(1, rd_idx));
-                        }
-                    }
-                }
-            } 
-        }
-    }
 }

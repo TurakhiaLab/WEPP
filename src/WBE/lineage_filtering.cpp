@@ -76,39 +76,51 @@ void filterLineages (po::parsed_options parsed) {
     node_score_map.clear();
     
     //Only taking non-neighborhood nodes from top_n_node_scores
-    std::vector<MAT::Node*> curr_prohibited_nodes;
     std::unordered_set<MAT::Node*> prohibited_nodes;
-    std::map<std::string, int> lineage_node_map;
+    std::unordered_map<std::string, int> lineage_nodes_count;
     
     for (int idx = 0; idx < (int)node_score_vector.size(); idx++) {
-        auto ref_n_s = node_score_vector[idx];
-        if (prohibited_nodes.find(ref_n_s.first) != prohibited_nodes.end())
+        auto n_s = node_score_vector[idx];
+        if (prohibited_nodes.find(n_s.first) != prohibited_nodes.end())
             continue;
         
-        //Proceed further if ref_n_s not in nieghborhood
-        auto curr_clade = getLineage(T_condensed, ref_n_s.first);
-        auto cn_itr = lineage_node_map.find(curr_clade);
-        if (cn_itr == lineage_node_map.end()){
-            lineage_node_map.insert({curr_clade, 1});
-            peak_nodes.emplace_back(ref_n_s.first);
+        //Proceed further if n_s not in nieghborhood
+        if (!condensed_node_mappings[n_s.first].empty()) {
+            bool selected = false;
+            //Search for lineages in uncondensed nodes of original tree
+            std::unordered_set<std::string> curr_lineages; 
+            for (const auto& curr_node: condensed_node_mappings[n_s.first])
+                curr_lineages.insert(getLineage(T, curr_node));
+            for (const auto& curr_lin: curr_lineages) {
+                auto ln_itr = lineage_nodes_count.find(curr_lin);
+                if (ln_itr == lineage_nodes_count.end()){
+                    lineage_nodes_count.insert({curr_lin, 1});
+                    selected = true;
+                }
+                else if (ln_itr->second < node_lim) {
+                    ln_itr->second++;
+                    selected = true;
+                }
+            }
+            curr_lineages.clear();
+            //Add current node to peak if lineages were selected and add its neighbors to prohibited list
+            if (selected) {
+                std::vector<MAT::Node*> curr_prohibited_nodes;
+                peak_nodes.emplace_back(n_s.first);
+                //Do neighbor check
+                updateProhibitedNodes(T_condensed, {n_s.first}, curr_prohibited_nodes, m_dist_thresh);
+                for (const auto& curr_node: curr_prohibited_nodes)
+                    prohibited_nodes.insert(curr_node);
+                curr_prohibited_nodes.clear();
+            }
         }
-        else if (cn_itr->second < node_lim) {
-            cn_itr->second++;
-            peak_nodes.emplace_back(ref_n_s.first);
-        }
-        
-        //Do neighbor check
-        updateProhibitedNodes(T_condensed, {ref_n_s.first}, curr_prohibited_nodes, m_dist_thresh);
-        for (const auto& curr_node: curr_prohibited_nodes)
-            prohibited_nodes.insert(curr_node);
-        curr_prohibited_nodes.clear();
     }
-    printf("\nPeak Nodes: %lu, Lineages: %lu\n\n", peak_nodes.size(), lineage_node_map.size());
+    printf("\nCondensed Peak Nodes: %lu, Lineages: %lu\n\n", peak_nodes.size(), lineage_nodes_count.size());
 
     node_score_vector.clear();
     prohibited_nodes.clear();
-    lineage_node_map.clear();
-    fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
+    lineage_nodes_count.clear();
+    fprintf(stderr, "Lineage selection completed in %ld sec \n\n", (timer.Stop() / 1000));
 
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }

@@ -133,7 +133,7 @@ if len(sys.argv) != 3:
 
 # Start time
 start_time = time.time()
-eps = 1e-3
+eps = 1e-2
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
 
