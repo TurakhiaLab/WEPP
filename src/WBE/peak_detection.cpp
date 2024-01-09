@@ -90,7 +90,7 @@ void detectPeaks (po::parsed_options parsed) {
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
-    int top_n = 25, m_dist_thresh = 0, neighbor_dist_thresh = 2, neighbor_peaks_thresh = 100, tree_range = 600, tree_increment = 400;
+    int top_n = 25, m_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_range = 600, tree_increment = 400;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
     MAT::Tree T_condensed;

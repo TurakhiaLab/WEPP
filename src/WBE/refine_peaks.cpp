@@ -246,7 +246,7 @@ void refinePeaks(po::parsed_options parsed) {
 
 //Computes distance between peaks and given samples
 void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &freyja_lineage_abun_map) {
-    fprintf(stderr, "Haplotypes: %d\n\n", (int)hap_map.size());
+    printf("Haplotypes: %d\n\n", (int)hap_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Closest distance of sample from peak
     for (auto sample: vcf_samples) {
