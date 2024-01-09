@@ -174,12 +174,11 @@ for i, hap in enumerate(haplotypes):
                 lineages[lin] += abundances[i]
         #Multiple lineages
         else:
-            abun = abundances[i]
             for lin in condensed_lineages:
-                if abun not in uncertain_lineages:
-                    uncertain_lineages[abun] = [lin]
+                if i not in uncertain_lineages:
+                    uncertain_lineages[i] = [lin]
                 else:
-                    uncertain_lineages[abun].append(lin)
+                    uncertain_lineages[i].append(lin)
     else:
         #Extract the part after the last '_'
         split_parts = hap.split('_')
@@ -192,9 +191,9 @@ print("\nLINEAGE ABUNDANCE (ORIG):")
 for lin, abun in lineages.items():
     print(lin, abun)
 
-for abun, lin in uncertain_lineages.items():
+for idx, lin in uncertain_lineages.items():
     lin_str = ', '.join(lin)
-    print(lin_str, abun) 
+    print(lin_str, abundances[idx]) 
 
 #Write abundance of haplotypes in csv
 csv_write_header = ['Haplotype', 'Abundance']
