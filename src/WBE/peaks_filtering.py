@@ -133,7 +133,7 @@ if len(sys.argv) != 3:
 
 # Start time
 start_time = time.time()
-eps = 1e-2
+eps = 0.01
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
 
@@ -175,10 +175,10 @@ for i, hap in enumerate(haplotypes):
         #Multiple lineages
         else:
             for lin in condensed_lineages:
-                if i not in uncertain_lineages:
-                    uncertain_lineages[i] = [lin]
+                if lin not in uncertain_lineages:
+                    uncertain_lineages[lin] = abundances[i]
                 else:
-                    uncertain_lineages[i].append(lin)
+                    uncertain_lineages[lin] += abundances[i]
     else:
         #Extract the part after the last '_'
         split_parts = hap.split('_')
@@ -187,13 +187,19 @@ for i, hap in enumerate(haplotypes):
         else:
             lineages[split_parts[-1]] += abundances[i]
 
-print("\nLINEAGE ABUNDANCE (ORIG):")
-for lin, abun in lineages.items():
-    print(lin, abun)
 
-for idx, lin in uncertain_lineages.items():
-    lin_str = ', '.join(lin)
-    print(lin_str, abundances[idx]) 
+#Print certain lineages
+if lineages:
+    print(f'\nLINEAGE ABUNDANCE (Certain):')
+    for lin, abun in lineages.items():
+        print(lin, abun)
+
+#Print uncertain lineages
+if uncertain_lineages:
+    print(f'\nLINEAGE ABUNDANCE (Uncertain):')
+    for lin, abun in uncertain_lineages.items():
+        print(lin, abun)
+
 
 #Write abundance of haplotypes in csv
 csv_write_header = ['Haplotype', 'Abundance']
@@ -206,3 +212,4 @@ write_vcf_file(directory + "/" + file_prefix + "_haplotypes.vcf", mut_hap_matrix
 
 # End time
 print(f"\nElapsed time: {time.time() - start_time} seconds")
+
