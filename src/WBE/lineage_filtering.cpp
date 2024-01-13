@@ -67,6 +67,7 @@ void filterLineages (po::parsed_options parsed) {
     
     //MAP reads to nodes
     timer.Start();
+    
     placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_read_ids, peak_nodes, node_score_map, remove_read_ids, ref_seq.size(), tree_increment, tree_range);
     fprintf(stderr, "Read mapping completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
     
@@ -120,7 +121,7 @@ void filterLineages (po::parsed_options parsed) {
     node_score_vector.clear();
     prohibited_nodes.clear();
     lineage_nodes_count.clear();
-    fprintf(stderr, "Lineage selection completed in %ld sec \n\n", (timer.Stop() / 1000));
+    fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
 
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }
