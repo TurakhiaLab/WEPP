@@ -486,16 +486,32 @@ void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
 }
 
 //Parsimonious placement search for reads
-int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector<MAT::Node*> &check_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings) {
-    auto dfs = T.depth_first_expansion();
+int placeReads(const MAT::Tree &T, const struct read_info* rp_in, const std::vector<MAT::Node*> &check_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings) {
     std::stack<std::pair<std::vector<MAT::Mutation>, MAT::Node*>> parsimony_stack;
     struct min_parsimony min_par;
     std::unordered_set<size_t> common_mut_nodes;
+    std::vector<MAT::Mutation> uniq_curr_node_mut, curr_node_par_mut;
+    std::vector<int> common_node_mut_pos, ambiguous_mut_pos;
+
+    //Copy the contents of rp_in to rp
+    struct read_info* rp = new struct read_info;
+    *rp = *rp_in;
+    
+    //Check for ambiguous mutation 'N' in the read: remove them from rp
+    auto rp_mut_itr = rp->mutations.begin();
+    while (rp_mut_itr != rp->mutations.end()) {
+        if (rp_mut_itr->mut_nuc == 0b1111) {
+            ambiguous_mut_pos.emplace_back(rp_mut_itr->position);
+            rp_mut_itr = rp->mutations.erase(rp_mut_itr);
+        }
+        else
+            rp_mut_itr++;
+    }
+
     //Checking all nodes of the tree
+    auto dfs = T.depth_first_expansion();
     for (size_t i = 0; i < dfs.size(); i++) {
         auto curr_node = dfs[i];
-        std::vector<MAT::Mutation> uniq_curr_node_mut, curr_node_par_mut;
-        std::unordered_set<int> common_node_mut_pos;
         //Nothing in stack for first node
         if (i) {
             //Get the parsimony vector from parent
@@ -506,17 +522,17 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
                 parsimony_stack.pop();
                 if (!parsimony_stack.empty())
                     std::tie(parent_node_par, parent_node) = parsimony_stack.top();
-                else 
-                    fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
             } 
-            if (parsimony_stack.empty())
-                fprintf(stderr, "\nERROR in Parsimony Stack!!!!\n");
             curr_node_par_mut = parent_node_par;
         }
         //Checking all mutations of current node
-        for (auto node_mut: curr_node->mutations) {
+        for (const auto &node_mut: curr_node->mutations) {
             //Only look at mutations within the read range
             if ((node_mut.position >= rp->start) && (node_mut.position <= rp->end)) {
+                //Skip mutation if node mutation position is in ambiguous_mut_pos
+                if (std::find(ambiguous_mut_pos.begin(), ambiguous_mut_pos.end(), node_mut.position) != ambiguous_mut_pos.end())
+                    continue;
+
                 bool found = false;
                 //Check mutation position in parsimony of parent node
                 auto curr_node_par_itr = curr_node_par_mut.begin();
@@ -524,7 +540,7 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
                     if (curr_node_par_itr->position == node_mut.position) {
                         //mut_nuc matches => remove mutation from parsimony
                         if (curr_node_par_itr->mut_nuc == node_mut.mut_nuc) {
-                           common_node_mut_pos.insert(curr_node_par_itr->position);
+                           common_node_mut_pos.emplace_back(curr_node_par_itr->position);
                            curr_node_par_mut.erase(curr_node_par_itr);
                         }
                         //Update the par_nuc in parsimony if only position matches
@@ -540,12 +556,12 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
                     continue;
 
                 //Not found in parent parsimony
-                for (auto read_mut: rp->mutations) {
+                for (const auto& read_mut: rp->mutations) {
                     if (read_mut.position == node_mut.position) {
                         //For root 
                         if (!i) {
                             //Mutation found in read, add to common_node_mut_pos
-                            common_node_mut_pos.insert(read_mut.position);
+                            common_node_mut_pos.emplace_back(read_mut.position);
                             //If mutation is different, handle the mutation as child of current node by adding it to curr_node_par_mut
                             if (read_mut.mut_nuc != node_mut.mut_nuc) {
                                 struct MAT::Mutation new_mut;
@@ -586,8 +602,8 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
 
         //Adding only unseen read_mut to node parsimony for root node
         if (!i) {
-            for (auto read_mut: rp->mutations) {
-                if (common_node_mut_pos.find(read_mut.position) == common_node_mut_pos.end())
+            for (const auto &read_mut: rp->mutations) {
+                if (std::find(common_node_mut_pos.begin(), common_node_mut_pos.end(), read_mut.position) == common_node_mut_pos.end())
                     curr_node_par_mut.emplace_back(read_mut);
             }
         }
@@ -644,6 +660,7 @@ int placeReads(const MAT::Tree &T, const struct read_info* rp, const std::vector
     }
 
     //Clear variables
+    delete rp;
     while (!parsimony_stack.empty())
         parsimony_stack.pop();
     min_par.par_list.clear();
