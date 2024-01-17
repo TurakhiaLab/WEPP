@@ -32,7 +32,8 @@ void sam2VCF(po::parsed_options parsed) {
     }
 
     //Reading sam file
-    std::unordered_map<size_t, std::string> read_map;
+    std::unordered_map<size_t, std::string> read_map, sorted_read_map;
+    std::vector<std::pair<size_t, std::string>> read_map_list;
     std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> site_MutReads_map;
     readSAM(sam_file, ref_seq, read_map, site_MutReads_map);
 
@@ -60,8 +61,20 @@ void sam2VCF(po::parsed_options parsed) {
     //Write Header
     vcf << "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
     freyja_vcf << "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
-    for (size_t i = 0; i < read_map.size(); i++)
-        vcf << "\t" << read_map[i];
+   
+    //SORT reads based on start position
+    for (const auto& rm: read_map)
+        read_map_list.emplace_back(std::make_pair(rm.first, rm.second));
+    read_map.clear();
+
+    std::sort(read_map_list.begin(), read_map_list.end(), 
+        [&](const auto& a, const auto& b) {
+            return compareReadPos(a, b);
+    });
+
+    //Write read names according to sorted read_map_list 
+    for (const auto& rml: read_map_list)
+        vcf << "\t" << rml.second;
 
     //Write Mutations
     for (int i = 1; i <= (int)ref_seq.size(); i++) {
@@ -118,15 +131,26 @@ void sam2VCF(po::parsed_options parsed) {
                 alt_count = 1;
                 for (auto& mr_tuple: site_MutReads_map[i]) {
                     if ((std::get<0>(mr_tuple) != std::get<1>(mr_tuple)) && (std::get<0>(mr_tuple) == std::string(1, ref_nuc)) && (std::get<1>(mr_tuple).size() == 1)) {
-                        for (const auto& rd_idx: std::get<2>(mr_tuple))
-                            nuc_read_list.emplace_back(std::make_pair(alt_count, rd_idx));
+                        //Insert read_map_list idx
+                        for (const auto& rd_idx: std::get<2>(mr_tuple)) {
+                            //Search for rd_idx in read_map_list
+                            for (size_t j = 0; j < read_map_list.size(); j++) {
+                                if (read_map_list[j].first == rd_idx) {
+                                    nuc_read_list.emplace_back(std::make_pair(alt_count, j));
+                                    break;
+                                }
+                            }
+                        }
                         alt_count++;
                     }
                 }
-                //Sort the reads based on read_map
+                
+                //Sort the reads based on read_map_list
                 std::sort(nuc_read_list.begin(), nuc_read_list.end(), compareIdx);
+                
+                //Write the final read_matrix
                 auto nr_itr = nuc_read_list.begin();
-                for (size_t j = 0; j < read_map.size(); j++) {
+                for (size_t j = 0; j < read_map_list.size(); j++) {
                     if (nr_itr != nuc_read_list.end()) {
                         if (j == nr_itr->second) {
                             vcf << "\t" + std::to_string(nr_itr->first);
