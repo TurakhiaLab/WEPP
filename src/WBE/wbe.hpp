@@ -93,6 +93,8 @@ void sortNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>
 
 bool compareNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
 
+bool compareReadPos (const std::pair<size_t, std::string>&, const std::pair<size_t, std::string>&);
+
 size_t getNumLeaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Node*);
 
 void createRangeTree(MAT::Node*, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const int &, const int &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);

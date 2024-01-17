@@ -970,6 +970,27 @@ bool compareNodeScore (const std::unordered_map<MAT::Node*, std::vector<MAT::Nod
    }
 };
 
+//Comparing different node_scores  
+bool compareReadPos (const std::pair<size_t, std::string>& a, const std::pair<size_t, std::string>& b) {
+    //Get start-end positions
+    std::regex rgx(".*READ_(\\w+)_(\\w+)");
+    std::smatch match;
+    int a_start = std::numeric_limits<int>::max(), b_start = std::numeric_limits<int>::max(), a_end = std::numeric_limits<int>::max(), b_end = std::numeric_limits<int>::max(); 
+    if (std::regex_search(a.second, match, rgx)) {
+        a_start = std::stoi(match[1]);
+        a_end = std::stoi(match[2]);
+    }
+    if (std::regex_search(b.second, match, rgx)) {
+        b_start = std::stoi(match[1]);
+        b_end = std::stoi(match[2]);
+    }
+
+    if (a_start != b_start)
+        return a_start < b_start;
+    else
+        return a_end < b_end;
+}
+
 //Get number of leaves
 size_t getNumLeaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, MAT::Node* condensed_node) {
     size_t leaves = 0;
