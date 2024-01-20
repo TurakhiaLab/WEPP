@@ -201,47 +201,6 @@ void refinePeaks(po::parsed_options parsed) {
     //ap);
 
     //placeReads(T, ref_seq, read_map, hap_map);
-
-
-    //////////////////////////////////////////////////////Multiple Freyja Iteration
-    ////readCSV(hap_abun_map, hap_csv_filename);
-    //////Extract lineages from haplotype names
-    ////std::vector<MAT::Node*> hap_list; 
-    ////for (const auto& hap_abun: hap_abun_map) {
-    ////    size_t last_underscore = hap_abun.first.find_last_of('_');
-    ////    std::string curr_hap_name = hap_abun.first.substr(0, last_underscore);
-    ////    auto curr_hap = T.get_node(curr_hap_name);
-    ////    hap_list.emplace_back(curr_hap); 
-    ////}
-    ////int neighbor_dist_thresh = 7, neighbor_peaks_thresh = 100;
-    ////addNeighborNodes(T, hap_list, neighbor_dist_thresh, neighbor_peaks_thresh);
-    
-    
-    //////////////////////////////////////////////////////////////////////CHECKING VCF and SAM correctness
-    //readVCF(read_map, vcf_filename_reads, ref_seq.size(), false);
-    //for (auto rm: read_map) {
-    //    std::string rd_seq = "";
-    //    int curr_pos = rm.second->start;
-    //    for (auto mut: rm.second->mutations) {
-    //        while (curr_pos < mut.position) {
-    //            rd_seq += ref_seq[curr_pos - 1];
-    //            curr_pos++;
-    //        }
-    //        rd_seq += MAT::get_nuc(mut.mut_nuc);
-    //        curr_pos++;
-    //    }
-    //    while (curr_pos <= rm.second->end) {
-    //        rd_seq += ref_seq[curr_pos - 1];
-    //        curr_pos++;
-    //    }
-    //    //size_t last_underscore = rm.second->read.find_last_of('_');
-    //    //std::string ref_read_name = rm.second->read.substr(0, last_underscore);
-    //    //last_underscore = ref_read_name.find_last_of('_');
-    //    //ref_read_name = ref_read_name.substr(0, last_underscore);
-    //    //last_underscore = ref_read_name.find_last_of('_');
-    //    //ref_read_name = ref_read_name.substr(0, last_underscore);
-    //    printf("\n%s\t%s", rm.second->read.c_str(), rd_seq.c_str());  
-    //}
 }
 
 //Computes distance between peaks and given samples
