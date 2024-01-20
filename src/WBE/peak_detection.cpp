@@ -115,7 +115,6 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     //ITERATE till no reads left
     while ((int)remaining_reads.size() > 0) {
         printf("\n");
-        //fprintf(stderr, "\n");
         
         //MAP reads to nodes
         placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range);
