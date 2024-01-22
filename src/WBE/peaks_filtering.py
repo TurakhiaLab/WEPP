@@ -1,7 +1,6 @@
 import csv
 import numpy as np
 import cvxpy as cp
-import glpk
 import copy
 import time
 import math

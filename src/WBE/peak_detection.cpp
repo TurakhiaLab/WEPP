@@ -167,7 +167,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
                 continue;
             //Proceed further if ref_n_s not in nieghborhood
             curr_peak_nodes.emplace_back(ref_n_s.first);
-            auto curr_clade = getLineage(T_condensed, ref_n_s.first);
+            auto curr_clade = getLineage(T, condensed_node_mappings[ref_n_s.first].front());
             printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             //fprintf(stderr,"PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             if ((++nodes_found) == top_n)
@@ -246,16 +246,43 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     printf("\nInital PEAK nodes: %d\n", (int)peak_nodes.size());
     fprintf(stderr,"\nPeak search took %ld min\n\n", (timer.Stop() / (60 * 1000)));
     
-    printf("MUTATION DISTANCE ORIG:\n"); 
     //Verify Recovery of Input Samples
+    printf("MUTATION DISTANCE ORIG:\n"); 
     timer.Start();
+    std::unordered_set<int> site_read_map;
+    for (size_t i = 0; i < read_map.size(); i++) {
+        auto rp = read_map.find(i)->second;
+        for (int j = rp->start; j <= rp->end; j++)
+            site_read_map.insert(j);
+    }
+
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
-        auto sample_node = T_ref.get_node(sample);
+        auto sample_mutations = getMutations(T_ref, sample);
+        //Remove mutations from sample_mutations that are not present in site_read_map
+        auto mut_itr = sample_mutations.begin();
+        while (mut_itr != sample_mutations.end()) {
+            if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                mut_itr = sample_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+
         MAT::Node* best_node = NULL;
         for (const auto &pn: peak_nodes) {
             for (const auto &node: condensed_node_mappings.find(pn)->second) {
-                int curr_dist = mutationDistance(T_ref, T_ref, node, sample_node);
+                //Getting node_mutations from the Tree
+                auto node_mutations = getMutations(T_ref, node->identifier);
+                //Remove mutations from node_mutations that are not present in site_read_map
+                auto mut_itr = node_mutations.begin();
+                while (mut_itr != node_mutations.end()) {
+                    if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                        mut_itr = node_mutations.erase(mut_itr);
+                    else
+                        mut_itr++;
+                }
+
+                int curr_dist = mutationDistance(sample_mutations, node_mutations);
                 if (curr_dist < min_dist) {
                     min_dist = curr_dist;
                     best_node = pn;
