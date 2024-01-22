@@ -410,7 +410,7 @@ void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condense
 //PLACING reads using small range trees
 void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::unordered_map<size_t, struct read_info*> &read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*> &peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<size_t> &remove_reads, const int &seq_len, const int &tree_increment, const int &tree_range) {
     //Batch vectors
-    int batch_size = 64;
+    int batch_size = 32;
     std::vector<int> range_Tree_idx;
     std::vector<std::vector<size_t>> read_ids_batch; 
     std::vector<std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>> node_mappings_batch;
@@ -449,11 +449,18 @@ void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
             
             //Create batches
             int batch_count = 0;
-            while (batch_count < (int)std::ceil((float)curr_read_ids.size() / (float)batch_size)) {
-                read_ids_batch.emplace_back(curr_read_ids.begin() + (batch_size * batch_count), curr_read_ids.begin() + std::min(curr_read_ids.size(), (size_t)(batch_size * (batch_count + 1))));
+            int num_batches = std::floor((float)curr_read_ids.size() / (float)batch_size);
+            if (((int)curr_read_ids.size() % batch_size) > (batch_size / 16))
+                num_batches++;
+            while (batch_count < num_batches) {
+                if ((batch_count + 1) == num_batches)
+                    read_ids_batch.emplace_back(curr_read_ids.begin() + (batch_size * batch_count), curr_read_ids.begin() + curr_read_ids.size());
+                else
+                    read_ids_batch.emplace_back(curr_read_ids.begin() + (batch_size * batch_count), curr_read_ids.begin() + (batch_size * (batch_count + 1)));
                 range_Tree_idx.emplace_back(range_Tree_batch.size());
                 batch_count++;
             }
+
             node_mappings_batch.emplace_back(node_mappings);
             range_Tree_batch.emplace_back(range_Tree);
             
@@ -1290,6 +1297,55 @@ void updateProhibitedNodes(const MAT::Tree &T, const std::vector<MAT::Node*> &cu
             }
         },
     ap);
+}
+
+//Add neighboring nodes to prohibited nodes
+void getProhibitedNodes(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, MAT::Node* peak, std::vector<MAT::Node*> &prohibited_nodes, const int& inter_lineage_thresh) {
+    ////ADDING current_peak_nodes and its neighbors to prohibited_nodes
+    ////  1. Find the farthest ancestor of every peak node within m_thresh
+    ////  2. Recursively only analyze its children within m_thresh
+    ////  3. Only include unseen neighborhood nodes to prohibited_nodes
+    int intra_lineage_thresh = inter_lineage_thresh * 5;
+    auto ref_lineage = getLineage(T_orig, condensed_node_mappings.find(peak)->second.front());
+
+    //Find farthest ancestor with mut distance from peak <= m_thresh
+    MAT::Node* anc_node = peak;
+    int m_thresh = intra_lineage_thresh;
+    auto curr_lineage = ref_lineage;
+    for (const auto& n: T.rsearch(peak->identifier, false)) {
+        int m_dist = mutationDistance(T, T, n, peak);
+        if (curr_lineage == ref_lineage) {
+            curr_lineage = getLineage(T_orig, condensed_node_mappings.find(n)->second.front());
+            if (curr_lineage != ref_lineage)
+                m_thresh = inter_lineage_thresh;
+        }
+        if (m_dist <= m_thresh)
+            anc_node = n;
+        else
+            break;
+    }
+
+    //Adding neighborhood peaks to prohibited_nodes
+    std::queue<MAT::Node*> remaining_nodes;
+    remaining_nodes.push(anc_node);
+    while (!remaining_nodes.empty()) {
+        MAT::Node* present_node = remaining_nodes.front();
+        remaining_nodes.pop();
+        //Decide threshold based on node's lineage
+        curr_lineage = getLineage(T_orig, condensed_node_mappings.find(present_node)->second.front());
+        if (curr_lineage == ref_lineage)
+            m_thresh = intra_lineage_thresh;
+        else
+            m_thresh = inter_lineage_thresh;
+        //Only add if mutation distance between peak and present_node <= m_dist_thresh
+        int m_dist = mutationDistance(T, T, present_node, peak);
+        if (m_dist <= m_thresh) {
+            prohibited_nodes.emplace_back(present_node);
+            //Add present_node's children in list for checking
+            for (const auto& c: present_node->children)
+                remaining_nodes.push(c);
+        }
+    }
 }
 
 //Add neighboring nodes to current peak

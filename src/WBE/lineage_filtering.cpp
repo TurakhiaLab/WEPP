@@ -49,7 +49,7 @@ void filterLineages (po::parsed_options parsed) {
     
     //Get the peak_nodes
     timer.Start();
-    int tree_range = 600, tree_increment = 400, node_lim = 10, m_dist_thresh = 2;
+    int tree_range = 600, tree_increment = 400, node_lim = 5, m_dist_thresh = 4;
     MAT::Tree T_condensed;
     std::vector<MAT::Node*> peak_nodes;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
@@ -94,7 +94,7 @@ void filterLineages (po::parsed_options parsed) {
                 curr_lineages.insert(getLineage(T, curr_node));
             for (const auto& curr_lin: curr_lineages) {
                 auto ln_itr = lineage_nodes_count.find(curr_lin);
-                if (ln_itr == lineage_nodes_count.end()){
+                if (ln_itr == lineage_nodes_count.end()) {
                     lineage_nodes_count.insert({curr_lin, 1});
                     selected = true;
                 }
@@ -109,9 +109,10 @@ void filterLineages (po::parsed_options parsed) {
                 std::vector<MAT::Node*> curr_prohibited_nodes;
                 peak_nodes.emplace_back(n_s.first);
                 //Do neighbor check
-                updateProhibitedNodes(T_condensed, {n_s.first}, curr_prohibited_nodes, m_dist_thresh);
-                for (const auto& curr_node: curr_prohibited_nodes)
-                    prohibited_nodes.insert(curr_node);
+                //updateProhibitedNodes(T_condensed, {n_s.first}, curr_prohibited_nodes, m_dist_thresh);
+                getProhibitedNodes(T_condensed, T, condensed_node_mappings, n_s.first, curr_prohibited_nodes, m_dist_thresh);
+                for (const auto& p_node: curr_prohibited_nodes)
+                    prohibited_nodes.insert(p_node);
                 curr_prohibited_nodes.clear();
             }
         }

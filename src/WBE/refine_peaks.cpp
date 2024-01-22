@@ -55,8 +55,8 @@ void refinePeaks(po::parsed_options parsed) {
     readVCF(hap_map, hap_vcf_filename, ref_seq.size(), false);
     readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
-    //readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
+    readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
 
     //UPDATE hap_map if CONDENSED nodes are found
     std::vector<struct read_info*> uncondensed_nodes;
@@ -83,7 +83,14 @@ void refinePeaks(po::parsed_options parsed) {
         hap_map.insert({hap_map.size(), hap});
     uncondensed_nodes.clear();
 
-    computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map);
+    //MAP of site_read
+    std::unordered_set<int> site_read_map;
+    for (size_t i = 0; i < read_map.size(); i++) {
+        auto rp = read_map.find(i)->second;
+        for (int j = rp->start; j <= rp->end; j++)
+            site_read_map.insert(j);
+    }
+    computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map, site_read_map);
 
     ////FIND coverage of read mutations
     //std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_read_map;
@@ -204,21 +211,39 @@ void refinePeaks(po::parsed_options parsed) {
 }
 
 //Computes distance between peaks and given samples
-void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &freyja_lineage_abun_map) {
+void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &freyja_lineage_abun_map, const std::unordered_set<int> &site_read_map) {
     printf("Haplotypes: %d\n\n", (int)hap_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
     //Closest distance of sample from peak
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
         auto sample_mutations = getMutations(T, sample);
+        //Remove mutations from sample_mutations that are not present in site_read_map
+        auto mut_itr = sample_mutations.begin();
+        while (mut_itr != sample_mutations.end()) {
+            if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                mut_itr = sample_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+
         std::string best_node = "";
         std::vector<MAT::Mutation> best_hap_mutations;
         auto hap_itr = hap_map.begin();
         while (hap_itr != hap_map.end()) {
             size_t last_underscore = hap_itr->second->read.find_last_of('_');
             std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
+            //Getting hap_mutations from the Tree
             auto hap_mutations = getMutations(T, curr_hap_name);
-            //auto hap_mutations = hap_itr->second->mutations;
+            //Remove mutations from hap_mutations that are not present in site_read_map
+            auto mut_itr = hap_mutations.begin();
+            while (mut_itr != hap_mutations.end()) {
+                if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                    mut_itr = hap_mutations.erase(mut_itr);
+                else
+                    mut_itr++;
+            }
+
             int curr_dist = mutationDistance(sample_mutations, hap_mutations);
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
@@ -229,53 +254,6 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         }
         printf("\nNode: %s, Closest_node: %s, mutationDistance: %d", sample.c_str(), best_node.c_str(), min_dist);
     
-        ////Creating list of mutations when min_dist > 0
-        //if (min_dist) {
-        //    //Find missing mutations
-        //    auto node1_mutations = best_hap_mutations;
-        //    auto node2_mutations = sample_mutations;
-        //    std::vector<MAT::Mutation> parsimony_mutations;
-        //    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
-        //    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-        //    auto n1_itr = node1_mutations.begin();
-        //    while (n1_itr != node1_mutations.end()) {
-        //        bool found_both = false;
-        //        auto n2_itr = node2_mutations.begin();
-        //        while (n2_itr != node2_mutations.end()) {
-        //            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-        //                node2_mutations.erase(n2_itr);
-        //                found_both = true;
-        //                break;
-        //            }
-        //            else if (n2_itr->position == n1_itr->position) {
-        //                node2_mutations.erase(n2_itr);
-        //                break;
-        //            }
-        //            n2_itr++;
-        //        }
-        //        if (found_both)
-        //            n1_itr = node1_mutations.erase(n1_itr);
-        //        else
-        //            n1_itr++;
-        //    }
-        //    parsimony_mutations.reserve(node1_mutations.size() + node2_mutations.size());
-        //    parsimony_mutations.insert(parsimony_mutations.end(), node1_mutations.begin(), node1_mutations.end());
-        //    parsimony_mutations.insert(parsimony_mutations.end(), node2_mutations.begin(), node2_mutations.end());
-        //    node1_mutations.clear();
-        //    node2_mutations.clear();
-
-        //    //Add missing mutations to expected_mutations
-        //    for (const auto& mut: parsimony_mutations) {
-        //        auto exp_mut_itr = expected_mutations.begin();
-        //        while (exp_mut_itr != expected_mutations.end()) {
-        //            if ((exp_mut_itr->first == mut.position) && (exp_mut_itr->second == MAT::get_nuc(mut.mut_nuc)))
-        //                break;
-        //            exp_mut_itr++;
-        //        }
-        //        if (exp_mut_itr == expected_mutations.end())
-        //            expected_mutations.emplace_back(std::make_pair(mut.position, MAT::get_nuc(mut.mut_nuc)));
-        //    }
-        //}
     }
 
     //Closest distance of sample from root node of lineage
@@ -285,6 +263,15 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
         auto sample_mutations = getMutations(T, sample);
+        //Remove mutations from sample_mutations that are not present in site_read_map
+        auto mut_itr = sample_mutations.begin();
+        while (mut_itr != sample_mutations.end()) {
+            if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                mut_itr = sample_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+
         std::string best_node = "";
         for (const auto& lin_abun: freyja_lineage_abun_map) {
             auto curr_lin = lin_abun.first;
@@ -292,6 +279,15 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
             for (const auto& curr_node: dfs) {
                 if (curr_node->clade_annotations[1] == curr_lin) {
                     auto hap_mutations = getMutations(T, curr_node->identifier);
+                    //Remove mutations from hap_mutations that are not present in site_read_map
+                    auto mut_itr = hap_mutations.begin();
+                    while (mut_itr != hap_mutations.end()) {
+                        if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                            mut_itr = hap_mutations.erase(mut_itr);
+                        else
+                            mut_itr++;
+                    }
+
                     int curr_dist = mutationDistance(hap_mutations, sample_mutations);
                     if (curr_dist < min_dist) {
                         min_dist = curr_dist;

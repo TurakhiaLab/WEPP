@@ -79,6 +79,8 @@ std::string getLineage(const MAT::Tree &, MAT::Node*);
 
 void updateProhibitedNodes(const MAT::Tree &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, const int&);
 
+void getProhibitedNodes(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Node* , std::vector<MAT::Node*> &, const int&);
+
 std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
 void addNeighborNodes(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
@@ -103,7 +105,7 @@ void createLineageTree(MAT::Node*, const std::vector<std::string> &, MAT::Tree &
 
 void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct read_info*> &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
 
-void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &);
+void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &, const std::unordered_set<int> &);
 
 void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
 
