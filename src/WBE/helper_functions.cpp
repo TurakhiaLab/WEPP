@@ -410,7 +410,7 @@ void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condense
 //PLACING reads using small range trees
 void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::unordered_map<size_t, struct read_info*> &read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*> &peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<size_t> &remove_reads, const int &seq_len, const int &tree_increment, const int &tree_range) {
     //Batch vectors
-    int batch_size = 32;
+    int batch_size = 256;
     std::vector<int> range_Tree_idx;
     std::vector<std::vector<size_t>> read_ids_batch; 
     std::vector<std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>> node_mappings_batch;
@@ -1305,7 +1305,7 @@ void getProhibitedNodes(const MAT::Tree &T, const MAT::Tree &T_orig, const std::
     ////  1. Find the farthest ancestor of every peak node within m_thresh
     ////  2. Recursively only analyze its children within m_thresh
     ////  3. Only include unseen neighborhood nodes to prohibited_nodes
-    int intra_lineage_thresh = inter_lineage_thresh * 5;
+    int intra_lineage_thresh = inter_lineage_thresh * 4;
     auto ref_lineage = getLineage(T_orig, condensed_node_mappings.find(peak)->second.front());
 
     //Find farthest ancestor with mut distance from peak <= m_thresh
