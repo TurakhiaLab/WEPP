@@ -35,20 +35,27 @@ std::vector<std::string> mutation_paths_all(MAT:: Tree*T) {
         std::string cpath = n->identifier + "\t";
         auto root_to_sample = T->rsearch(n->identifier, true);
         std::reverse(root_to_sample.begin(), root_to_sample.end());
-        for (auto n2: root_to_sample) {
-            for (size_t i=0; i<n2->mutations.size(); i++) {
+        bool first_mut_found = false;
+        for (size_t j = 0; j < root_to_sample.size(); j++) {
+            auto n2 = root_to_sample[j];
+            //Handling special characters
+            if (!n2->mutations.empty()) {
+                if (!first_mut_found)
+                    first_mut_found = true;
+                else 
+                    cpath += ">";
+            }
+
+            //Iterating through n2 mutations
+            for (size_t i=0; i < n2->mutations.size(); i++) {
                 cpath += n2->mutations[i].get_string();
                 if (i+1 < n2->mutations.size()) {
                     cpath += ",";
                 }
             }
-            if (n2->mutations.size() > 0 && n2 != root_to_sample.back()) {
-                cpath += ">";
-            }
         }
         mpaths.push_back(cpath);
     }
-
     return mpaths;
 }
 
