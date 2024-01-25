@@ -77,6 +77,7 @@ int main (int argc, char** argv) {
         if (argc == 4) {
             // matUtils mutation_paths <tree> <output>
             MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
+            T.uncondense_leaves();
             std::vector<std::string> mpaths = mutation_paths_all(&T);
             std::ofstream outfile(argv[3]);
             outfile << "sample_id\tpath_from_root\n";
@@ -87,6 +88,7 @@ int main (int argc, char** argv) {
         else if (argc == 6 && std::string(argv[4]) == "--lineages") {
             // matUtils mutation_paths <tree> <output> --lineages <lineages>
             MAT::Tree T = MAT::load_mutation_annotated_tree(argv[2]);
+            T.uncondense_leaves();
             std::vector<std::string> lineages;
             std::string lineages_str = argv[5];
             std::stringstream ss(lineages_str);
