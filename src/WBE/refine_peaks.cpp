@@ -167,8 +167,12 @@ void refinePeaks(po::parsed_options parsed) {
     //                rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
     //                hap = hap_map[i];
     //            }
-    //            size_t last_underscore = hap->read.find_last_of('_');
-    //            std::string curr_hap_name = hap->read.substr(0, last_underscore);
+    //            size_t last_underscore = hap_itr->second->read.find_last_of('_');
+    //            std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
+    //            while (T.get_node(curr_hap_name) == NULL) {
+    //                last_underscore = curr_hap_name.find_last_of('_');
+    //                curr_hap_name = curr_hap_name.substr(0, last_underscore);
+    //            }
     //            auto hap_mutations = getMutations(T, curr_hap_name);
     //            //Iterate through mutations of each peak and REMOVE the mutations not found
     //            auto mut_itr = hap_mutations.begin();
@@ -233,6 +237,10 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         while (hap_itr != hap_map.end()) {
             size_t last_underscore = hap_itr->second->read.find_last_of('_');
             std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
+            while (T.get_node(curr_hap_name) == NULL) {
+                last_underscore = curr_hap_name.find_last_of('_');
+                curr_hap_name = curr_hap_name.substr(0, last_underscore);
+            }
             //Getting hap_mutations from the Tree
             auto hap_mutations = getMutations(T, curr_hap_name);
             //Remove mutations from hap_mutations that are not present in site_read_map
