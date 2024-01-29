@@ -51,17 +51,6 @@ def read_condensed_csv_file(file_path):
 
     return condensed_nodes_map
 
-def read_loss_mutations_file(file_path):
-    # Create an empty dictionary to store the data
-    loss_mutations = []
-    with open(file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)   
-        # Iterate through each row in the CSV file
-        for row in csv_reader:
-            loss_mutations.append(row[0])
-
-    return loss_mutations
-
 def write_vcf_file(file_path, mut_hap, haplotypes, mutations):
     with open(file_path, 'w') as file:
         file.write("##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n")
@@ -127,7 +116,7 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
 
 #Check arguments
 if len(sys.argv) != 3:
-    printf("USAGE: python lineage_abundance.py <file_prefix> <directory>")
+    print("USAGE: python peaks_filtering.py <file_prefix> <directory>")
     sys.exit(1)
 
 # Start time
@@ -146,8 +135,6 @@ af_values, depth_values = read_vcf_file(vcf_file)
 
 condensed_file_path = directory + "/" + file_prefix + "_condensed_nodes.csv"
 condensed_nodes_map = read_condensed_csv_file(condensed_file_path)
-
-loss_mutations_file_path = directory + "/" + file_prefix + "_loss_mutations.csv"
 
 #Solving abundance
 mut_hap_matrix, haplotypes, abundances, mutations = solve_abundance(hap_mut_matrix, af_values, depth_values, haplotypes, mutations)

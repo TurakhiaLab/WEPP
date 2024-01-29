@@ -17,7 +17,6 @@ void detectPeaks (po::parsed_options parsed) {
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
-    std::string mismatch_matrix_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_mismatch_matrix.csv";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
     std::string condensed_nodes_csv = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_condensed_nodes.csv";
     std::string read_mutation_depth_vcf = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_read_data.vcf";
@@ -66,6 +65,11 @@ void detectPeaks (po::parsed_options parsed) {
             auto node_names_list = condensed_nodeNames_map[hap_abun.first];
             for (const auto& node_name: node_names_list) {
                 size_t last_underscore = node_name.find_last_of('_');
+                std::string real_node_name = node_name.substr(0, last_underscore);
+                while (T.get_node(real_node_name) == NULL) {
+                    last_underscore = real_node_name.find_last_of('_');
+                    real_node_name = real_node_name.substr(0, last_underscore);
+                }
                 std::string curr_lineage = node_name.substr(last_underscore + 1);
                 if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
                     selected_lineage_list.emplace_back(curr_lineage);
@@ -74,6 +78,11 @@ void detectPeaks (po::parsed_options parsed) {
         }
         else {
             size_t last_underscore = hap_abun.first.find_last_of('_');
+            std::string real_node_name = hap_abun.first.substr(0, last_underscore);
+            while (T.get_node(real_node_name) == NULL) {
+                last_underscore = real_node_name.find_last_of('_');
+                real_node_name = real_node_name.substr(0, last_underscore);
+            }
             std::string curr_lineage = hap_abun.first.substr(last_underscore + 1);
             if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
                 selected_lineage_list.emplace_back(curr_lineage);
@@ -90,7 +99,7 @@ void detectPeaks (po::parsed_options parsed) {
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
-    int top_n = 25, m_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_range = 600, tree_increment = 400;
+    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_range = 600, tree_increment = 400;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
     MAT::Tree T_condensed;
@@ -117,7 +126,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         printf("\n");
         
         //MAP reads to nodes
-        placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range);
+        placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range, false);
         
         //REMOVE prohibited_nodes from node_score_map
         static tbb::affinity_partitioner ap;
@@ -178,9 +187,9 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
                 [&](tbb::blocked_range<int> k) {
                     for (int i = k.begin(); i < k.end(); ++i) {
                         auto curr_n_s = top_n_node_scores[i + idx + 1];
-                        //Only consider curr_n_s if mutation_distance > m_dist_thresh
+                        //Only consider curr_n_s if mutation_distance > prohibited_dist_thresh
                         int m_dist = mutationDistance(T_condensed, T_condensed, ref_n_s.first, curr_n_s.first);
-                        if (m_dist <= m_dist_thresh) {
+                        if (m_dist <= prohibited_dist_thresh) {
                             my_mutex_t::scoped_lock my_lock{my_mutex};
                             top_n_node_scores_remove_nodes.emplace_back(curr_n_s.first);
                         }
@@ -206,10 +215,10 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         curr_neighbor_nodes.clear();
         
         //ADD nodes to prohibited nodes list
-        updateProhibitedNodes(T_condensed, curr_peak_nodes, prohibited_nodes, m_dist_thresh);
+        updateProhibitedNodes(T_condensed, curr_peak_nodes, prohibited_nodes, prohibited_dist_thresh);
         
         //REMOVE reads mapped to curr_peak_nodes
-        placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range);
+        placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range, false);
 
         //ERASE remove_reads from remaining_reads
         tbb::parallel_sort(remove_reads.begin(), remove_reads.end());

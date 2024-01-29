@@ -408,7 +408,7 @@ void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condense
 }
 
 //PLACING reads using small range trees
-void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::unordered_map<size_t, struct read_info*> &read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*> &peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<size_t> &remove_reads, const int &seq_len, const int &tree_increment, const int &tree_range) {
+void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::unordered_map<size_t, struct read_info*> &read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*> &peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<size_t> &remove_reads, const int &seq_len, const int &tree_increment, const int &tree_range, const bool& only_leaves) {
     //Batch vectors
     int batch_size = 256;
     std::vector<int> range_Tree_idx;
@@ -487,7 +487,7 @@ void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
                 std::vector<bool> reads_present(read_ids.size(), 0);
                 
                 //MAP reads to nodes
-                placeReads(range_Tree, read_ids, read_map, peak_nodes, node_score_map, node_mappings, condensed_node_mappings, reads_present);
+                placeReads(range_Tree, read_ids, read_map, peak_nodes, node_score_map, node_mappings, condensed_node_mappings, reads_present, only_leaves);
                 
                 //GET list of reads mapped to peak_nodes
                 if (!peak_nodes.empty()) {
@@ -516,7 +516,7 @@ void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
 }
 
 //Parsimonious placement search for reads
-void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const std::unordered_map<size_t, struct read_info*> &read_map, const std::vector<MAT::Node*> &check_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, std::vector<bool> &reads_present) {
+void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const std::unordered_map<size_t, struct read_info*> &read_map, const std::vector<MAT::Node*> &check_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, std::vector<bool> &reads_present, const bool& only_leaves) {
     std::vector<std::stack<std::pair<std::vector<MAT::Mutation>, MAT::Node*>>> parsimony_stack_batch(read_ids.size());
     std::vector<struct min_parsimony> min_par_batch(read_ids.size());
     std::vector<std::unordered_set<size_t>> common_mut_nodes_batch(read_ids.size());
@@ -551,18 +551,26 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
         if (!node_mappings.find(curr_node)->second.empty()) {
             auto condensed_front_node = node_mappings.find(curr_node)->second.front();
             if (!((condensed_node_mappings.find(condensed_front_node)->second.empty()) && (node_mappings.find(curr_node)->second.size() == 1))) {
-                skip_placement = false;
-                //REMOVE condensed_front_node if it does not map to original tree
-                if (condensed_node_mappings.find(condensed_front_node)->second.empty()) {
-                    node_mappings.find(curr_node)->second.erase(node_mappings.find(curr_node)->second.begin());
-                    is_root_node = true;
+                if (only_leaves) {
+                    if (condensed_node_mappings.find(condensed_front_node)->second.front()->is_leaf()) {
+                        is_leaf_node = true;
+                        skip_placement = false;
+                    }
                 }
-                //ROOT node check
-                else if (condensed_front_node->is_root())
-                    is_root_node = true;
-                //LEAF node check
-                else if (condensed_node_mappings.find(condensed_front_node)->second.front()->is_leaf())
-                    is_leaf_node = true;
+                else {
+                    skip_placement = false;
+                    //REMOVE condensed_front_node if it does not map to original tree
+                    if (condensed_node_mappings.find(condensed_front_node)->second.empty()) {
+                        node_mappings.find(curr_node)->second.erase(node_mappings.find(curr_node)->second.begin());
+                        is_root_node = true;
+                    }
+                    //ROOT node check
+                    else if (condensed_front_node->is_root())
+                        is_root_node = true;
+                    //LEAF node check
+                    else if (condensed_node_mappings.find(condensed_front_node)->second.front()->is_leaf())
+                        is_leaf_node = true;
+                }
             }
         }
 
@@ -1015,7 +1023,7 @@ bool compareNodeScore (const std::unordered_map<MAT::Node*, std::vector<MAT::Nod
    }
 };
 
-//Comparing different node_scores  
+//Comparing different read_positions  
 bool compareReadPos (const std::pair<size_t, std::string>& a, const std::pair<size_t, std::string>& b) {
     //Get start-end positions
     std::regex rgx(".*READ_(\\w+)_(\\w+)");
@@ -1046,7 +1054,7 @@ size_t getNumLeaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>
         while (remaining_nodes.size() > 0) {
             MAT::Node* curr_node = remaining_nodes.front();
             remaining_nodes.pop();
-            if (curr_node->children.size() == 0)
+            if (curr_node->children.empty())
                 leaves++;
             else {
                 for (auto c: curr_node->children)
@@ -1492,6 +1500,99 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
     ap);
 
     return final_neighbors;
+}
+
+//Add neighboring nodes to peak nodes
+void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<MAT::Node*> &peak_nodes, const int& neighbor_dist_thresh) {
+    ////ADDING neighbors to peak_nodes
+    ////  1. Find the farthest ancestor of every peak node within neighbor_dist_thresh
+    ////  2. Recursively only analyze its children within neighbor_dist_thresh
+    ////  3. Only include unseen neighborhood LEAF nodes to neighbor_nodes
+
+    tbb::concurrent_vector<std::pair<MAT::Node*, double>> potential_nieghbor_node_score_vector;
+    int neighbor_limit = 5000; 
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                std::queue<MAT::Node*> remaining_nodes;
+                auto peak = peak_nodes[i];
+                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
+                MAT::Node* anc_node = NULL;
+                for (const auto& n: T.rsearch(peak->identifier, true)) {
+                    int m_dist = mutationDistance(T, T, n, peak);
+                    if (m_dist <= neighbor_dist_thresh)
+                        anc_node = n;
+                    else
+                        break;
+                }
+
+                //Adding neighborhood peaks to potential_neighbor_nodes_scores
+                remaining_nodes.push(anc_node);
+                while (remaining_nodes.size() > 0) {
+                    MAT::Node* present_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    //Only add if present_node is unique AND mutation distance between peak and present_node <= neighbor_dist_thresh
+                    int m_dist = mutationDistance(T, T, present_node, peak);
+                    if (m_dist <= neighbor_dist_thresh) {
+                        if (m_dist > 2) {
+                            if (!condensed_node_mappings.find(present_node)->second.empty()) {
+                                //LEAF node check 
+                                if (condensed_node_mappings.find(present_node)->second.front()->is_leaf()) {
+                                    bool found = false;
+                                    for (const auto &hap: peak_nodes) {
+                                        int mut_dist_peak = mutationDistance(T, T, hap, present_node);
+                                        if (!mut_dist_peak) {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    //Only ADD if similar node NOT seen before
+                                    if (!found) {
+                                        tbb::concurrent_hash_map<MAT::Node*, double>::const_accessor k_ac;
+                                        if (node_score_map.find(k_ac, present_node))
+                                            potential_nieghbor_node_score_vector.push_back(std::make_pair(present_node, k_ac->second));
+                                        k_ac.release();
+                                    }
+                                }
+                            }
+                        }
+
+                        //ADD present_node's children in list for checking
+                        for (const auto& c: present_node->children)
+                            remaining_nodes.push(c);
+                    }
+                }
+            }
+        },
+    ap);
+
+    //Sort node scores
+    sortNodeScore(condensed_node_mappings, node_score_map, potential_nieghbor_node_score_vector);
+
+    //Remove similar nodes from potential neighbors
+    std::unordered_set<MAT::Node*> local_prohibited_nodes;
+    int neighbor_count = 0;
+    for (const auto& n_s: potential_nieghbor_node_score_vector) {
+        if (local_prohibited_nodes.find(n_s.first) == local_prohibited_nodes.end()) {
+            //Add to peak nodes
+            peak_nodes.emplace_back(n_s.first);
+
+            //Stop searching if reached limit
+            if (++neighbor_count == neighbor_limit)
+                break;
+            
+            //Update local_prohibited_nodes
+            std::vector<MAT::Node*> curr_prohibited_nodes;
+            getProhibitedNodes(T, T_orig, condensed_node_mappings, n_s.first, curr_prohibited_nodes, 2);
+            for (const auto& p_node: curr_prohibited_nodes)
+                local_prohibited_nodes.insert(p_node);
+            curr_prohibited_nodes.clear();
+            
+        }
+    }
+    local_prohibited_nodes.clear();
+    potential_nieghbor_node_score_vector.clear();
 }
 
 //Add neighboring nodes to peaks
