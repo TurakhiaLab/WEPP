@@ -136,7 +136,15 @@ void filterLineages (po::parsed_options parsed) {
 
     timer.Start();
     int loop_count = 0;
-    while(++loop_count < 20) {
+    while(loop_count++ < 20) {
+        if (loop_count > 1) {
+            //REMOVE previous files
+            std::string command = "rm " + std::string(barcode_file) + " " + std::string(read_mutation_depth_vcf) + " " + std::string(condensed_nodes_csv) + " " + std::string(hap_csv_filename) + " " + std::string(hap_vcf_filename);
+            int result = std::system(command.c_str());
+            if (result)
+                fprintf(stderr, "\nCannot remove files\n");
+        }
+        
         generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peaks_and_neighbors, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
         peaks_and_neighbors.clear();
 
@@ -195,14 +203,7 @@ void filterLineages (po::parsed_options parsed) {
         prev_peak_nodes = curr_peak_nodes;
         peaks_and_neighbors = curr_peak_nodes;
         curr_peak_nodes.clear();
-        addNeighborLeaves(T_condensed, T, condensed_node_mappings, node_score_map, peaks_and_neighbors, neighbor_dist_thresh);
-
-        //REMOVE previous files
-        command = "rm " + std::string(barcode_file) + " " + std::string(read_mutation_depth_vcf) + " " + std::string(condensed_nodes_csv) + " " + std::string(hap_csv_filename) + " " + std::string(hap_vcf_filename);
-        result = std::system(command.c_str());
-        if (result)
-            fprintf(stderr, "\nCannot remove files\n");
-
+        addNeighborLeaves(T_condensed, T, condensed_node_mappings, node_score_map, peaks_and_neighbors, prohibited_dist_thresh, neighbor_dist_thresh);
         fprintf(stderr, "Iter - %d completed \n\n", loop_count);
     }
     prohibited_nodes.clear();

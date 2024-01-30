@@ -1503,18 +1503,19 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
 }
 
 //Add neighboring nodes to peak nodes
-void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<MAT::Node*> &peak_nodes, const int& neighbor_dist_thresh) {
+void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<MAT::Node*> &peak_nodes, const int& prohibited_dist_thresh, const int& neighbor_dist_thresh) {
     ////ADDING neighbors to peak_nodes
     ////  1. Find the farthest ancestor of every peak node within neighbor_dist_thresh
     ////  2. Recursively only analyze its children within neighbor_dist_thresh
     ////  3. Only include unseen neighborhood LEAF nodes to neighbor_nodes
 
-    tbb::concurrent_vector<std::pair<MAT::Node*, double>> potential_nieghbor_node_score_vector;
-    int neighbor_limit = 5000; 
+    tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Node*>> peak_neighbor_list_map;
+    int neighbor_limit = 100; 
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t i = k.begin(); i < k.end(); ++i) {
+                std::vector<std::pair<MAT::Node*, double>> local_neighbor_node_score_vector;
                 std::queue<MAT::Node*> remaining_nodes;
                 auto peak = peak_nodes[i];
                 //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
@@ -1535,7 +1536,7 @@ void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::u
                     //Only add if present_node is unique AND mutation distance between peak and present_node <= neighbor_dist_thresh
                     int m_dist = mutationDistance(T, T, present_node, peak);
                     if (m_dist <= neighbor_dist_thresh) {
-                        if (m_dist > 2) {
+                        if (m_dist > prohibited_dist_thresh) {
                             if (!condensed_node_mappings.find(present_node)->second.empty()) {
                                 //LEAF node check 
                                 if (condensed_node_mappings.find(present_node)->second.front()->is_leaf()) {
@@ -1551,7 +1552,7 @@ void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::u
                                     if (!found) {
                                         tbb::concurrent_hash_map<MAT::Node*, double>::const_accessor k_ac;
                                         if (node_score_map.find(k_ac, present_node))
-                                            potential_nieghbor_node_score_vector.push_back(std::make_pair(present_node, k_ac->second));
+                                            local_neighbor_node_score_vector.emplace_back(std::make_pair(present_node, k_ac->second));
                                         k_ac.release();
                                     }
                                 }
@@ -1563,36 +1564,48 @@ void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::u
                             remaining_nodes.push(c);
                     }
                 }
+
+                //SORT the local_neighbor_node_score_vector filled above
+                tbb::parallel_sort(local_neighbor_node_score_vector.begin(), local_neighbor_node_score_vector.end(), 
+                     [&condensed_node_mappings](const auto& a, const auto& b) {
+                        return compareNodeScore(condensed_node_mappings, a, b);
+                });
+
+                //INSERT the top local_neighbor_node_score_vector elements in peak_neighbor_node_score_map
+                std::vector<MAT::Node*> curr_neighbors;
+                for (const auto& n_s: local_neighbor_node_score_vector)
+                    curr_neighbors.emplace_back(n_s.first);
+                local_neighbor_node_score_vector.clear();
+                tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Node*>>::accessor ac;
+                peak_neighbor_list_map.insert(ac, std::make_pair(peak, curr_neighbors));
+                ac.release();
+                curr_neighbors.clear();
             }
         },
     ap);
 
-    //Sort node scores
-    sortNodeScore(condensed_node_mappings, node_score_map, potential_nieghbor_node_score_vector);
-
     //Remove similar nodes from potential neighbors
     std::unordered_set<MAT::Node*> local_prohibited_nodes;
-    int neighbor_count = 0;
-    for (const auto& n_s: potential_nieghbor_node_score_vector) {
-        if (local_prohibited_nodes.find(n_s.first) == local_prohibited_nodes.end()) {
-            //Add to peak nodes
-            peak_nodes.emplace_back(n_s.first);
+    for (const auto& n_v: peak_neighbor_list_map) {
+        int neighbor_count = 0;
+        for (const auto& curr_neighbor: n_v.second) {
+            if (local_prohibited_nodes.find(curr_neighbor) == local_prohibited_nodes.end()) {
+                //Add to peak nodes
+                peak_nodes.emplace_back(curr_neighbor);
+                if (++neighbor_count == neighbor_limit)
+                    break;
 
-            //Stop searching if reached limit
-            if (++neighbor_count == neighbor_limit)
-                break;
-            
-            //Update local_prohibited_nodes
-            std::vector<MAT::Node*> curr_prohibited_nodes;
-            getProhibitedNodes(T, T_orig, condensed_node_mappings, n_s.first, curr_prohibited_nodes, 2);
-            for (const auto& p_node: curr_prohibited_nodes)
-                local_prohibited_nodes.insert(p_node);
-            curr_prohibited_nodes.clear();
-            
+                //Update local_prohibited_nodes
+                std::vector<MAT::Node*> curr_prohibited_nodes;
+                getProhibitedNodes(T, T_orig, condensed_node_mappings, curr_neighbor, curr_prohibited_nodes, prohibited_dist_thresh);
+                for (const auto& p_node: curr_prohibited_nodes)
+                    local_prohibited_nodes.insert(p_node);
+                curr_prohibited_nodes.clear();
+            }
         }
     }
     local_prohibited_nodes.clear();
-    potential_nieghbor_node_score_vector.clear();
+    peak_neighbor_list_map.clear();
 }
 
 //Add neighboring nodes to peaks

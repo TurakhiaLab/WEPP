@@ -85,7 +85,7 @@ void getProhibitedNodes(const MAT::Tree &, const MAT::Tree &, const std::unorder
 
 std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
-void addNeighborLeaves(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&);
+void addNeighborLeaves(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
 void addNeighborNodes(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
 
