@@ -407,6 +407,21 @@ void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condense
     file.close();
 }
 
+//Function to randomly select elements from a vector
+std::vector<int> getRandomElements(const int &vector_size, const int &num_elements) {
+    std::vector<int> result;
+    std::random_device rd;  // Use hardware entropy to generate a seed
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine
+    std::uniform_int_distribution<size_t> distribution(0, vector_size - 1);
+    
+    // Select random elements
+    for (int i = 0; i < num_elements; i++) {
+        size_t random_index = distribution(gen);
+        result.emplace_back(random_index);
+    }
+    return result;
+}
+
 //PLACING reads using small range trees
 void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::unordered_map<size_t, struct read_info*> &read_map, std::vector<size_t> remaining_read_ids, const std::vector<MAT::Node*> &peak_nodes, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<size_t> &remove_reads, const int &seq_len, const int &tree_increment, const int &tree_range, const bool& only_leaves) {
     //Batch vectors

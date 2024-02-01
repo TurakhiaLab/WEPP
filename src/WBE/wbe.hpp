@@ -63,6 +63,8 @@ void readCSV(std::unordered_map<std::string, double>& , const std::string &);
 
 void readCSV(std::unordered_map<std::string, std::vector<std::string>>&, const std::string &);
 
+std::vector<int> getRandomElements(const int &, const int &); 
+
 void placeReadHelper(MAT::Node*, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::unordered_map<size_t, struct read_info*> &, std::vector<size_t>, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<size_t>&, const int &, const int &, const int &, const bool &);
 
 void placeReads(const MAT::Tree &, const std::vector<size_t> &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<MAT::Node*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, std::vector<bool> &, const bool&);
