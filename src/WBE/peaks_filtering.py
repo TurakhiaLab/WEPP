@@ -121,7 +121,7 @@ if len(sys.argv) != 3:
 
 # Start time
 start_time = time.time()
-eps = 0.01
+eps = 0.001
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
 

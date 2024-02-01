@@ -50,7 +50,7 @@ void filterLineages (po::parsed_options parsed) {
     
     //Get the curr_peak_nodes
     timer.Start();
-    int tree_range = 600, tree_increment = 400, node_lim = 5, prohibited_dist_thresh = 4, neighbor_dist_thresh = 5;
+    int tree_range = 600, tree_increment = 400, node_lim = 5, prohibited_dist_thresh = 3, neighbor_dist_thresh = 5;
     MAT::Tree T_condensed;
     std::vector<MAT::Node*> prev_peak_nodes, curr_peak_nodes, peaks_and_neighbors;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
