@@ -99,14 +99,20 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
     #Running the loop twice to ensure abundances sum up to 1
     for i in range(2):
         sol, ref_cost = cp_solve(A, read_af, depth_values)
-        #Make the proportion to be 0 for anything < eps
-        sol[sol < eps] = 0
+        #Make the proportion to be 0 for anything < 0
+        sol[sol < 0] = 0
         #Removing haplotypes that are < 0 in abundance
         hap_idx_remove = np.where(sol == 0)[0]
         sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
-        A = np.delete(A, hap_idx_remove, axis = 1)
         haplotypes = [val for i, val in enumerate(haplotypes) if i not in hap_idx_remove]
+        A = np.delete(A, hap_idx_remove, axis = 1)
     
+    #Extract top_n haplotypes
+    top_n_sorted_indices = sorted(range(len(sol)), key=lambda k: sol[k], reverse=True)[:top_n]
+    sol = [sol[i] for i in top_n_sorted_indices]
+    haplotypes = [haplotypes[i] for i in top_n_sorted_indices] 
+    A = A[:, top_n_sorted_indices]
+
     #Remove rows (mutations) with all zeros (due to removal of haplotypes)
     zero_rows = np.all(A == 0, axis=1)
     mut_idx_remove = np.where(zero_rows)[0]
@@ -121,9 +127,9 @@ if len(sys.argv) != 3:
 
 # Start time
 start_time = time.time()
-eps = 0.001
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
+top_n = 100
 
 # Reading File
 barcode_file_path = directory + "/" + file_prefix + "_barcode.csv"
