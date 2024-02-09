@@ -88,9 +88,10 @@ def cp_solve(A, b, d):
     weighted_A =  A * d[:, np.newaxis]
     weighted_b = b * d
     cost = cp.norm(weighted_A @ x - weighted_b, 1)
-    constraints = [sum(x) == 1, x >= 0]
+    constraints = [cp.sum(x) == 1, x >= 0]
     prob = cp.Problem(cp.Minimize(cost), constraints)
-    prob.solve(verbose=False)
+    prob.solve(verbose=False, solver=cp.CLARABEL)
+    #prob.solve(verbose=False, solver=cp.SCIPY, scipy_options={"method": "highs-ipm"})
     return x.value, cost.value
 
 def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations):
@@ -121,15 +122,18 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
     return A, haplotypes, sol, mutations
 
 #Check arguments
-if len(sys.argv) != 3:
-    print("USAGE: python peaks_filtering.py <file_prefix> <directory>")
+if len(sys.argv) != 4:
+    print("USAGE: python peaks_filtering.py <file_prefix> <directory> <top_n>")
     sys.exit(1)
 
 # Start time
 start_time = time.time()
 file_prefix = sys.argv[1]
 directory = sys.argv[2]
-top_n = 100
+try:
+    top_n = int(sys.argv[3])
+except ValueError:
+    print("Invalid top_n value. Pass an integer.")
 
 # Reading File
 barcode_file_path = directory + "/" + file_prefix + "_barcode.csv"

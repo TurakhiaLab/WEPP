@@ -49,8 +49,6 @@ void selectHaplotypes (po::parsed_options);
 
 void filterLineages(po::parsed_options);
 
-void iterativeNeighborAddition (po::parsed_options);
-
 void detectPeaks (po::parsed_options);
 
 void refinePeaks(po::parsed_options);
@@ -87,9 +85,9 @@ void getProhibitedNodes(const MAT::Tree &, const MAT::Tree &, const std::unorder
 
 std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::vector<MAT::Node*> &, const std::vector<MAT::Node*> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
 
-void addNeighborLeaves(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, std::vector<MAT::Node*> &, const int&, const int&);
-
 void addNeighborNodes(const MAT::Tree &, std::vector<MAT::Node*> &, const int&, const int&);
+
+void addNeighborLineages(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::vector<MAT::Node*> &, std::vector<std::string> &, const int &);
 
 int childNodesAddition(const MAT::Tree &, my_mutex_t &, const std::vector<MAT::Node*> &, std::vector<MAT::Node*> &, int &, std::vector<MAT::Node*> &, MAT::Node *, MAT::Node *, const int &, const int &, const int &, const int &);
 
