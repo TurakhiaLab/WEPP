@@ -50,29 +50,40 @@ void detectPeaks (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     
-    //CREATE new tree containg only selected_lineage_list
+    //CREATE new tree containg only selected_lineages
     //Get haplotype abundances and condensed node names
+    timer.Start();
     std::unordered_map<std::string, double> hap_abun_map;
     std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
+    std::vector<MAT::Node*> curr_peak_nodes;
     readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
 
-    //Extract lineages from haplotype names
-    std::vector<std::string> selected_lineage_list; 
+    //CREATE condensed tree for neighbor lineage search
+    int neighbor_dist_thresh = 4;
+    MAT::Tree T_condensed;
+    std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
+    createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
+    
+    //EXTRACT lineages from haplotype names
+    std::vector<std::string> selected_lineages; 
     std::string check_string = "CONDENSED";
     for (const auto& hap_abun: hap_abun_map) {
         if (hap_abun.first.find(check_string) != std::string::npos) {
             auto node_names_list = condensed_nodeNames_map[hap_abun.first];
-            for (const auto& node_name: node_names_list) {
+            for (int i = 0; i < (int)node_names_list.size(); i++) {
+                auto node_name = node_names_list[i];
                 size_t last_underscore = node_name.find_last_of('_');
                 std::string real_node_name = node_name.substr(0, last_underscore);
                 while (T.get_node(real_node_name) == NULL) {
                     last_underscore = real_node_name.find_last_of('_');
                     real_node_name = real_node_name.substr(0, last_underscore);
                 }
+                if (!i)
+                    curr_peak_nodes.emplace_back(T_condensed.get_node(real_node_name));
                 std::string curr_lineage = node_name.substr(last_underscore + 1);
-                if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
-                    selected_lineage_list.emplace_back(curr_lineage);
+                if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end())
+                    selected_lineages.emplace_back(curr_lineage);
             }
 
         }
@@ -83,17 +94,33 @@ void detectPeaks (po::parsed_options parsed) {
                 last_underscore = real_node_name.find_last_of('_');
                 real_node_name = real_node_name.substr(0, last_underscore);
             }
+            curr_peak_nodes.emplace_back(T_condensed.get_node(real_node_name));
             std::string curr_lineage = hap_abun.first.substr(last_underscore + 1);
-            if (std::find(selected_lineage_list.begin(), selected_lineage_list.end(), curr_lineage) == selected_lineage_list.end())
-                selected_lineage_list.emplace_back(curr_lineage);
+            if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end())
+                selected_lineages.emplace_back(curr_lineage);
         }
     }
 
+    //ADD Neighboring LINEAGES
+    addNeighborLineages(T_condensed, T, condensed_node_mappings, curr_peak_nodes, selected_lineages, neighbor_dist_thresh);
+    curr_peak_nodes.clear();
+    condensed_node_mappings.clear();
+    MAT::clear_tree(T_condensed);
+    fprintf(stderr, "Added Lineages in %ld sec\n\n", (timer.Stop() / 1000));
+    
     //CREATE smaller lineage tree
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     MAT::Tree T_lin;
-    createLineageTree(T.root, selected_lineage_list, T_lin);
+    createLineageTree(T.root, selected_lineages, T_lin);
+    selected_lineages.clear();
+
     analyzeReads(T, T_lin, ref_seq, read_map, node_score_map, vcf_samples, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
+    
+    //RUN peaks_filtering
+    std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
+    int result = std::system(command.c_str());
+    if (result)
+        fprintf(stderr, "\nCannot run peak_filtering.py\n");
 }
 
 //Main peak search algorithm
@@ -300,7 +327,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         }
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), min_dist);
     }
-    fprintf(stderr,"Mutation Distance Verification took %ld msec\n\n", timer.Stop());
+    fprintf(stderr,"Mutation Distance Verification took %ld sec\n\n", (timer.Stop() / 1000));
     
     //ADD neighbor_nodes to peak_nodes
     peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
@@ -308,4 +335,6 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     neighbor_nodes.clear();
     
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
+    condensed_node_mappings.clear();
+    MAT::clear_tree(T_condensed);
 }

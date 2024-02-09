@@ -501,7 +501,6 @@ void placeReadHelper(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
                 MAT::Tree range_Tree = range_Tree_batch[range_Tree_idx[i]];
                 std::vector<bool> reads_present(read_ids.size(), 0);
                 
-                //MAP reads to nodes
                 placeReads(range_Tree, read_ids, read_map, peak_nodes, node_score_map, node_mappings, condensed_node_mappings, reads_present, only_leaves);
                 
                 //GET list of reads mapped to peak_nodes
@@ -755,7 +754,7 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
                 }
             );
             
-            double score = 1.0 / log2(num_nodes+1);
+	        double score = 1.0 / log2(num_nodes + 1);
             
             //Update node_score_map in parallel
             static tbb::affinity_partitioner ap;
@@ -1517,112 +1516,6 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
     return final_neighbors;
 }
 
-//Add neighboring nodes to peak nodes
-void addNeighborLeaves(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<MAT::Node*> &peak_nodes, const int& prohibited_dist_thresh, const int& neighbor_dist_thresh) {
-    ////ADDING neighbors to peak_nodes
-    ////  1. Find the farthest ancestor of every peak node within neighbor_dist_thresh
-    ////  2. Recursively only analyze its children within neighbor_dist_thresh
-    ////  3. Only include unseen neighborhood LEAF nodes to neighbor_nodes
-
-    tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Node*>> peak_neighbor_list_map;
-    int neighbor_limit = 100; 
-    static tbb::affinity_partitioner ap;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
-        [&](tbb::blocked_range<size_t> k) {
-            for (size_t i = k.begin(); i < k.end(); ++i) {
-                std::vector<std::pair<MAT::Node*, double>> local_neighbor_node_score_vector;
-                std::queue<MAT::Node*> remaining_nodes;
-                auto peak = peak_nodes[i];
-                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
-                MAT::Node* anc_node = NULL;
-                for (const auto& n: T.rsearch(peak->identifier, true)) {
-                    int m_dist = mutationDistance(T, T, n, peak);
-                    if (m_dist <= neighbor_dist_thresh)
-                        anc_node = n;
-                    else
-                        break;
-                }
-
-                //Adding neighborhood peaks to potential_neighbor_nodes_scores
-                remaining_nodes.push(anc_node);
-                while (remaining_nodes.size() > 0) {
-                    MAT::Node* present_node = remaining_nodes.front();
-                    remaining_nodes.pop();
-                    //Only add if present_node is unique AND mutation distance between peak and present_node <= neighbor_dist_thresh
-                    int m_dist = mutationDistance(T, T, present_node, peak);
-                    if (m_dist <= neighbor_dist_thresh) {
-                        if (m_dist > prohibited_dist_thresh) {
-                            if (!condensed_node_mappings.find(present_node)->second.empty()) {
-                                //LEAF node check 
-                                if (condensed_node_mappings.find(present_node)->second.front()->is_leaf()) {
-                                    bool found = false;
-                                    for (const auto &hap: peak_nodes) {
-                                        int mut_dist_peak = mutationDistance(T, T, hap, present_node);
-                                        if (!mut_dist_peak) {
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-                                    //Only ADD if similar node NOT seen before
-                                    if (!found) {
-                                        tbb::concurrent_hash_map<MAT::Node*, double>::const_accessor k_ac;
-                                        if (node_score_map.find(k_ac, present_node))
-                                            local_neighbor_node_score_vector.emplace_back(std::make_pair(present_node, k_ac->second));
-                                        k_ac.release();
-                                    }
-                                }
-                            }
-                        }
-
-                        //ADD present_node's children in list for checking
-                        for (const auto& c: present_node->children)
-                            remaining_nodes.push(c);
-                    }
-                }
-
-                //SORT the local_neighbor_node_score_vector filled above
-                tbb::parallel_sort(local_neighbor_node_score_vector.begin(), local_neighbor_node_score_vector.end(), 
-                     [&condensed_node_mappings](const auto& a, const auto& b) {
-                        return compareNodeScore(condensed_node_mappings, a, b);
-                });
-
-                //INSERT the top local_neighbor_node_score_vector elements in peak_neighbor_node_score_map
-                std::vector<MAT::Node*> curr_neighbors;
-                for (const auto& n_s: local_neighbor_node_score_vector)
-                    curr_neighbors.emplace_back(n_s.first);
-                local_neighbor_node_score_vector.clear();
-                tbb::concurrent_hash_map<MAT::Node*, std::vector<MAT::Node*>>::accessor ac;
-                peak_neighbor_list_map.insert(ac, std::make_pair(peak, curr_neighbors));
-                ac.release();
-                curr_neighbors.clear();
-            }
-        },
-    ap);
-
-    //Remove similar nodes from potential neighbors
-    std::unordered_set<MAT::Node*> local_prohibited_nodes;
-    for (const auto& n_v: peak_neighbor_list_map) {
-        int neighbor_count = 0;
-        for (const auto& curr_neighbor: n_v.second) {
-            if (local_prohibited_nodes.find(curr_neighbor) == local_prohibited_nodes.end()) {
-                //Add to peak nodes
-                peak_nodes.emplace_back(curr_neighbor);
-                if (++neighbor_count == neighbor_limit)
-                    break;
-
-                //Update local_prohibited_nodes
-                std::vector<MAT::Node*> curr_prohibited_nodes;
-                getProhibitedNodes(T, T_orig, condensed_node_mappings, curr_neighbor, curr_prohibited_nodes, prohibited_dist_thresh);
-                for (const auto& p_node: curr_prohibited_nodes)
-                    local_prohibited_nodes.insert(p_node);
-                curr_prohibited_nodes.clear();
-            }
-        }
-    }
-    local_prohibited_nodes.clear();
-    peak_neighbor_list_map.clear();
-}
-
 //Add neighboring nodes to peaks
 void addNeighborNodes(const MAT::Tree &T, std::vector<MAT::Node*> &peak_nodes, const int &neighbor_dist_thresh, const int &neighbor_peaks_thresh) {
     timer.Start();
@@ -1667,6 +1560,74 @@ void addNeighborNodes(const MAT::Tree &T, std::vector<MAT::Node*> &peak_nodes, c
     neighbor_nodes.clear();
     printf("\nPost neighbor adding PEAK nodes: %d\n", (int)peak_nodes.size());
     fprintf(stderr, "\nNeighbor addition done in %ld sec\n", (timer.Stop()/1000));
+}
+
+//Add lineages near to the haplotypes
+void addNeighborLineages(const MAT::Tree &T, const MAT::Tree &T_orig, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::vector<MAT::Node*> &peak_nodes, std::vector<std::string> &selected_lineages, const int &neighbor_dist_thresh) {
+    tbb::concurrent_hash_map<std::string, bool> local_lineage_score_map;
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
+        [&](tbb::blocked_range<size_t> k) {
+            for (size_t i = k.begin(); i < k.end(); ++i) {
+                std::queue<MAT::Node*> remaining_nodes;
+                auto peak = peak_nodes[i];
+                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
+                MAT::Node* anc_node = peak;
+                for (const auto& n: T.rsearch(peak->identifier, false)) {
+                    int m_dist = mutationDistance(T, T, n, peak);
+                    if (m_dist <= neighbor_dist_thresh)
+                        anc_node = n;
+                    else
+                        break;
+                }
+
+                //Adding neighborhood peaks to potential_neighbor_nodes_scores
+                remaining_nodes.push(anc_node);
+                while (remaining_nodes.size() > 0) {
+                    MAT::Node* present_node = remaining_nodes.front();
+                    remaining_nodes.pop();
+                    //Only add liineage if mutation distance between peak and present_node <= neighbor_dist_thresh
+                    if (!condensed_node_mappings.find(present_node)->second.empty()) {
+                        int m_dist = mutationDistance(T, T, present_node, peak);
+                        if (m_dist <= neighbor_dist_thresh) {
+                            //Update the local_lineage_score_map for all nodes in condensed_node_mappings
+                            std::vector<std::string> local_lineages;
+                            for (const auto& orig_present_node: condensed_node_mappings.find(present_node)->second) {
+                                auto curr_lineage = getLineage(T_orig, orig_present_node);
+                                if (std::find(local_lineages.begin(), local_lineages.end(), curr_lineage) == local_lineages.end())
+                                    local_lineages.emplace_back(curr_lineage);
+                            }
+                            for (const auto& curr_lineage: local_lineages) {
+                                tbb::concurrent_hash_map<std::string, bool>::accessor ac;
+                                local_lineage_score_map.insert(ac, std::make_pair(curr_lineage, true));
+                                ac.release();
+                            }
+                            local_lineages.clear();
+                            
+                            
+                            //ADD present_node's children in list for checking
+                            for (const auto& c: present_node->children)
+                                remaining_nodes.push(c);
+                        }
+                    }
+                    else {
+                        //ADD present_node's children in list for checking
+                        for (const auto& c: present_node->children)
+                            remaining_nodes.push(c);
+                    }
+                }
+            }
+        },
+    ap);
+
+    //INSERT the top local_lineages elements in selected_lineages
+    for (const auto& ls: local_lineage_score_map) {
+        if (std::find(selected_lineages.begin(), selected_lineages.end(), ls.first) == selected_lineages.end()) {
+            selected_lineages.emplace_back(ls.first);
+            printf("%s\n", ls.first.c_str());
+        }
+    }
+    local_lineage_score_map.clear();
 }
 
 //Function to search for child nodes within given branch length

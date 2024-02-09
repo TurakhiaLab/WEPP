@@ -90,13 +90,16 @@ void selectHaplotypes (po::parsed_options parsed) {
         lineage_list.clear();
     }
 
+    clock_t time = clock();
+    srand(int(time));
+    
     //Random selection of required samples from a lineage
     std::vector<std::vector<Mutation_Annotated_Tree::Node*>>::iterator lineage_ptr = all_lineages.begin(); 
     for (auto dist: in_distribution) {
-        int haplotype_count = dist * sample_size;
-        auto idx_vector = getRandomElements(lineage_ptr->size(), haplotype_count);
-        for (const auto& idx: idx_vector)
-            lineage_selected.emplace_back((*lineage_ptr)[idx]);
+        for (int i = 0; i < ceil(dist * sample_size); i++) {
+            int rand_val = int(rand() % lineage_ptr->size());
+            lineage_selected.emplace_back((*lineage_ptr)[rand_val]);
+        }
         lineage_ptr++;
     }
 
