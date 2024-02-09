@@ -9,7 +9,7 @@ cd ../
 #Variables
 file_prefix="my_vcf"
 MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
-#MAT="public-2021-05-31.all.masked.nextclade.pangolin.pb"
+#MAT="public-2023-12-31.all.masked.pb.gz"
 REF="test/NC_045512v2.fa"
 file_path="output_files"
 
@@ -20,10 +20,8 @@ file_path="output_files"
 #cp ${REF} ${file_path}
 
 ##HAPLOTYPE SELECTION
-#wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l AY.100,B.1.1.529,B.1.2,B.1.526,B.1.582,BA.1.18,XBB.1.5,XBB.1.9.1,P.1 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v ${file_prefix} -w 20 -o ${file_path}
-###wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l B.1.160,B.1.177.7,B.1.429,P.1,B.42,R.1,B.33 -d 0.2,0.15,0.15,0.15,0.1,0.05,0.2 -v ${file_prefix} -w 20 -o ${file_path}
-###wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l A.1,AD.2,B.1.1.1,B.1.1.222,B.1.1.311,B.1.221,B.1.243,B.1.260 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.15 -v ${file_prefix} -w 20 -o ${file_path}
-###wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l B.1.1.155,A.21,AE.6,B.1.1.285,B.1.1.47,B.1.567,B.35,U.1,C.27 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v ${file_prefix} -w 20 -o ${file_path}
+##wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l AY.100,B.1.1.529,B.1.2,B.1.526,B.1.582,BA.1.18,XBB.1.5,XBB.1.9.1,P.1 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v ${file_prefix} -w 20 -o ${file_path}
+#wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2 -d 0.03,0.2,0.12,0.05,0.02,0.3,0.25,0.03 -v ${file_prefix} -w 100 -o ${file_path}
 #python src/WBE/haplotype_abundance.py ${file_prefix} ${file_path}
 #
 ##SWAMPy + ALIGNMENT
@@ -50,8 +48,6 @@ wbe filterLineages -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file
 
 #DETECTING PEAKS
 wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
-echo -e "\nFREYJA - PEAKS FILTER"
-python src/WBE/peaks_filtering.py ${file_prefix} ${file_path}
 
 #CALCULATING MUTATION DISTANCE
 wbe refinePeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
