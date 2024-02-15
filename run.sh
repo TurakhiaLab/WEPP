@@ -18,15 +18,14 @@ file_path="output_files"
 #mkdir -p ${file_path}
 #cp ${MAT} ${file_path}
 #cp ${REF} ${file_path}
-
+#
 ##HAPLOTYPE SELECTION
-##wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l AY.100,B.1.1.529,B.1.2,B.1.526,B.1.582,BA.1.18,XBB.1.5,XBB.1.9.1,P.1 -d 0.1,0.1,0.15,0.15,0.2,0.05,0.1,0.05,0.1 -v ${file_prefix} -w 20 -o ${file_path}
 #wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2 -d 0.03,0.2,0.12,0.05,0.02,0.3,0.25,0.03 -v ${file_prefix} -w 100 -o ${file_path}
 #python src/WBE/haplotype_abundance.py ${file_prefix} ${file_path}
 #
 ##SWAMPy + ALIGNMENT
 #conda activate SWAMPy
-#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 200000 150
+#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 116
 #conda deactivate
 #wbe sam2VCF -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 #
@@ -47,7 +46,7 @@ file_path="output_files"
 wbe filterLineages -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 #DETECTING PEAKS
-wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path} -p BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2
 
 #CALCULATING MUTATION DISTANCE
 wbe refinePeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
