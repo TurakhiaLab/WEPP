@@ -538,7 +538,8 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
     std::vector<int> common_node_mut_pos;
     std::vector<std::vector<int>>ambiguous_mut_pos_batch(read_ids.size());
     std::vector<struct read_info*> rp_batch(read_ids.size());
-
+    std::unordered_map<MAT::Node*, double> local_node_score_map;
+    
     //Copy the contents of read_ids to rp_batch
     for (int j = 0; j < (int)read_ids.size(); j++) {
         auto r_id = read_ids[j];
@@ -753,75 +754,63 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
                     return x + y;
                 }
             );
-            
 	        double score = 1.0 / log2(num_nodes + 1);
             
-            //Update node_score_map in parallel
-            static tbb::affinity_partitioner ap;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, min_par_batch[j].idx_list.size()),
-                [&](tbb::blocked_range<size_t> k) {
-                    for (size_t i = k.begin(); i < k.end(); ++i) {
-                        auto n_idx = min_par_batch[j].idx_list[i];
-                        //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
-                        if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end()) {
-                            for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
-                                tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-                                auto created = node_score_map.insert(ac, std::make_pair(node, score));
-                                if (!created)
-                                    ac->second += score;
-                                ac.release();
-                            }
-                        }
-                        else {
-                            auto node = node_mappings.find(dfs[n_idx])->second.front();
-                            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
-                            auto created = node_score_map.insert(ac, std::make_pair(node, score));
-                            if (!created)
-                                ac->second += score;
-                            ac.release();
-                        }
+            //Update local_node_score_map
+            for (size_t i = 0; i < min_par_batch[j].idx_list.size(); ++i) {
+                auto n_idx = min_par_batch[j].idx_list[i];
+                //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
+                if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end()) {
+                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                        if (local_node_score_map.find(node) == local_node_score_map.end())
+                            local_node_score_map[node] = score;
+                        else 
+                            local_node_score_map[node] += score;
                     }
-                },
-            ap);
+                }
+                else {
+                    auto node = node_mappings.find(dfs[n_idx])->second.front();
+                    if (local_node_score_map.find(node) == local_node_score_map.end())
+                        local_node_score_map[node] = score;
+                    else 
+                        local_node_score_map[node] += score;
+                }
+            }
             min_par_batch[j].idx_list.clear();
         }
+        //Update node_score_map 
+        for (const auto& n_s: local_node_score_map) {
+            tbb::concurrent_hash_map<MAT::Node*, double>::accessor ac;
+            auto created = node_score_map.insert(ac, std::make_pair(n_s.first, n_s.second));
+            if (!created)
+                ac->second += n_s.second;
+            ac.release();
+        }
+        local_node_score_map.clear();
     }
     //Check if given node is present in parsimonious list of read
     else {
         for (int j = 0; j < (int)read_ids.size(); j++) {
-            using rwmutex_t = tbb::queuing_rw_mutex;
-            rwmutex_t my_mutex_rw;
-            static tbb::affinity_partitioner ap;
             bool found = false;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, min_par_batch[j].idx_list.size()),
-                [&](tbb::blocked_range<size_t> k) {
-                    for (size_t i = k.begin(); i < k.end(); ++i) {
-                        {
-                            rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
-                            if (found)
-                                continue;
-                        }
-                        auto n_idx = min_par_batch[j].idx_list[i];
-                        //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
-                        if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end()) {
-                            for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
-                                if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
-                                    rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
-                                    found = true;
-                                    break;
-                                }
-                            }
-                        }
-                        else {
-                            auto node = node_mappings.find(dfs[n_idx])->second.front();
-                            if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
-                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
-                                found = true;
-                            }
+            for (size_t i = 0; i < min_par_batch[j].idx_list.size(); ++i) {
+                auto n_idx = min_par_batch[j].idx_list[i];
+                //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
+                if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end()) {
+                    for (auto const& node: node_mappings.find(dfs[n_idx])->second) {
+                        if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end()) {
+                            found = true;
+                            break;
                         }
                     }
-                },
-            ap);
+                }
+                else {
+                    auto node = node_mappings.find(dfs[n_idx])->second.front();
+                    if (std::find(check_nodes.begin(), check_nodes.end(), node) != check_nodes.end())
+                        found = true;
+                }
+                if (found)
+                    break;
+            }
             min_par_batch[j].idx_list.clear();
             
             if (found)
