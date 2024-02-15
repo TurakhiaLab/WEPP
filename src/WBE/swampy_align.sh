@@ -39,11 +39,12 @@ python ../SWAMPy/src/simulate_metagenome.py \
     --genomes_file ${genomes_fasta} \
     --temp_folder ${output_temp} \
     --genome_abundances ${genome_abundances} \
-    --primer_set n2\
+    --primer_set PointLoma\
     --output_folder ${output_swampy} \
     --output_filename_prefix ${output_filename_prefix} \
     --n_reads  ${n_reads} \
     --read_length ${read_length} \
+    --amplicon_pseudocounts 1000 \
     --autoremove
 
 # concatenate r1 and r2 to get final reads
