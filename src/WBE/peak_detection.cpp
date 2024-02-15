@@ -14,6 +14,7 @@ void detectPeaks (po::parsed_options parsed) {
     dir_prefix = path.generic_string();
     dir_prefix += "/";
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
+    std::string prior_lineages = vm["prior-lineages"].as<std::string>();
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
@@ -27,6 +28,14 @@ void detectPeaks (po::parsed_options parsed) {
     tbb::task_scheduler_init init(num_threads);
     
     timer.Start();
+    //Get prior lineages
+    std::vector<std::string> selected_lineages; 
+    std::stringstream lin_str(prior_lineages);
+    std::string str;
+    while (std::getline(lin_str,str,',')) {
+        selected_lineages.emplace_back(str);
+    }
+    //Read fasta
     std::ifstream fasta_f(ref_fasta);
     std::string ref_header;
     std::getline(fasta_f, ref_header);
@@ -50,7 +59,6 @@ void detectPeaks (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
     
-    //CREATE new tree containg only selected_lineages
     //Get haplotype abundances and condensed node names
     timer.Start();
     std::unordered_map<std::string, double> hap_abun_map;
@@ -66,7 +74,6 @@ void detectPeaks (po::parsed_options parsed) {
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
     
     //EXTRACT lineages from haplotype names
-    std::vector<std::string> selected_lineages; 
     std::string check_string = "CONDENSED";
     for (const auto& hap_abun: hap_abun_map) {
         if (hap_abun.first.find(check_string) != std::string::npos) {
@@ -108,7 +115,7 @@ void detectPeaks (po::parsed_options parsed) {
     MAT::clear_tree(T_condensed);
     fprintf(stderr, "Added Lineages in %ld sec\n\n", (timer.Stop() / 1000));
     
-    //CREATE smaller lineage tree
+    //CREATE new tree containg only selected_lineages
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     MAT::Tree T_lin;
     createLineageTree(T.root, selected_lineages, T_lin);

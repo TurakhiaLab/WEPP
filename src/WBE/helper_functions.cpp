@@ -22,6 +22,8 @@ po::variables_map parseWBEcommand(po::parsed_options parsed) {
      "Give the number of haplotype samples")
     ("lineage,l", po::value<std::string>()->default_value(""),
      "Give lineage of samples, comma delimited.")
+    ("prior-lineages,p", po::value<std::string>()->default_value(""),
+     "Give lineage to be included, comma delimited.") 
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
