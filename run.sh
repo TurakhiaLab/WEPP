@@ -25,28 +25,29 @@ file_path="output_files"
 #
 ##SWAMPy + ALIGNMENT
 #conda activate SWAMPy
-#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 116
+#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 149
 #conda deactivate
-#wbe sam2VCF -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
-#
-##FREYJA
-#rm ../Freyja/my_output_latest.txt ../Freyja/${file_prefix}_reads_freyja.*
-#cp ${file_path}/${file_prefix}_reads_freyja.* ../Freyja/
-#cd ../Freyja
-#conda activate freyja-env
-#make dev
-#mkdir -p data
-#freyja update --buildlocal --outdir data
-#freyja demix ${file_prefix}_reads_freyja.vcf ${file_prefix}_reads_freyja.depth --barcodes data/usher_barcodes.csv --meta data/curated_lineages.json --output my_output_latest.txt
-#conda deactivate
-#cd -
-#python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
+wbe sam2VCF -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
+
+#FREYJA
+rm ../Freyja/my_output_latest.txt ../Freyja/${file_prefix}_reads_freyja.*
+cp ${file_path}/${file_prefix}_reads_freyja.* ../Freyja/
+cd ../Freyja
+conda activate freyja-env
+make dev
+mkdir -p data
+freyja update --buildlocal --outdir data
+freyja demix ${file_prefix}_reads_freyja.vcf ${file_prefix}_reads_freyja.depth --barcodes data/usher_barcodes.csv --meta data/curated_lineages.json --output my_output_latest.txt
+conda deactivate
+cd -
+python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
 
 #FILTERING LINEAGES
 wbe filterLineages -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 #DETECTING PEAKS
-wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path} -p BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2
+#wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path} -p BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2
+wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 #CALCULATING MUTATION DISTANCE
 wbe refinePeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}

@@ -2,7 +2,7 @@ import csv
 import sys
 
 if len(sys.argv) != 4:
-    printf("USAGE: python lineage_abundance.py <file_name> <file_prefix> <directory>")
+    print("USAGE: python lineage_abundance.py <file_name> <file_prefix> <directory>")
     sys.exit(1)
 
 file_name = sys.argv[1]
