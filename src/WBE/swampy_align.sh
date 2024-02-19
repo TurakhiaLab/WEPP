@@ -39,7 +39,7 @@ python ../SWAMPy/src/simulate_metagenome.py \
     --genomes_file ${genomes_fasta} \
     --temp_folder ${output_temp} \
     --genome_abundances ${genome_abundances} \
-    --primer_set PointLoma\
+    --primer_set n2\
     --output_folder ${output_swampy} \
     --output_filename_prefix ${output_filename_prefix} \
     --n_reads  ${n_reads} \
