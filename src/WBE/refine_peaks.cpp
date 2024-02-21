@@ -25,8 +25,13 @@ void refinePeaks(po::parsed_options parsed) {
     fprintf(stderr, "\nNum Cores: %d\n\n", num_threads);
     tbb::task_scheduler_init init(num_threads);
     
+    //Loading reference genome
     timer.Start();
     std::ifstream fasta_f(ref_fasta);
+    if (!fasta_f.is_open()) {
+        std::cerr << "Error: Unable to open file " << ref_fasta << std::endl;
+        exit(1); 
+    }
     std::string ref_header;
     std::getline(fasta_f, ref_header);
     std::string temp;
@@ -52,11 +57,11 @@ void refinePeaks(po::parsed_options parsed) {
     
     //Compute mutation distance by reading files returned by python code
     readSampleVCF(vcf_samples, vcf_filename_samples);
-    readVCF(hap_map, hap_vcf_filename, ref_seq.size(), false);
+    readVCF(hap_map, hap_vcf_filename, ref_seq.size());
     readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
     readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
-    readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
+    readVCF(read_map, vcf_filename_reads, ref_seq.size());
 
     //UPDATE hap_map if CONDENSED nodes are found
     std::vector<struct read_info*> uncondensed_nodes;

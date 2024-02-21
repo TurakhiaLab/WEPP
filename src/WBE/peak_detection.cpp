@@ -35,8 +35,12 @@ void detectPeaks (po::parsed_options parsed) {
     while (std::getline(lin_str,str,',')) {
         selected_lineages.emplace_back(str);
     }
-    //Read fasta
+    //Loading reference genome
     std::ifstream fasta_f(ref_fasta);
+    if (!fasta_f.is_open()) {
+        std::cerr << "Error: Unable to open file " << ref_fasta << std::endl;
+        exit(1); 
+    }
     std::string ref_header;
     std::getline(fasta_f, ref_header);
     std::string temp;
@@ -57,7 +61,7 @@ void detectPeaks (po::parsed_options parsed) {
     readSampleVCF(vcf_samples, vcf_filename_samples);
     //Get the input reads data
     std::unordered_map<size_t, struct read_info*> read_map;
-    readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
+    readVCF(read_map, vcf_filename_reads, ref_seq.size());
     
     //Get haplotype abundances and condensed node names
     timer.Start();
