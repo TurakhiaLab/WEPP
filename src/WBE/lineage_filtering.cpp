@@ -27,7 +27,12 @@ void filterLineages (po::parsed_options parsed) {
     tbb::task_scheduler_init init(num_threads);
     
     timer.Start();
+    //Loading reference genome
     std::ifstream fasta_f(ref_fasta);
+    if (!fasta_f.is_open()) {
+        std::cerr << "Error: Unable to open file " << ref_fasta << std::endl;
+        exit(1); 
+    }
     std::string ref_header;
     std::getline(fasta_f, ref_header);
     std::string temp;
@@ -46,8 +51,8 @@ void filterLineages (po::parsed_options parsed) {
 
     //Get the input reads data
     std::unordered_map<size_t, struct read_info*> read_map;
-    readVCF(read_map, vcf_filename_reads, ref_seq.size(), true);
-    
+    readVCF(read_map, vcf_filename_reads, ref_seq.size());
+
     //Get the curr_peak_nodes
     int tree_range = 600, tree_increment = 400, node_lim = 5, prohibited_dist_thresh = 3;
     MAT::Tree T_condensed;
@@ -119,13 +124,13 @@ void filterLineages (po::parsed_options parsed) {
     node_score_vector.clear();
     lineage_nodes_count.clear();
     fprintf(stderr, "Lineage selection completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
-
+    
     //FILTERING the peak nodes
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, curr_peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
     curr_peak_nodes.clear();
     condensed_node_mappings.clear();
     MAT::clear_tree(T_condensed);
-
+    
     //RUN peaks_filtering
     std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 50";
     int result = std::system(command.c_str());

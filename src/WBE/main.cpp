@@ -13,9 +13,14 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[] = {"COMMAND","filter_lineages","detect_peaks"};
+    std::string cnames[] = {"COMMAND","filterLineages","detectPeaks","refinePeaks","selectHaplotypes","sam2VCF"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
+        "Gets a subset of lineages to work with\n\n",
+        "Detects peaks on selected lineages\n\n",
+        "Refines the selected peaks to get closer to actual haplotypes\n\n",
+        "Select the haplotypes for running the experiments\n\n",
+        "Converts given sam to vcf for running the pipeline\n\n"
     };
     try {
         po::store(parsed, vm);

@@ -6,6 +6,10 @@
 #include <memory>
 #include <vector>
 #include <random>
+#include <string>
+#include <map>
+#include <utility>
+#include <ostream>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
@@ -23,6 +27,7 @@ struct read_info {
    std::vector<MAT::Mutation> mutations;
    int start;
    int end;
+   int degree;
 };
 
 struct min_parsimony {
@@ -41,6 +46,73 @@ struct node_branch {
    int branch_length;
 };
 
+struct SAM_read {
+    std::string raw_name;
+    int start_idx;
+    int degree; // how many repeats;
+    std::string aligned_string;
+
+    bool operator <(const SAM_read& rhs) {
+        if (start_idx != rhs.start_idx) {
+            return start_idx < rhs.start_idx;
+        }
+
+        if (aligned_string.size() != rhs.aligned_string.size()) {
+            return aligned_string.size() < rhs.aligned_string.size();
+        }
+
+        return aligned_string < rhs.aligned_string;
+    }
+
+    bool operator ==(const SAM_read& rhs) {
+        return start_idx == rhs.start_idx && aligned_string == rhs.aligned_string;
+    }
+};
+
+const std::string GENOME_STRING{"ACGTN"};
+typedef std::vector<std::array<int, 5>> sub_table;
+
+struct SAM {
+   private:
+       const std::string reference_seq;
+   
+       /* aligned/padded reads (possibly merged) */
+       std::vector<SAM_read> aligned_reads;
+   
+       /*
+         these are the only the things that we need,
+         since we can derive all other information from here
+        */
+   
+       /* for any index, highlight all possible SNP */
+       /* does NOT take into account read correction */
+       sub_table frequency_table;
+   
+       /* frequency + collapsed indels to reference */
+       /* may take into account read correction */
+       sub_table collapsed_frequency_table;
+   
+       /* for any starting index, length possible indels (length in reference, replacement string)  */
+       std::vector<std::map<std::pair<size_t, std::string>, int>> indel_frequency_table;
+   
+       /* merging unmap information, column -> preimage of column */
+       std::map<std::string, std::vector<std::string>> reverse_merge;
+   
+       void read_correction();
+       void merge_duplicates();
+   
+   public:
+       SAM(const std::string& ref);
+   
+       void add_read(const std::string& line);
+       void build();
+   
+       void dump_proto();
+       void dump_vcf(std::ostream& out);
+       void dump_reverse_merge(std::ostream& out);
+       void dump_freyja(std::ostream& dout, std::ostream& vout);
+};
+
 po::variables_map parseWBEcommand(po::parsed_options);
 
 void sam2VCF(po::parsed_options);
@@ -55,7 +127,7 @@ void refinePeaks(po::parsed_options);
 
 void readSampleVCF(std::vector<std::string> &, const std::string);
 
-void readVCF(std::unordered_map<size_t, struct read_info*> &, const std::string &, const size_t &, const bool &);
+void readVCF(std::unordered_map<size_t, struct read_info*> &, const std::string &, const size_t &);
 
 void readCSV(std::unordered_map<std::string, double>& , const std::string &);
 
@@ -112,7 +184,5 @@ void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct rea
 void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &, const std::unordered_set<int> &);
 
 void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
-
-void readSAM(const std::string &, const std::string &, std::unordered_map<size_t, std::string> &, std::unordered_map<int, std::vector<std::tuple<std::string, std::string, std::vector<size_t>>>> &);
 
 bool compareIdx(const std::pair<int, size_t> &, const std::pair<int, size_t> &);
