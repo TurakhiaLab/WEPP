@@ -175,7 +175,7 @@ void readVCF(std::unordered_map<size_t, struct read_info*> &read_map, const std:
 void readCSV(std::unordered_map<std::string, double>& hap_abun_map, const std::string &hap_csv_filename) {
     std::ifstream file(hap_csv_filename);
     if (!file.is_open()) {
-        std::cout << "Failed to open the csv file" << std::endl;
+        fprintf(stderr, "Failed to open the %s file\n", hap_csv_filename.c_str());
         return;
     }
 
@@ -201,7 +201,7 @@ void readCSV(std::unordered_map<std::string, double>& hap_abun_map, const std::s
 void readCSV(std::unordered_map<std::string, std::vector<std::string>>& condensed_nodes_map, const std::string &condensed_nodes_csv) {
     std::ifstream file(condensed_nodes_csv);
     if (!file.is_open()) {
-        std::cout << "Failed to open the csv file" << std::endl;
+        fprintf(stderr, "Failed to open the %s file\n", condensed_nodes_csv.c_str());
         return;
     }
 
@@ -1779,12 +1779,23 @@ void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unord
                 std::vector<MAT::Mutation> mutations_in_range;
                 auto hap_itr = hap_map.begin();
                 while (hap_itr != hap_map.end()) {
-                    for (auto m: hap_itr->second->mutations) {
-                        if ((m.position >= rp->start) && (m.position <= rp->end))
-                            mutations_in_range.emplace_back(m);
+                    size_t last_underscore = hap_itr->second->read.find_last_of('_');
+                    std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
+                    while (T.get_node(curr_hap_name) == NULL) {
+                        last_underscore = curr_hap_name.find_last_of('_');
+                        curr_hap_name = curr_hap_name.substr(0, last_underscore);
                     }
-                    int curr_dist = mutationDistance(rp->mutations, mutations_in_range);
-                    mutations_in_range.clear();
+                    //Getting hap_mutations from the Tree
+                    auto hap_mutations = getMutations(T, curr_hap_name);
+                    //Remove mutations from hap_mutations that are not present in site_read_map
+                    auto mut_itr = hap_mutations.begin();
+                    while (mut_itr != hap_mutations.end()) {
+                        if (!((mut_itr->position >= rp->start) && (mut_itr->position <= rp->end)))
+                            mut_itr = hap_mutations.erase(mut_itr);
+                        else
+                            mut_itr++;
+                    }
+                    int curr_dist = mutationDistance(rp->mutations, hap_mutations);
                     if (curr_dist <= min_dist) {
                         if (curr_dist < min_dist) {
                             epp_list.clear();
@@ -1794,95 +1805,99 @@ void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unord
                     }
                     hap_itr++;
                 }
+                
+                if (epp_list.size() == 1)
+                    printf("%s -> %s\n", rp->read.c_str(), hap_map.find(epp_list.front())->second->read.c_str());
 
-                //STORE read mutations when parsimony > 0
-                if (min_dist) {
-                    tbb::concurrent_hash_map<std::pair<int, char>, size_t>::accessor ac;
-                    for (const auto& mut: rp->mutations) {
-                        auto created = mut_AFDepth_map.insert(ac, std::make_pair(std::make_pair(mut.position, MAT::get_nuc(mut.mut_nuc)), rp->degree));
-                        if (!created) 
-                            ac->second += rp->degree;
-                        ac.release();
-                    }
-                    epp_list.clear();
-                }
+                epp_list.clear();
+                
+                ////STORE read mutations when parsimony > 0
+                //if (min_dist) {
+                //    tbb::concurrent_hash_map<std::pair<int, char>, size_t>::accessor ac;
+                //    for (const auto& mut: rp->mutations) {
+                //        auto created = mut_AFDepth_map.insert(ac, std::make_pair(std::make_pair(mut.position, MAT::get_nuc(mut.mut_nuc)), rp->degree));
+                //        if (!created) 
+                //            ac->second += rp->degree;
+                //        ac.release();
+                //    }
+                //}
             }
         },
     ap);
 
-    //2. CREATE site_reads_map
-    std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
-    for (size_t i = 0; i < read_map.size(); i++) {
-        auto rp = read_map.find(i)->second;
-        auto nuc_pos = rp->start;
-        for (const auto& mut: rp->mutations) {
-            //Store the coverage of nucleotides leading up to the mutating nucleotide
-            while (nuc_pos < mut.position) {
-                char curr_nuc = ref_seq[nuc_pos-1];
-                if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-                    site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-                else {
-                    bool found = false;
-                    for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-                        if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-                            site_reads_map[nuc_pos][vec_idx].second += rp->degree;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found)
-                        site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
-                }
-                nuc_pos++;
-            }
-            //Store the coverage of mutating nucleotide
-            char curr_nuc = MAT::get_nuc(mut.mut_nuc);
-            if (site_reads_map.find(mut.position) == site_reads_map.end()) 
-                site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-            else {
-                bool found = false;
-                for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
-                    if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
-                        site_reads_map[mut.position][vec_idx].second += rp->degree;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                    site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, rp->degree));
-            }
-            nuc_pos++;
-        }
-        //Store the coverage of nucleotide remaining after mutating ones
-        while (nuc_pos <= rp->end) {
-            char curr_nuc = ref_seq[nuc_pos-1]; 
-            if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-                site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-            else {
-                bool found = false;
-                for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-                    if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-                        site_reads_map[nuc_pos][vec_idx].second += rp->degree;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                    site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
-            }
-            nuc_pos++;
-        }
-    }
+    ///////////////////////////////////////////
+    ////2. CREATE site_reads_map
+    //std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
+    //for (size_t i = 0; i < read_map.size(); i++) {
+    //    auto rp = read_map.find(i)->second;
+    //    auto nuc_pos = rp->start;
+    //    for (const auto& mut: rp->mutations) {
+    //        //Store the coverage of nucleotides leading up to the mutating nucleotide
+    //        while (nuc_pos < mut.position) {
+    //            char curr_nuc = ref_seq[nuc_pos-1];
+    //            if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+    //                site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
+    //            else {
+    //                bool found = false;
+    //                for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+    //                    if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+    //                        site_reads_map[nuc_pos][vec_idx].second += rp->degree;
+    //                        found = true;
+    //                        break;
+    //                    }
+    //                }
+    //                if (!found)
+    //                    site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
+    //            }
+    //            nuc_pos++;
+    //        }
+    //        //Store the coverage of mutating nucleotide
+    //        char curr_nuc = MAT::get_nuc(mut.mut_nuc);
+    //        if (site_reads_map.find(mut.position) == site_reads_map.end()) 
+    //            site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
+    //        else {
+    //            bool found = false;
+    //            for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
+    //                if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
+    //                    site_reads_map[mut.position][vec_idx].second += rp->degree;
+    //                    found = true;
+    //                    break;
+    //                }
+    //            }
+    //            if (!found)
+    //                site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, rp->degree));
+    //        }
+    //        nuc_pos++;
+    //    }
+    //    //Store the coverage of nucleotide remaining after mutating ones
+    //    while (nuc_pos <= rp->end) {
+    //        char curr_nuc = ref_seq[nuc_pos-1]; 
+    //        if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+    //            site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
+    //        else {
+    //            bool found = false;
+    //            for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+    //                if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+    //                    site_reads_map[nuc_pos][vec_idx].second += rp->degree;
+    //                    found = true;
+    //                    break;
+    //                }
+    //            }
+    //            if (!found)
+    //                site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
+    //        }
+    //        nuc_pos++;
+    //    }
+    //}
     
-    //COMPUTE average_read_depth and AF and read_depth of mutations in mut_AFDepth_map
-    double average_read_depth = 0.0;
-    for (const auto& sr_list: site_reads_map) {
-        for (const auto& mut_count: sr_list.second)
-            average_read_depth += mut_count.second;
-    }
-    average_read_depth /= site_reads_map.size();
+    ////COMPUTE average_read_depth and AF and read_depth of mutations in mut_AFDepth_map
+    //double average_read_depth = 0.0;
+    //for (const auto& sr_list: site_reads_map) {
+    //    for (const auto& mut_count: sr_list.second)
+    //        average_read_depth += mut_count.second;
+    //}
+    //average_read_depth /= site_reads_map.size();
 
-    /////////////////////////////////////////
     //for (double af_thresh = 0.05; af_thresh < 0.5; af_thresh += 0.05) {
     //    for (double rel_depth_thresh = 0.1; rel_depth_thresh <= 1; rel_depth_thresh += 0.1) {
     //        size_t depth_thresh = rel_depth_thresh * average_read_depth;
