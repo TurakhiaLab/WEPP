@@ -137,7 +137,7 @@ void detectPeaks (po::parsed_options parsed) {
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
-    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_range = 600, tree_increment = 400;
+    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_increment, tree_range = 600, tree_overlap = 200, range_factor = 1;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
     MAT::Tree T_condensed;
@@ -158,11 +158,16 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     //Initializing remaining_reads
     for (size_t i = 0; i < read_map.size(); i++)
         remaining_reads[i] = i;
-    
+
     //ITERATE till no reads left
     while ((int)remaining_reads.size() > 0) {
         printf("\n");
-        
+        //Adjusting tree_range based on remaining_reads
+        if ((2 * range_factor * remaining_reads.size()) <= read_map.size()) {
+            range_factor *= 2;
+            tree_range = std::min(tree_range * 2, (int)ref_seq.size());
+        }
+        tree_increment = tree_range - tree_overlap;
         //MAP reads to nodes
         placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range, false);
         

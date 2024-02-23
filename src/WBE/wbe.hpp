@@ -165,15 +165,17 @@ int childNodesAddition(const MAT::Tree &, my_mutex_t &, const std::vector<MAT::N
 
 void generateFilteringData(const MAT::Tree &, const MAT::Tree &, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::string &, const std::vector<MAT::Node*> &, const std::unordered_map<size_t, struct read_info*> &, const std::string &, const std::string &, const std::string &);
 
-bool compareMutations(const MAT::Mutation &, const MAT::Mutation &);
-
 void sortNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const tbb::concurrent_hash_map<MAT::Node*, double> &, tbb::concurrent_vector<std::pair<MAT::Node*, double>> &);
 
 bool compareNodeScore(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const std::pair<MAT::Node*, double>&, const std::pair<MAT::Node*, double>&);
 
 bool compareReadPos (const std::pair<size_t, std::string>&, const std::pair<size_t, std::string>&);
 
+bool compareMutations(const MAT::Mutation &, const MAT::Mutation &);
+
 size_t getNumLeaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Node*);
+
+bool compareIdx(const std::pair<int, size_t> &, const std::pair<int, size_t> &);
 
 void createRangeTree(MAT::Node*, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, const int &, const int &, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &, MAT::Tree &);
 
@@ -184,5 +186,3 @@ void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct rea
 void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &, const std::unordered_set<int> &);
 
 void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
-
-bool compareIdx(const std::pair<int, size_t> &, const std::pair<int, size_t> &);
