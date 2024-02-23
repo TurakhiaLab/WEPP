@@ -58,7 +58,7 @@ void refinePeaks(po::parsed_options parsed) {
     //Compute mutation distance by reading files returned by python code
     readSampleVCF(vcf_samples, vcf_filename_samples);
     readVCF(hap_map, hap_vcf_filename, ref_seq.size());
-    readCSV(hap_abun_map, hap_csv_filename);
+    //readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
     readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
     readVCF(read_map, vcf_filename_reads, ref_seq.size());
@@ -88,134 +88,15 @@ void refinePeaks(po::parsed_options parsed) {
         hap_map.insert({hap_map.size(), hap});
     uncondensed_nodes.clear();
 
-    //MAP of site_read
+    //MAP of sites covered by reads
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < read_map.size(); i++) {
         auto rp = read_map.find(i)->second;
         for (int j = rp->start; j <= rp->end; j++)
             site_read_map.insert(j);
     }
+    
     computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map, site_read_map);
-
-    ////FIND coverage of read mutations
-    //std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_read_map;
-    //for (size_t i = 0; i < read_map.size(); ++i) {
-    //    auto rp = read_map.find(i)->second;
-    //    auto nuc_pos = rp->start;
-    //    for (const auto& mut: rp->mutations) {
-    //        //Store the coverage of nucleotides leading up to the mutating nucleotide
-    //        while (nuc_pos < mut.position) {
-    //            char curr_nuc = ref_seq[nuc_pos-1];
-    //            if (site_read_map.find(nuc_pos) == site_read_map.end()) 
-    //                site_read_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
-    //            else {
-    //                bool found = false;
-    //                for (size_t vec_idx = 0; vec_idx < site_read_map[nuc_pos].size(); vec_idx++) {
-    //                    if (site_read_map[nuc_pos][vec_idx].first == curr_nuc) {
-    //                        site_read_map[nuc_pos][vec_idx].second++;
-    //                        found = true;
-    //                        break;
-    //                    }
-    //                }
-    //                if (!found)
-    //                    site_read_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
-    //            }
-    //            nuc_pos++;
-    //        }
-    //        //Store the coverage of mutating nucleotide
-    //        char curr_nuc = MAT::get_nuc(mut.mut_nuc);
-    //        if (site_read_map.find(mut.position) == site_read_map.end()) 
-    //            site_read_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
-    //        else {
-    //            bool found = false;
-    //            for (size_t vec_idx = 0; vec_idx < site_read_map[mut.position].size(); vec_idx++) {
-    //                if (site_read_map[mut.position][vec_idx].first == curr_nuc) {
-    //                    site_read_map[mut.position][vec_idx].second++;
-    //                    found = true;
-    //                    break;
-    //                }
-    //            }
-    //            if (!found)
-    //                site_read_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
-    //        }
-    //        nuc_pos++;
-    //    }
-    //    //Store the coverage of nucleotide remaining after mutating ones
-    //    while (nuc_pos <= rp->end) {
-    //        char curr_nuc = ref_seq[nuc_pos-1]; 
-    //        if (site_read_map.find(nuc_pos) == site_read_map.end()) 
-    //            site_read_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
-    //        else {
-    //            bool found = false;
-    //            for (size_t vec_idx = 0; vec_idx < site_read_map[nuc_pos].size(); vec_idx++) {
-    //                if (site_read_map[nuc_pos][vec_idx].first == curr_nuc) {
-    //                    site_read_map[nuc_pos][vec_idx].second++;
-    //                    found = true;
-    //                    break;
-    //                }
-    //            }
-    //            if (!found)
-    //                site_read_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
-    //        }
-    //        nuc_pos++;
-    //    }
-    //}
-    ////REMOVE mutation sites not covered by site_read_map
-    //using rwmutex_t = tbb::queuing_rw_mutex;
-    //rwmutex_t my_mutex_rw;
-    //static tbb::affinity_partitioner ap;
-    //tbb::parallel_for(tbb::blocked_range<size_t>(0, hap_map.size()),
-    //    [&](tbb::blocked_range<size_t> k) {
-    //        for (size_t i = k.begin(); i < k.end(); ++i) {
-    //            struct read_info* hap;
-    //            {
-    //                rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
-    //                hap = hap_map[i];
-    //            }
-    //            size_t last_underscore = hap_itr->second->read.find_last_of('_');
-    //            std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
-    //            while (T.get_node(curr_hap_name) == NULL) {
-    //                last_underscore = curr_hap_name.find_last_of('_');
-    //                curr_hap_name = curr_hap_name.substr(0, last_underscore);
-    //            }
-    //            auto hap_mutations = getMutations(T, curr_hap_name);
-    //            //Iterate through mutations of each peak and REMOVE the mutations not found
-    //            auto mut_itr = hap_mutations.begin();
-    //            while (mut_itr != hap_mutations.end()) {
-    //                std::unordered_map<int, std::vector<std::pair<char, size_t>>>::iterator sr_itr;
-    //                {
-    //                    rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
-    //                    sr_itr = site_read_map.find(mut_itr->position);
-    //                }
-    //                //Remove mutation site if covered by reads
-    //                if (sr_itr == site_read_map.end())
-    //                    mut_itr++;
-    //                else {
-    //                    bool found = false;
-    //                    for (const auto& sr: sr_itr->second) {
-    //                        if (sr.first == MAT::get_nuc(mut_itr->mut_nuc)) {
-    //                            found = true;
-    //                            break;
-    //                        }
-    //                    }
-    //                    if (found)
-    //                        mut_itr = hap_mutations.erase(mut_itr);
-    //                    else
-    //                        mut_itr++;
-    //                }
-    //            }
-    //            {   
-    //                //Add remaining mutations
-    //                rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
-    //                hap->mutations.reserve(hap->mutations.size() + hap_mutations.size());
-    //                hap->mutations.insert(hap->mutations.end(), hap_mutations.begin(), hap_mutations.end());
-    //                //SORT peak mutations
-    //                tbb::parallel_sort(hap->mutations.begin(), hap->mutations.end(), compareMutations);
-    //            }
-    //        }
-    //    },
-    //ap);
-
     //placeReads(T, ref_seq, read_map, hap_map);
 }
 

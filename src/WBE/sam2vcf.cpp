@@ -4,7 +4,7 @@
 // freyja-depth - how many reads/chunks were there starting at a given nucleotide
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
-constexpr bool USE_COLUMN_MERGING  = false;
+constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
 
 void sam2VCF(po::parsed_options parsed) {
