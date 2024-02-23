@@ -1,4 +1,3 @@
-
 cmake_minimum_required (VERSION 3.8) 
 cmake_policy(SET CMP0069 NEW)
 project(usher)
@@ -170,6 +169,11 @@ if(DEFINED Protobuf_PATH)
         TARGET wbe
         PROTOS parsimony.proto)
     
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET wbe
+        PROTOS sam.proto)
+
     if(USHER_SERVER)
         protobuf_generate(
             LANGUAGE cpp
@@ -181,6 +185,10 @@ else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
         parsimony.proto)
+
+    protobuf_generate_cpp(
+        SAM_SRCS SAM_HDRS
+        sam.proto)
 
     protobuf_generate_cpp(
         DETAILED_MUTATIONS_PROTO_SRCS
@@ -229,9 +237,9 @@ else()
     add_executable(wbe
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
-	${WBE_SRCS}
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
+	    ${WBE_SRCS}
+        ${PROTO_SRCS} ${SAM_SRCS}
+        ${PROTO_HDRS} ${SAM_HDRS}
         )
 
     add_executable(compareVCF
