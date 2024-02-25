@@ -719,60 +719,72 @@ int mutationDistance(const MAT::Tree &T1, const MAT::Tree &T2, const MAT::Node* 
             n2_itr++;
     }
     
+    // backtraking to the lowest common ancestor
+    auto n1_it = node1_mutations.rbegin();
+    auto n2_it = node2_mutations.rbegin();
+    while (n1_it != node1_mutations.rend() && n2_it != node2_mutations.rend() &&
+            n1_it->mut_nuc == n2_it->mut_nuc && n1_it->position == n2_it->position) {
+        ++n1_it;
+        ++n2_it;
+    }
+    node1_mutations.erase(n1_it.base(), node1_mutations.end());
+    node2_mutations.erase(n2_it.base(), node2_mutations.end());
+
     //Sort the mutations to find difference between node1_mutations and node2_mutations faster
     tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
     tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-    //Finding the unique mutations between them
-    n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        bool found_both = false;
-        n2_itr = node2_mutations.begin();
-        while (n2_itr != node2_mutations.end()) {
-            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-                node2_mutations.erase(n2_itr);
-                found_both = true;
-                break;
+
+    auto n1_iterator = node1_mutations.begin();
+    auto n2_iterator = node2_mutations.begin();
+    int distance = 0;
+    while (n1_iterator != node1_mutations.end() && n2_iterator != node2_mutations.end()) {
+        if (n1_iterator->position == n2_iterator->position) {
+            if (n1_iterator->mut_nuc != n2_iterator->mut_nuc) {
+                distance++;
             }
-            else if (n2_itr->position == n1_itr->position) {
-                node2_mutations.erase(n2_itr);
-                break;
-            }
-            n2_itr++;
+            n1_iterator++;
+            n2_iterator++;
+        } else if (n1_iterator->position < n2_iterator->position) {
+            distance++;
+            n1_iterator++;
+        } else {
+            distance++;
+            n2_iterator++;
         }
-        if (found_both)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
     }
-    return (int)(node1_mutations.size() + node2_mutations.size());
+
+    distance += std::distance(n1_iterator, node1_mutations.end());
+    distance += std::distance(n2_iterator, node2_mutations.end());
+
+    return distance;
 }
 
-//Function to calculation distance between two nodes
 int mutationDistance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations) {
     tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
     tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-    auto n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        bool found_both = false;
-        auto n2_itr = node2_mutations.begin();
-        while (n2_itr != node2_mutations.end()) {
-            if ((n2_itr->position == n1_itr->position) && (n2_itr->mut_nuc == n1_itr->mut_nuc)) {
-                node2_mutations.erase(n2_itr);
-                found_both = true;
-                break;
+    auto n1_iterator = node1_mutations.begin();
+    auto n2_iterator = node2_mutations.begin();
+    int distance = 0;
+    while (n1_iterator != node1_mutations.end() && n2_iterator != node2_mutations.end()) {
+        if (n1_iterator->position == n2_iterator->position) {
+            if (n1_iterator->mut_nuc != n2_iterator->mut_nuc) {
+                distance++;
             }
-            else if (n2_itr->position == n1_itr->position) {
-                node2_mutations.erase(n2_itr);
-                break;
-            }
-            n2_itr++;
+            n1_iterator++;
+            n2_iterator++;
+        } else if (n1_iterator->position < n2_iterator->position) {
+            distance++;
+            n1_iterator++;
+        } else {
+            distance++;
+            n2_iterator++;
         }
-        if (found_both)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
     }
-    return (int)(node1_mutations.size() + node2_mutations.size());
+
+    distance += std::distance(n1_iterator, node1_mutations.end());
+    distance += std::distance(n2_iterator, node2_mutations.end());
+
+    return distance;
 }
 
 //Getting all mutations of a haplotype
