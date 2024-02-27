@@ -82,6 +82,8 @@ SAM::SAM(const std::string& ref) : reference_seq{ref} {
 }
 
 void load_reads_from_proto(std::string const& filename, std::unordered_map<size_t, struct read_info *>& reads, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+    Timer t;
+    t.Start();
     Sam::sam data;
 
     boost::iostreams::filtering_istream instream;
@@ -135,6 +137,8 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
         }
     }
+
+    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds"
 }
 
 
@@ -146,7 +150,7 @@ void SAM::dump_proto(const std::string& filename) {
         dump->set_start_idx(read.start_idx + 1);
         dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
         dump->set_degree(read.degree);
-        for (int i = 0; i < read.aligned_string.size(); ++i) {
+        for (size_t i = 0; i < read.aligned_string.size(); ++i) {
             if (read.aligned_string[i] != reference_seq[read.start_idx + i] && read.aligned_string[i] != '_') {
                 auto mut = dump->add_mutations();
                 mut->set_position(i + read.start_idx + 1);
