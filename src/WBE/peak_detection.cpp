@@ -16,6 +16,7 @@ void detectPeaks (po::parsed_options parsed) {
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
     std::string prior_lineages = vm["prior-lineages"].as<std::string>();
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
+    std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
@@ -60,8 +61,10 @@ void detectPeaks (po::parsed_options parsed) {
     std::vector<std::string> vcf_samples;
     readSampleVCF(vcf_samples, vcf_filename_samples);
     //Get the input reads data
+
     std::unordered_map<size_t, struct read_info*> read_map;
-    readVCF(read_map, vcf_filename_reads, ref_seq.size());
+    std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
+    load_reads_from_proto(proto_reads, read_map, reverse_merge);
     
     //Get haplotype abundances and condensed node names
     timer.Start();

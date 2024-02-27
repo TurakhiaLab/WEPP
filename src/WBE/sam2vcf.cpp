@@ -21,6 +21,7 @@ void sam2VCF(po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
+    std::string proto_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
     std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string freyja_vcf_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.vcf";
     std::string freyja_depth_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.depth";
@@ -68,6 +69,7 @@ void sam2VCF(po::parsed_options parsed) {
     while (getline(fileHandler, s))
         sam.add_read(s);
     sam.build();
+    sam.dump_proto(proto_filename);
     sam.dump_vcf(vcf);
     sam.dump_freyja(freyja_depth, freyja_vcf);
     fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
@@ -132,6 +134,60 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
         for (int j = 0; j < inv.input_columns_size(); ++j) {
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
         }
+    }
+}
+
+
+void SAM::dump_proto(const std::string& filename) {
+    Sam::sam data;
+
+    for (const SAM_read& read: aligned_reads) {
+        auto dump = data.add_reads();
+        dump->set_start_idx(read.start_idx + 1);
+        dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
+        dump->set_degree(read.degree);
+        for (int i = 0; i < read.aligned_string.size(); ++i) {
+            if (read.aligned_string[i] != reference_seq[read.start_idx + i] && read.aligned_string[i] != '_') {
+                auto mut = dump->add_mutations();
+                mut->set_position(i + read.start_idx + 1);
+                mut->set_ref_nuc(MAT::get_nuc_id(reference_seq[read.start_idx + i]));
+                mut->set_par_nuc(MAT::get_nuc_id(reference_seq[read.start_idx + i]));
+                mut->set_mut_nuc(MAT::get_nuc_id(read.aligned_string[i]));
+                mut->set_is_missing(read.aligned_string[i] == 'N');
+                mut->set_chrom("NC_045512v2");
+            }
+        }
+    }
+
+    for (const auto& kv: reverse_merge) {
+        Sam::column_info *col = data.add_reverse_columns();
+        col->set_column_name(kv.first);
+        for (const auto& str: kv.second) {
+            std::string* dump = col->add_input_columns();
+            *dump = str;
+        }
+    }
+
+    // Boost library used to stream the contents to the output protobuf file in
+    // uncompressed or compressed .gz format
+    std::ofstream outfile(filename, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf< boost::iostreams::output> outbuf;
+
+    if (filename.find(".gz\0") != std::string::npos) {
+        try {
+            outbuf.push(boost::iostreams::gzip_compressor());
+            outbuf.push(outfile);
+            std::ostream outstream(&outbuf);
+            data.SerializeToOstream(&outstream);
+            boost::iostreams::close(outbuf);
+            outfile.close();
+        } catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+    } else {
+        data.SerializeToOstream(&outfile);
+        outfile.close();
+        std::cout << " Written " << outfile.fail() << std::endl;
     }
 }
 
