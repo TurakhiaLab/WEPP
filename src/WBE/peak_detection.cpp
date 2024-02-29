@@ -17,8 +17,8 @@ void detectPeaks (po::parsed_options parsed) {
     std::string prior_lineages = vm["prior-lineages"].as<std::string>();
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
     std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
-    std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
+    std::string freyja_lineage_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_freyja_results.csv";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
     std::string condensed_nodes_csv = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_condensed_nodes.csv";
     std::string read_mutation_depth_vcf = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_read_data.vcf";
@@ -61,18 +61,20 @@ void detectPeaks (po::parsed_options parsed) {
     std::vector<std::string> vcf_samples;
     readSampleVCF(vcf_samples, vcf_filename_samples);
     //Get the input reads data
-
     std::unordered_map<size_t, struct read_info*> read_map;
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     load_reads_from_proto(proto_reads, read_map, reverse_merge);
     
     //Get haplotype abundances and condensed node names
     timer.Start();
-    std::unordered_map<std::string, double> hap_abun_map;
+    std::unordered_map<std::string, double> hap_abun_map, freyja_lineage_abun_map;
     std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
     std::vector<MAT::Node*> curr_peak_nodes;
     readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
+    
+    //Get Freyja Lineages
+    readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
 
     //CREATE condensed tree for neighbor lineage search
     int neighbor_dist_thresh = 4;
@@ -120,6 +122,15 @@ void detectPeaks (po::parsed_options parsed) {
     curr_peak_nodes.clear();
     condensed_node_mappings.clear();
     MAT::clear_tree(T_condensed);
+
+    //ADD Freyja lineages
+    for (const auto& lin_abun: freyja_lineage_abun_map) {
+        auto& curr_lineage = lin_abun.first;
+        if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end()) {
+            selected_lineages.emplace_back(curr_lineage);
+            printf("Freya lineage: %s\n", curr_lineage.c_str());
+        }
+    }
     fprintf(stderr, "Added Lineages in %ld sec\n\n", (timer.Stop() / 1000));
     
     //CREATE new tree containg only selected_lineages

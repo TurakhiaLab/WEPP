@@ -5,7 +5,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
-constexpr double frequency_read_cutoff = 0.005;
+constexpr double frequency_read_cutoff = 0.001;
 const std::string CHROM = "NC_045512v2";
 
 void sam2VCF(po::parsed_options parsed) {
@@ -22,7 +22,6 @@ void sam2VCF(po::parsed_options parsed) {
     dir_prefix = path.generic_string();
     dir_prefix += "/";
     std::string proto_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
-    std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string freyja_vcf_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.vcf";
     std::string freyja_depth_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.depth";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
@@ -44,22 +43,17 @@ void sam2VCF(po::parsed_options parsed) {
         ref_seq += temp;
     }
 
-    std::ofstream outfile_vcf(vcf_filename_reads, std::ios::out | std::ios::binary);
     std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
     std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_vcf, outbuf_freyja_vcf, outbuf_freyja_depth;
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_freyja_vcf, outbuf_freyja_depth;
     
-    if (vcf_filename_reads.find(".gz\0") != std::string::npos)
-        outbuf_vcf.push(boost::iostreams::gzip_compressor());
     if (freyja_vcf_file.find(".gz\0") != std::string::npos)
         outbuf_freyja_vcf.push(boost::iostreams::gzip_compressor());
     if (freyja_depth_file.find(".gz\0") != std::string::npos)
         outbuf_freyja_depth.push(boost::iostreams::gzip_compressor());
     
-    outbuf_vcf.push(outfile_vcf);
     outbuf_freyja_vcf.push(outfile_freyja_vcf);
     outbuf_freyja_depth.push(outfile_freyja_depth);
-    std::ostream vcf(&outbuf_vcf);
     std::ostream freyja_vcf(&outbuf_freyja_vcf);
     std::ostream freyja_depth(&outbuf_freyja_depth);
 
@@ -70,7 +64,6 @@ void sam2VCF(po::parsed_options parsed) {
         sam.add_read(s);
     sam.build();
     sam.dump_proto(proto_filename);
-    sam.dump_vcf(vcf);
     sam.dump_freyja(freyja_depth, freyja_vcf);
     fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
 }
@@ -138,9 +131,8 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
         }
     }
 
-    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds"
+    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds";
 }
-
 
 void SAM::dump_proto(const std::string& filename) {
     Sam::sam data;
@@ -368,8 +360,7 @@ void SAM::merge_duplicates() {
     this->aligned_reads = merged;
 }
 
-void SAM::build()
-{
+void SAM::build() {
     /* create collapsed frequencies, treating indels as identity transformations */
     for (size_t i = 0; i < indel_frequency_table.size(); ++i) {
         collapsed_frequency_table[i] = frequency_table[i];
@@ -405,72 +396,6 @@ void SAM::dump_reverse_merge(std::ostream &out) {
             out << str << '\t';
         }
         out << '\n';
-    }
-}
-
-void SAM::dump_vcf(std::ostream& out) {
-    out << "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
-
-    for (const auto& read: this->aligned_reads) {
-        out << '\t' << read.raw_name << "_READ_" << read.start_idx + 1 << "_" << read.start_idx + 1 + read.aligned_string.size() - 1;
-        if (USE_COLUMN_MERGING) {
-            out << '_' << read.degree;
-        }
-    }
-
-    for (int i = 0; i < (int) reference_seq.size(); ++i) {
-        int first_index = -1;
-        for (int j = 0; j < (int) GENOME_STRING.size(); ++j) {
-            if (GENOME_STRING[j] != reference_seq[i] && collapsed_frequency_table[i][j]) {
-                first_index = j;
-                break;
-            }
-        }
-
-        /* no substitutions */
-        if (first_index == -1) {
-            continue;
-        }
-
-        out << '\n' << CHROM << '\t' << i + 1 << "\t";
-
-        std::string muts; 
-        for (int j = first_index; j < (int) GENOME_STRING.size(); ++j) {
-            if (GENOME_STRING[j] != reference_seq[i] && collapsed_frequency_table[i][j]) {  
-                if (j > first_index) {
-                    out << ',';
-                }
-                out << reference_seq[i] << i + 1 << GENOME_STRING[j];
-                muts.push_back(GENOME_STRING[j]);
-            }
-        }
-        /* alternate*/
-        out << "\t" << reference_seq[i] << "\t";
-         for (char c: muts) {
-            if (c != muts[0]) out << ',';
-            out << c;
-        }
-        out << "\t.\t.\t.\t.";
-        for (int j = 0; j < (int) aligned_reads.size(); ++j) {
-            int one_index = 0;
-            int s = aligned_reads[j].start_idx;
-            int e = aligned_reads[j].start_idx + aligned_reads[j].aligned_string.size() - 1;
-
-            if (i < s || i > e) {
-                one_index = 0;
-            }
-            else {
-                char c = aligned_reads[j].aligned_string[i - s];
-                size_t ind;
-                /* if it had a mutation */
-                if ((ind = muts.find(c)) != std::string::npos)
-                {
-                    one_index = 1 + (int)ind;
-                }
-            }
-
-            out << '\t' << one_index;
-        }
     }
 }
 

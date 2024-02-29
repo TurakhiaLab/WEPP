@@ -1777,28 +1777,20 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
 }
 
 //Map reads to haplotypes
-void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*>& read_map, const std::unordered_map<size_t, struct read_info*>& hap_map) {
-    //1. STORE mutations of reads with parsimony > 0 in mut_AFDepth_map
-    tbb::concurrent_hash_map<std::pair<int, char>, size_t> mut_AFDepth_map;
+void placeReads(const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*>& read_map, const std::unordered_map<size_t, struct read_info*>& hap_map, const std::unordered_map<std::string, double>& hap_abun_map) {
+    tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
+    double allele_threshold = 0.9;
     static tbb::affinity_partitioner ap;
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, read_map.size()),
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, read_map.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t i = k.begin(); i < k.end(); ++i) {
                 auto rp = read_map.find(i)->second;
-                //Find the most parsimonious positions
-                std::vector<size_t> epp_list;
+                //FIND the most parsimonious positions
+                std::vector<std::string> epp_list;
                 int min_dist = std::numeric_limits<int>::max();
-                std::vector<MAT::Mutation> mutations_in_range;
                 auto hap_itr = hap_map.begin();
                 while (hap_itr != hap_map.end()) {
-                    size_t last_underscore = hap_itr->second->read.find_last_of('_');
-                    std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
-                    while (T.get_node(curr_hap_name) == NULL) {
-                        last_underscore = curr_hap_name.find_last_of('_');
-                        curr_hap_name = curr_hap_name.substr(0, last_underscore);
-                    }
-                    //Getting hap_mutations from the Tree
-                    auto hap_mutations = getMutations(T, curr_hap_name);
+                    auto hap_mutations = hap_itr->second->mutations;
                     //Remove mutations from hap_mutations that are not present in site_read_map
                     auto mut_itr = hap_mutations.begin();
                     while (mut_itr != hap_mutations.end()) {
@@ -1813,163 +1805,169 @@ void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unord
                             epp_list.clear();
                             min_dist = curr_dist;
                         }
-                        epp_list.emplace_back(hap_itr->first);
+                        epp_list.emplace_back(hap_itr->second->read);
                     }
                     hap_itr++;
                 }
-                
-                if (epp_list.size() == 1)
-                    printf("%s -> %s\n", rp->read.c_str(), hap_map.find(epp_list.front())->second->read.c_str());
 
-                epp_list.clear();
+                //ASSIGN reads probabilistically to haplotypes                
+                std::vector<double> prob_list;
+                double total_prob = 0.0;
+                for (const auto& epp: epp_list) {
+                    double prob = hap_abun_map.find(epp)->second;
+                    prob_list.emplace_back(prob);
+                    total_prob += prob;
+                }
+                //Create a random number generator
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_real_distribution<> distribution(0.0, 1.0);
                 
-                ////STORE read mutations when parsimony > 0
-                //if (min_dist) {
-                //    tbb::concurrent_hash_map<std::pair<int, char>, size_t>::accessor ac;
-                //    for (const auto& mut: rp->mutations) {
-                //        auto created = mut_AFDepth_map.insert(ac, std::make_pair(std::make_pair(mut.position, MAT::get_nuc(mut.mut_nuc)), rp->degree));
-                //        if (!created) 
-                //            ac->second += rp->degree;
-                //        ac.release();
-                //    }
-                //}
+                //Assign the 'read' variable based on probabilities
+                std::vector<int> selected_indices;
+                for (int itr = 0; itr < rp->degree; itr++) {
+                    double random_value = distribution(gen);
+                    double cumulative_probability = 0.0;
+                    for (size_t j = 0; j < prob_list.size(); ++j) {
+                        cumulative_probability += (prob_list[j] / total_prob);
+                        if (random_value < cumulative_probability) {
+                            selected_indices.emplace_back(j);
+                            break;
+                        }
+                    }
+                }
+                prob_list.clear();
+
+                //ASSIGN Read -> Haplotype
+                for (const auto& idx: selected_indices) {
+                    std::string haplotype = epp_list[idx]; 
+                    tbb::concurrent_hash_map<std::string, std::vector<size_t>>::accessor ac;
+                    auto created = hap_read_map.insert(ac, std::make_pair(haplotype, std::vector<size_t>{i}));
+                    if (!created)
+                        ac->second.emplace_back(i);
+                    ac.release();
+                }
+                epp_list.clear();
+                selected_indices.clear();
             }
         },
     ap);
 
-    ///////////////////////////////////////////
-    ////2. CREATE site_reads_map
-    //std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
-    //for (size_t i = 0; i < read_map.size(); i++) {
-    //    auto rp = read_map.find(i)->second;
-    //    auto nuc_pos = rp->start;
-    //    for (const auto& mut: rp->mutations) {
-    //        //Store the coverage of nucleotides leading up to the mutating nucleotide
-    //        while (nuc_pos < mut.position) {
-    //            char curr_nuc = ref_seq[nuc_pos-1];
-    //            if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-    //                site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-    //            else {
-    //                bool found = false;
-    //                for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-    //                    if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-    //                        site_reads_map[nuc_pos][vec_idx].second += rp->degree;
-    //                        found = true;
-    //                        break;
-    //                    }
-    //                }
-    //                if (!found)
-    //                    site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
-    //            }
-    //            nuc_pos++;
-    //        }
-    //        //Store the coverage of mutating nucleotide
-    //        char curr_nuc = MAT::get_nuc(mut.mut_nuc);
-    //        if (site_reads_map.find(mut.position) == site_reads_map.end()) 
-    //            site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-    //        else {
-    //            bool found = false;
-    //            for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
-    //                if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
-    //                    site_reads_map[mut.position][vec_idx].second += rp->degree;
-    //                    found = true;
-    //                    break;
-    //                }
-    //            }
-    //            if (!found)
-    //                site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, rp->degree));
-    //        }
-    //        nuc_pos++;
-    //    }
-    //    //Store the coverage of nucleotide remaining after mutating ones
-    //    while (nuc_pos <= rp->end) {
-    //        char curr_nuc = ref_seq[nuc_pos-1]; 
-    //        if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-    //            site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, rp->degree})));
-    //        else {
-    //            bool found = false;
-    //            for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-    //                if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-    //                    site_reads_map[nuc_pos][vec_idx].second += rp->degree;
-    //                    found = true;
-    //                    break;
-    //                }
-    //            }
-    //            if (!found)
-    //                site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, rp->degree));
-    //        }
-    //        nuc_pos++;
-    //    }
-    //}
+    //Check mutation region of each haplotype
+    auto hrm_itr = hap_read_map.begin();
+    while (hrm_itr != hap_read_map.end()) {
+        size_t avg_read_depth = 0;
+        //CREATE site_reads_map
+        std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
+        for (const auto& r_idx: hrm_itr->second) {
+            auto rp = read_map.find(r_idx)->second;
+            auto nuc_pos = rp->start;
+            for (const auto& mut: rp->mutations) {
+                //Store the coverage of nucleotides leading up to the mutating nucleotide
+                while (nuc_pos < mut.position) {
+                    char curr_nuc = ref_seq[nuc_pos-1];
+                    if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+                        site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                    else {
+                        bool found = false;
+                        for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+                            if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                                site_reads_map[nuc_pos][vec_idx].second++;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found)
+                            site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+                    }
+                    nuc_pos++;
+                }
+                //Store the coverage of mutating nucleotide
+                char curr_nuc = MAT::get_nuc(mut.mut_nuc);
+                if (site_reads_map.find(mut.position) == site_reads_map.end()) 
+                    site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                else {
+                    bool found = false;
+                    for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
+                        if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
+                            site_reads_map[mut.position][vec_idx].second++;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                        site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
+                }
+                nuc_pos++;
+            }
+            //Store the coverage of nucleotide remaining after mutating ones
+            while (nuc_pos <= rp->end) {
+                char curr_nuc = ref_seq[nuc_pos-1]; 
+                if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
+                    site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                else {
+                    bool found = false;
+                    for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
+                        if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                            site_reads_map[nuc_pos][vec_idx].second++;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                        site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+                }
+                nuc_pos++;
+            }
+        }
+
+        //COMPUTE avg_read_depth 
+        for (const auto& sr: site_reads_map) {
+            for (const auto& mut_count: sr.second)
+                avg_read_depth += mut_count.second;
+        }
+        avg_read_depth /= site_reads_map.size();
     
-    ////COMPUTE average_read_depth and AF and read_depth of mutations in mut_AFDepth_map
-    //double average_read_depth = 0.0;
-    //for (const auto& sr_list: site_reads_map) {
-    //    for (const auto& mut_count: sr_list.second)
-    //        average_read_depth += mut_count.second;
-    //}
-    //average_read_depth /= site_reads_map.size();
+        //ANALYZE haplotype mutations
+        std::vector<MAT::Mutation> hap_mutations;
+        for (auto const& hr: hap_map) {
+            if (hr.second->read == hrm_itr->first) {
+                hap_mutations = hr.second->mutations;
+                break;
+            }
+        }
+        for (const auto& sr: site_reads_map) {
+            size_t read_depth = 0;
+            bool found = false;
+            char hap_nuc;
+            //Check if hap mutation present at the site
+            for (const auto& hap_mut: hap_mutations) {
+                if (hap_mut.position == sr.first) {
+                    found = true;
+                    hap_nuc = MAT::get_nuc(hap_mut.mut_nuc);
+                    break;
+                }
+            }
+            for (const auto& mut_count: sr.second)
+                read_depth += mut_count.second;
+            for (const auto& mut_count: sr.second) {
+                double mut_abundance = (double)mut_count.second / (double)read_depth; 
+                if ((abs(mut_abundance - allele_threshold) < 1e-9) || (mut_abundance > allele_threshold)) {
+                    //Haplotype has different mutation present at this site
+                    if (found) {
+                        if ((mut_count.first != hap_nuc) && (read_depth >= avg_read_depth))
+                            printf("Depth: %ld, AF: %f, avg_depth: %ld, MISMATCH: %s, site: %d, hap_nuc: %c, reads_nuc: %c\n", read_depth, mut_abundance, avg_read_depth, hrm_itr->first.c_str(), sr.first, hap_nuc, mut_count.first);
+                    }
+                    //Haplotype has a reference mutation at this site
+                    else if ((mut_count.first != ref_seq[sr.first - 1]) && (read_depth >= (size_t)avg_read_depth))
+                            printf("Depth: %ld, AF: %f, avg_depth: %ld, ABSENT: %s, site: %d, hap_nuc: %c, reads_nuc: %c\n", read_depth, mut_abundance, avg_read_depth, hrm_itr->first.c_str(), sr.first, ref_seq[sr.first - 1], mut_count.first);
+                    break;
+                }  
+            }
 
-    //for (double af_thresh = 0.05; af_thresh < 0.5; af_thresh += 0.05) {
-    //    for (double rel_depth_thresh = 0.1; rel_depth_thresh <= 1; rel_depth_thresh += 0.1) {
-    //        size_t depth_thresh = rel_depth_thresh * average_read_depth;
-    //        size_t tp = 0, fp = 0;
-    //        //Iterating through mut_AFDepth_map to get mutations satisfying the thresholds
-    //        for (const auto& m_ad: mut_AFDepth_map) {
-    //            size_t total_reads = 0, mut_reads = 0;
-    //            int pos = m_ad.first.first;
-    //            char mut_nuc = m_ad.first.second;
-    //            for (const auto& mut_count: site_reads_map[pos]) {
-    //                if (mut_count.first == mut_nuc)
-    //                    mut_reads = mut_count.second;
-    //                total_reads += mut_count.second;
-    //            }
-    //            double curr_af = (double)mut_reads / (double)total_reads;
-    //        }
-    //        printf("AF_thresh: %f, Depth_thresh_rel_avg_depth: %f, TP: %lu, FP: %lu\n", af_thresh, rel_depth_thresh, tp, fp);
-    //    }
-    //}
-
-    ////Iterate through hap_read_map to check Allele Frequency at every site of haplotype
-    //for (const auto& hr: hap_read_map) {
-    //    auto hap_idx = hr.first;
-    //    auto reads_idx_list = hr.second;
-    //    //Get Allele Frequency of read with non-zero parsimony
-    //    tbb::concurrent_hash_map<size_t, std::vector<size_t>>::const_accessor k_ac;
-    //    if (hap_nonZeroreads_map.find(k_ac, hap_idx)) {
-    //        if (hap_map.find(hap_idx)->second->read == "CONDENSED-28_B.39") {
-    //            printf("\nHAP: %s\n", hap_map.find(hap_idx)->second->read.c_str());
-    //            for (const auto& mut: hap_map.find(hap_idx)->second->mutations)
-    //                printf("%d%c\n", mut.position, MAT::get_nuc(mut.mut_nuc));
-    //            printf("\n Read Mutations\n");
-    //        }
-    //        auto nonZeroread_idx_list = k_ac->second;
-    //        //Get max_read_depth
-    //        size_t max_read_depth = 0;
-    //        for (const auto& sr_list: site_read_map) {
-    //            size_t curr_read_depth = 0;
-    //            for (const auto& mut_count: sr_list.second)
-    //                curr_read_depth += mut_count.second;
-    //            if (curr_read_depth > max_read_depth)
-    //                max_read_depth = curr_read_depth;
-    //        }
-    //        //Analyze the mutations of non-zero reads
-    //        for (const auto& rd_idx: nonZeroread_idx_list) {
-    //            auto rp = read_map.find(rd_idx)->second;
-    //            for (const auto& mut: rp->mutations) {
-    //                size_t total_reads = 0;
-    //                for (const auto& mut_count: site_read_map[mut.position])
-    //                    total_reads += mut_count.second;
-    //                for (const auto& mut_count: site_read_map[mut.position]) {
-    //                    if (mut_count.first == MAT::get_nuc(mut.mut_nuc)) {
-    //                        if (hap_map.find(hap_idx)->second->read == "CONDENSED-28_B.39")
-    //                        printf("%d%c -> %f, %f\n", mut.position, mut_count.first,  ((double)mut_count.second / (double)total_reads), ((double)mut_count.second) / (double)max_read_depth);
-    //                        break;
-    //                    }
-    //                }
-    //            }
-    //        }    
-    //    }
-    //    site_read_map.clear();
-    //}
+        }
+        hap_mutations.clear();
+        site_reads_map.clear();
+        hrm_itr++;
+    }
 }
