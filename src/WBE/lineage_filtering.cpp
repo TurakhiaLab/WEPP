@@ -14,7 +14,6 @@ void filterLineages (po::parsed_options parsed) {
     dir_prefix = path.generic_string();
     dir_prefix += "/";
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
-    std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
     std::string hap_vcf_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotypes.vcf";
@@ -54,7 +53,6 @@ void filterLineages (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     load_reads_from_proto(proto_reads, read_map, reverse_merge);
-    // readVCF(read_map, vcf_filename_reads, ref_seq.size());
 
     //Get the curr_peak_nodes
     int tree_range = 600, tree_increment = 400, node_lim = 5, prohibited_dist_thresh = 3;

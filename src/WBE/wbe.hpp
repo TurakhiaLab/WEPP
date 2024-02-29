@@ -17,7 +17,7 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include "sam.pb.h"
+#include "sam.pb.h"  
 
 namespace po = boost::program_options;
 
@@ -111,15 +111,15 @@ struct SAM {
        void add_read(const std::string& line);
        void build();
    
-       void dump_proto(std::string const& filename );
+       void dump_proto(std::string const& filename);
        void dump_vcf(std::ostream& out);
        void dump_reverse_merge(std::ostream& out);
        void dump_freyja(std::ostream& dout, std::ostream& vout);
 };
 
-void load_reads_from_proto(std::string const& filename, std::unordered_map<size_t, struct read_info *>& reads, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge);
-
 po::variables_map parseWBEcommand(po::parsed_options);
+
+void load_reads_from_proto(std::string const &, std::unordered_map<size_t, struct read_info *> &, std::unordered_map<std::string, std::vector<std::string>> &);
 
 void sam2VCF(po::parsed_options);
 
@@ -191,4 +191,4 @@ void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct rea
 
 void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &, const std::unordered_set<int> &);
 
-void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &);
+void placeReads(const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<std::string, double> &);
