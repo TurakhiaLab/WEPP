@@ -1251,10 +1251,9 @@ void getProhibitedNodes(const MAT::Tree &T, const MAT::Tree &T_orig, const std::
 
 //Add neighboring nodes to current peak
 std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const std::vector<MAT::Node*> &curr_peak_nodes, const std::vector<MAT::Node*> &peak_nodes, const tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, std::vector<MAT::Node*> &neighbor_nodes, const int& neighbor_dist_thresh, const int& neighbor_peaks_thresh) {
-    std::vector<MAT::Node*> final_neighbors; 
-    using my_mutex_t = tbb::queuing_mutex;
-    my_mutex_t my_mutex_outer;
-    static tbb::affinity_partitioner ap;
+    std::vector<MAT::Node*> final_neighbors;
+    tbb::concurrent_hash_map<MAT::Node*, bool> final_neighbors_map; 
+    static tbb::affinity_partitioner ap_outer;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t i = k.begin(); i < k.end(); ++i) {
@@ -1291,69 +1290,28 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                 //Selecting unseen nodes from potential_neighbor_nodes to potential_neighbors_node_score
                 using my_mutex_t = tbb::queuing_mutex;
                 my_mutex_t my_mutex;
-                static tbb::affinity_partitioner ap_1;
+                static tbb::affinity_partitioner ap;
                 tbb::parallel_for(tbb::blocked_range<size_t>(0, potential_neighbor_nodes.size()),
                     [&](tbb::blocked_range<size_t> l) {
                         for (size_t j = l.begin(); j < l.end(); ++j) {
-                            using rwmutex_t = tbb::queuing_rw_mutex;
-                            rwmutex_t my_mutex_rw;
-                            static tbb::affinity_partitioner ap_2;
-                            bool found = false;
                             auto present_node = potential_neighbor_nodes[j];
-
-                            //Check if similar present_node NOT already included in curr_peak_nodes
-                            for (const auto &hap: curr_peak_nodes) {
+                            //Check if similar present_node NOT already included in curr_peak_nodes, peak_nodes, or neighbor_nodes
+                            bool found = false;
+                            for (size_t m = 0; m < (curr_peak_nodes.size() + peak_nodes.size() + neighbor_nodes.size()); m++) {
+                                MAT::Node* hap;
+                                if (m < curr_peak_nodes.size())
+                                    hap = curr_peak_nodes[m];
+                                else if (m < (curr_peak_nodes.size() + peak_nodes.size()))
+                                    hap = peak_nodes[m - curr_peak_nodes.size()];
+                                else
+                                    hap = neighbor_nodes[m - curr_peak_nodes.size() - peak_nodes.size()];
                                 int mut_dist = mutationDistance(T, T, hap, present_node);
                                 if (!mut_dist) {
                                     found = true;
                                     break;
                                 }
                             }
-
-                            //Check if similar present_node NOT already included in peak_nodes
-                            if (!found) {
-                                tbb::parallel_for(tbb::blocked_range<size_t>(0, peak_nodes.size()),
-                                    [&](tbb::blocked_range<size_t> m) {
-                                        for (size_t h = m.begin(); h < m.end(); ++h) {
-                                            {
-                                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
-                                                if (found)
-                                                    continue;
-
-                                            }
-                                            auto hap = peak_nodes[h];
-                                            int mut_dist = mutationDistance(T, T, hap, present_node);
-                                            if (!mut_dist) {
-                                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
-                                                found = true;
-                                            }
-                                        }
-                                    },
-                                ap_2);
-                            }
-
-                            //Check if similar present_node NOT already included in neighbor_nodes
-                            if (!found) {
-                                tbb::parallel_for(tbb::blocked_range<size_t>(0, neighbor_nodes.size()),
-                                    [&](tbb::blocked_range<size_t> m) {
-                                        for (size_t h = m.begin(); h < m.end(); ++h) {
-                                            {
-                                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, false};
-                                                if (found)
-                                                    continue;
-
-                                            }
-                                            auto hap = neighbor_nodes[h];
-                                            int mut_dist = mutationDistance(T, T, hap, present_node);
-                                            if (!mut_dist) {
-                                                rwmutex_t::scoped_lock my_lock{my_mutex_rw, true};
-                                                found = true;
-                                            }
-                                        }
-                                    },
-                                ap_2);
-                            }
-                                
+                            
                             //Only ADD if similar node NOT seen before
                             if (!found) {
                                 tbb::concurrent_hash_map<MAT::Node*, double>::const_accessor k_ac;
@@ -1362,10 +1320,9 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                                     potential_neighbor_node_scores.emplace_back(std::make_pair(present_node, k_ac->second));
                                 }
                             }
-
                         }
                     },
-                ap_1);
+                ap);
                 potential_neighbor_nodes.clear();
                 
                 //SORT potential_neighbor_node_scores
@@ -1380,18 +1337,21 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                     if (idx == (int)potential_neighbor_node_scores.size())
                         break;
                     auto neighbor_node = potential_neighbor_node_scores[idx++].first;
-                    {
-                        my_mutex_t::scoped_lock my_lock{my_mutex_outer};
-                        if (std::find(final_neighbors.begin(), final_neighbors.end(), neighbor_node) == final_neighbors.end()) {
-                            final_neighbors.emplace_back(neighbor_node);
-                            neighbors_added++;
-                        }
-                    }
+                    tbb::concurrent_hash_map<MAT::Node*, bool>::accessor ac;
+                    auto created = final_neighbors_map.insert(ac, std::make_pair(neighbor_node, true));
+                    if (created)
+                        neighbors_added++;
+                    ac.release();
                 }
+                potential_neighbor_node_scores.clear();
             }
         },
-    ap);
+    ap_outer);
 
+    for (const auto& neighbor: final_neighbors_map)
+        final_neighbors.emplace_back(neighbor.first);
+    
+    final_neighbors_map.clear();
     return final_neighbors;
 }
 

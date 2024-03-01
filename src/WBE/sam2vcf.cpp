@@ -21,7 +21,7 @@ void sam2VCF(po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
-    std::string proto_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
+    std::string proto_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.pb";
     std::string freyja_vcf_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.vcf";
     std::string freyja_depth_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.depth";
     std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
