@@ -1260,16 +1260,34 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                 std::vector<std::pair<MAT::Node*, double>> potential_neighbor_node_scores;
                 std::vector<MAT::Node*> potential_neighbor_nodes; 
                 std::queue<MAT::Node*> remaining_nodes;
+                std::vector<MAT::Mutation> curr_node_mutations_diff;
                 auto peak = curr_peak_nodes[i];
+                MAT::Node* anc_node = peak;
                 //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
-                MAT::Node* anc_node = NULL;
-                for (const auto& n: T.rsearch(peak->identifier, true)) {
-                    int m_dist = mutationDistance(T, T, n, peak);
-                    if (m_dist <= neighbor_dist_thresh)
-                        anc_node = n;
+                auto ancestor_nodes = T.rsearch(peak->identifier, false);
+                for (int j = 0; j < (int)ancestor_nodes.size(); j++) {
+                    if (!j)
+                        curr_node_mutations_diff = peak->mutations;
+                    else {
+                        for (const auto& curr_mut: ancestor_nodes[j-1]->mutations) {
+                            bool found = false;
+                            for (const auto& ref_mut: curr_node_mutations_diff) {
+                                if (ref_mut.position == curr_mut.position) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                                curr_node_mutations_diff.emplace_back(curr_mut);
+                        }
+                    }
+                    if ((int)curr_node_mutations_diff.size() <= neighbor_dist_thresh)
+                        anc_node = ancestor_nodes[j];
                     else
                         break;
                 }
+                ancestor_nodes.clear();
+                curr_node_mutations_diff.clear();
 
                 //Adding neighborhood peaks to potential_neighbor_nodes
                 remaining_nodes.push(anc_node);
@@ -1286,7 +1304,7 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                             remaining_nodes.push(c);
                     }
                 }
-                
+            
                 //Selecting unseen nodes from potential_neighbor_nodes to potential_neighbors_node_score
                 using my_mutex_t = tbb::queuing_mutex;
                 my_mutex_t my_mutex;
@@ -1296,19 +1314,28 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
                         for (size_t j = l.begin(); j < l.end(); ++j) {
                             auto present_node = potential_neighbor_nodes[j];
                             //Check if similar present_node NOT already included in curr_peak_nodes, peak_nodes, or neighbor_nodes
-                            bool found = false;
+                            bool found = false; int mutations_count = 0;
                             for (size_t m = 0; m < (curr_peak_nodes.size() + peak_nodes.size() + neighbor_nodes.size()); m++) {
-                                MAT::Node* hap;
+                                MAT::Node* cmp_node;
                                 if (m < curr_peak_nodes.size())
-                                    hap = curr_peak_nodes[m];
+                                    cmp_node = curr_peak_nodes[m];
                                 else if (m < (curr_peak_nodes.size() + peak_nodes.size()))
-                                    hap = peak_nodes[m - curr_peak_nodes.size()];
+                                    cmp_node = peak_nodes[m - curr_peak_nodes.size()];
                                 else
-                                    hap = neighbor_nodes[m - curr_peak_nodes.size() - peak_nodes.size()];
-                                int mut_dist = mutationDistance(T, T, hap, present_node);
-                                if (!mut_dist) {
-                                    found = true;
-                                    break;
+                                    cmp_node = neighbor_nodes[m - curr_peak_nodes.size() - peak_nodes.size()];
+                                if ((cmp_node->parent == present_node->parent) && (cmp_node->mutations.size() == present_node->mutations.size())) {
+                                    for (const auto& p_mut: present_node->mutations) {
+                                        for (const auto& c_mut: cmp_node->mutations) {
+                                            if ((p_mut.position == c_mut.position) && (p_mut.mut_nuc == c_mut.mut_nuc)) {
+                                                mutations_count++;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (mutations_count == (int)present_node->mutations.size()) {
+                                        found = true;
+                                        break;
+                                    }
                                 }
                             }
                             
