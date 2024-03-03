@@ -55,4 +55,4 @@ echo -e "Running alignment"
 bowtie2-build ${reference_fasta} ${output_temp}/ref_index
 bowtie2 -x ${output_temp}/ref_index -U ${output_swampy}/${output_filename_prefix}_R1+R2.fastq -S ${output_swampy}/${output_filename_prefix}_alignment.sam
 
-###python WBE/align_mod.py ${output_swampy}/${output_filename_prefix}_alignment.sam
+##python WBE/align_mod.py ${output_swampy}/${output_filename_prefix}_alignment.sam
