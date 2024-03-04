@@ -54,20 +54,11 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
 
     boost::iostreams::filtering_istream instream;
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
-    if (filename.find(".gz\0") != std::string::npos) {
-        if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
-            exit(1);
-        }
-        try {
-            instream.push(boost::iostreams::gzip_decompressor());
-            instream.push(inpfile);
-        } catch(const boost::iostreams::gzip_error& e) {
-            std::cout << e.what() << '\n';
-        }
-    } else {
-        instream.push(inpfile);
+    if (!inpfile) {
+        fprintf(stderr, "ERROR: Could not load the read protobuf from file: %s!\n", filename.c_str());
+        exit(1);
     }
+    instream.push(inpfile);
     google::protobuf::io::IstreamInputStream stream(&instream);
     google::protobuf::io::CodedInputStream input(&stream);
     
@@ -1164,16 +1155,35 @@ void updateProhibitedNodes(const MAT::Tree &T, const std::vector<MAT::Node*> &cu
     tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
         [&](tbb::blocked_range<size_t> k) {
             for (size_t i = k.begin(); i < k.end(); ++i) {
+                std::vector<MAT::Mutation> curr_node_mutations_diff;
                 auto peak = curr_peak_nodes[i];
+                MAT::Node* anc_node = peak;
                 //Find farthest ancestor with mut distance from peak <= m_dist_thresh
-                MAT::Node* anc_node = NULL;
-                for (const auto& n: T.rsearch(peak->identifier, true)) {
-                    int m_dist = mutationDistance(T, T, n, peak);
-                    if (m_dist <= m_dist_thresh)
-                        anc_node = n;
+                auto ancestor_nodes = T.rsearch(peak->identifier, false);
+                for (int j = 0; j < (int)ancestor_nodes.size(); j++) {
+                    if (!j)
+                        curr_node_mutations_diff = peak->mutations;
+                    else {
+                        for (const auto& curr_mut: ancestor_nodes[j-1]->mutations) {
+                            bool found = false;
+                            for (const auto& ref_mut: curr_node_mutations_diff) {
+                                if (ref_mut.position == curr_mut.position) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                                curr_node_mutations_diff.emplace_back(curr_mut);
+                        }
+                    }
+                    if ((int)curr_node_mutations_diff.size() <= m_dist_thresh)
+                        anc_node = ancestor_nodes[j];
                     else
                         break;
                 }
+                ancestor_nodes.clear();
+                curr_node_mutations_diff.clear();
+
                 //Adding neighborhood peaks to prohibited_nodes
                 std::queue<MAT::Node*> remaining_nodes;
                 remaining_nodes.push(anc_node);
@@ -1206,25 +1216,42 @@ void getProhibitedNodes(const MAT::Tree &T, const MAT::Tree &T_orig, const std::
     ////  1. Find the farthest ancestor of every peak node within m_thresh
     ////  2. Recursively only analyze its children within m_thresh
     ////  3. Only include unseen neighborhood nodes to prohibited_nodes
+    std::vector<MAT::Mutation> curr_node_mutations_diff;
     int intra_lineage_thresh = inter_lineage_thresh * 4;
-    auto ref_lineage = getLineage(T_orig, condensed_node_mappings.find(peak)->second.front());
-
-    //Find farthest ancestor with mut distance from peak <= m_thresh
-    MAT::Node* anc_node = peak;
     int m_thresh = intra_lineage_thresh;
+    auto ref_lineage = getLineage(T_orig, condensed_node_mappings.find(peak)->second.front());
     auto curr_lineage = ref_lineage;
-    for (const auto& n: T.rsearch(peak->identifier, false)) {
-        int m_dist = mutationDistance(T, T, n, peak);
+    MAT::Node* anc_node = peak;
+    //Find farthest ancestor with mut distance from peak <= m_thresh
+    auto ancestor_nodes = T.rsearch(peak->identifier, false);
+    for (int j = 0; j < (int)ancestor_nodes.size(); j++) {
+        if (!j)
+            curr_node_mutations_diff = peak->mutations;
+        else {
+            for (const auto& curr_mut: ancestor_nodes[j-1]->mutations) {
+                bool found = false;
+                for (const auto& ref_mut: curr_node_mutations_diff) {
+                    if (ref_mut.position == curr_mut.position) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    curr_node_mutations_diff.emplace_back(curr_mut);
+            }
+        }
         if (curr_lineage == ref_lineage) {
-            curr_lineage = getLineage(T_orig, condensed_node_mappings.find(n)->second.front());
+            curr_lineage = getLineage(T_orig, condensed_node_mappings.find(ancestor_nodes[j])->second.front());
             if (curr_lineage != ref_lineage)
                 m_thresh = inter_lineage_thresh;
         }
-        if (m_dist <= m_thresh)
-            anc_node = n;
+        if ((int)curr_node_mutations_diff.size() <= m_thresh)
+            anc_node = ancestor_nodes[j];
         else
             break;
     }
+    ancestor_nodes.clear();
+    curr_node_mutations_diff.clear();
 
     //Adding neighborhood peaks to prohibited_nodes
     std::queue<MAT::Node*> remaining_nodes;
@@ -1436,16 +1463,34 @@ void addNeighborLineages(const MAT::Tree &T, const MAT::Tree &T_orig, const std:
         [&](tbb::blocked_range<size_t> k) {
             for (size_t i = k.begin(); i < k.end(); ++i) {
                 std::queue<MAT::Node*> remaining_nodes;
+                std::vector<MAT::Mutation> curr_node_mutations_diff;
                 auto peak = peak_nodes[i];
-                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
                 MAT::Node* anc_node = peak;
-                for (const auto& n: T.rsearch(peak->identifier, false)) {
-                    int m_dist = mutationDistance(T, T, n, peak);
-                    if (m_dist <= neighbor_dist_thresh)
-                        anc_node = n;
+                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
+                auto ancestor_nodes = T.rsearch(peak->identifier, false);
+                for (int j = 0; j < (int)ancestor_nodes.size(); j++) {
+                    if (!j)
+                        curr_node_mutations_diff = peak->mutations;
+                    else {
+                        for (const auto& curr_mut: ancestor_nodes[j-1]->mutations) {
+                            bool found = false;
+                            for (const auto& ref_mut: curr_node_mutations_diff) {
+                                if (ref_mut.position == curr_mut.position) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                                curr_node_mutations_diff.emplace_back(curr_mut);
+                        }
+                    }
+                    if ((int)curr_node_mutations_diff.size() <= neighbor_dist_thresh)
+                        anc_node = ancestor_nodes[j];
                     else
                         break;
                 }
+                ancestor_nodes.clear();
+                curr_node_mutations_diff.clear();
 
                 //Adding neighborhood peaks to potential_neighbor_nodes_scores
                 remaining_nodes.push(anc_node);
@@ -1469,7 +1514,6 @@ void addNeighborLineages(const MAT::Tree &T, const MAT::Tree &T_orig, const std:
                                 ac.release();
                             }
                             local_lineages.clear();
-                            
                             
                             //ADD present_node's children in list for checking
                             for (const auto& c: present_node->children)
