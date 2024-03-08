@@ -384,7 +384,7 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
             auto condensed_front_node = node_mappings.find(curr_node)->second.front();
             if (!((condensed_node_mappings.find(condensed_front_node)->second.empty()) && (node_mappings.find(curr_node)->second.size() == 1))) {
                 if (only_leaves) {
-                    if (condensed_node_mappings.find(condensed_front_node)->second.front()->is_leaf()) {
+                    if (condensed_node_mappings.find(condensed_front_node)->second.back()->is_leaf()) {
                         is_leaf_node = true;
                         skip_placement = false;
                     }
@@ -400,10 +400,14 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
                     else if (condensed_front_node->is_root())
                         is_root_node = true;
                     //LEAF node check
-                    else if (condensed_node_mappings.find(condensed_front_node)->second.front()->is_leaf())
+                    else if (condensed_node_mappings.find(condensed_front_node)->second.back()->is_leaf())
                         is_leaf_node = true;
                 }
             }
+        }
+
+        if (is_leaf_node != curr_node->children.empty()) {
+            // std::cerr << "DIFFERENCE IN NOTATION" << is_leaf_node << " " << curr_node->children.empty() << std::endl;
         }
 
         //Iterate through reads in rp_batch
@@ -501,8 +505,13 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
             //Adding only unseen read_mut to node parsimony for root node
             if (!i) {
                 for (const auto &read_mut: rp->mutations) {
-                    if (std::find(common_node_mut_pos.begin(), common_node_mut_pos.end(), read_mut.position) == common_node_mut_pos.end())
+                    if (std::find(common_node_mut_pos.begin(), common_node_mut_pos.end(), read_mut.position) == common_node_mut_pos.end()) {
                         curr_node_par_mut.emplace_back(read_mut);
+                    }
+                    else {
+                        assert(0);
+                        std::cerr << "UNFOUND MUTATION ! " << std::endl;
+                    }
                 }
             }
             
@@ -510,7 +519,7 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
             //Ensure NOT accessing empty vector (range tree root node empty possibility) 
             if (!skip_placement) {
                 //Place as a sibling if common_node_mut_pos is not empty and NOT root in original tree
-                if ((!common_node_mut_pos.empty()) && (!is_root_node)) {
+                if (!common_node_mut_pos.empty() && (!is_root_node)) {
                     //ADD curr_node to common_mut_nodes if NOT leaf in original tree and uniq_curr_node_mut > 0
                     if ((!is_leaf_node) && (!uniq_curr_node_mut.empty()))
                         common_mut_nodes_batch[j].insert(i);
@@ -560,8 +569,9 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
                     for (size_t i = k.begin(); i < k.end(); ++i) {
                         auto n_idx = min_par_batch[j].idx_list[i];
                         //If common_mut_nodes has the given node then it is internal node placed as sibling with other node mutations as well
-                        if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end())
+                        if (common_mut_nodes_batch[j].find(n_idx) == common_mut_nodes_batch[j].end()) {
                             block_num_nodes += node_mappings.find(dfs[n_idx])->second.size();
+                        }
                         else
                             block_num_nodes++;   
                     }
@@ -571,9 +581,8 @@ void placeReads(const MAT::Tree &T, const std::vector<size_t> &read_ids, const s
                     return x + y;
                 }
             );
-	        
+
             double score = read_map.find(read_ids[j])->second->degree * (1.0 / log2(num_nodes + 1));
-            
             //Update local_node_score_map
             for (size_t i = 0; i < min_par_batch[j].idx_list.size(); ++i) {
                 auto n_idx = min_par_batch[j].idx_list[i];
@@ -911,6 +920,7 @@ bool compareIdx(const std::pair<int, size_t> &a, const std::pair<int, size_t> &b
     return a.second < b.second;
 }
 
+int count = 0;
 //Get MAT within range
 void createRangeTree(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, const int &start, const int &end, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings, MAT::Tree &T) {
     //Have a queue of current_node (from ref_Tree)and parent_node (from new_Tree) pair

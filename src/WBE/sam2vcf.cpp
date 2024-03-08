@@ -7,7 +7,6 @@ constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
 const std::string CHROM = "NC_045512v2";
-
 void sam2VCF(po::parsed_options parsed) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
@@ -138,7 +137,7 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
         }
     }
 
-    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds"
+    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds";
 }
 
 
