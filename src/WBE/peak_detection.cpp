@@ -137,6 +137,475 @@ void detectPeaks (po::parsed_options parsed) {
         fprintf(stderr, "\nCannot run peak_filtering.py\n");
 }
 
+constexpr int TOP_N = 25;
+constexpr int TOP_N_EXPANDED_FACTOR = 4;
+constexpr int MAX_NEIGHBORS = 600;
+constexpr int MAX_PEAK_PEAK_MUTATION = 1;
+constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
+constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
+constexpr int READ_RANGE_INCREMENT = 200;
+constexpr int READ_RANGE_SIZE = 400;
+struct AuxNode {
+    double score;
+    bool mapped;
+    bool neighbor_mapped;
+    /* is there possibly a single nonmapped (or neighor mapped)?
+       node in the subtree? */
+    bool subtree_alive;
+
+    bool is_leaf;
+
+    /* children and mutations  */
+    AuxNode* parent;
+    /* muts from root to here */
+    std::vector<MAT::Mutation> muts;
+    std::vector<MAT::Mutation> stack_muts;
+    std::string id;
+    std::vector<AuxNode*> children;
+
+    std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
+        int i = 0, j = 0;
+        std::vector<int> muts;
+
+        int last_i = stack_muts.size();
+        while (i < (int) stack_muts.size() && stack_muts[i].position < min_pos) ++i;
+        while (last_i > 0 && stack_muts[last_i - 1].position > max_pos) --last_i;
+
+        while (i < last_i || j < (int) comp.size()) {
+            if (i == last_i) {                
+                muts.push_back(comp[j].position);
+                ++j;
+            }
+            else if (stack_muts[i].position < min_pos) {
+                ++i;
+            }
+            else if (stack_muts[i].position > max_pos) {
+                return muts;
+            }
+            else if (j == (int) comp.size()) {
+                muts.push_back(stack_muts[i].position);
+                ++i;
+            }
+            else if (stack_muts[i].position < comp[j].position) {
+                muts.push_back(stack_muts[i].position);
+                ++i;
+            }
+            else if (stack_muts[i].position > comp[j].position) {
+                muts.push_back(comp[j].position);
+                ++j;
+            }
+            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc) {
+                muts.push_back(comp[j].position);
+                ++i; ++j;
+            }
+            else {
+                ++i; ++j;
+            }
+        }
+
+        return muts;
+    }
+
+    /* optimized version */
+    int mutation_distance(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
+        return mutations(comp, min_pos, max_pos).size();
+    }
+
+    /* N not counted */
+    int mutation_distance(struct read_info* other) {
+        return mutation_distance(other->mutations, other->start, other->end);
+    }
+
+    /* N is counted */
+    int mutation_distance(AuxNode * other) {
+        return mutation_distance(other->stack_muts, 0, INT_MAX);
+    }
+};
+
+template <class T=std::less<double>>
+struct AuxComparator {
+    bool operator() (AuxNode* const& left, AuxNode* const& right) const {
+        if (left->score != right->score)
+            return T()(left->score, right->score);
+        else 
+            return left < right;
+    }
+};
+/* slightly larger than O(NM) */
+class AuxManager
+{
+    std::vector<std::string> peaks;
+    std::vector<AuxNode> arena;
+    const std::vector<read_info *>& reads;
+    std::vector<int> max_parismony;
+    std::vector<int> parsimony_multiplicity;
+    
+    /* if epp[i].size() != multiplicity[i], that means not cached */
+    /* since there's too many. Also, values are arena indices */
+    std::vector<std::set<int>> epp_positions_cache;
+    
+    /* mappable nodes based on their scores */
+    std::set<AuxNode*, AuxComparator<std::greater<double>>> current_nodes;
+
+    /* indices of unmapped reads */
+    std::set<int> remaining_reads;
+
+    /* map of read_index to built */
+    std::map<int, AuxNode*> correspondence;
+
+    /* can only map if one or mutation positions was removed */
+    /* (even if total size increases) */
+    int mutation_reductions(std::vector<int> const& parent, std::vector<int> const& child) {
+        int reductions = 0;
+        for (size_t i = 0, j = 0; i < parent.size(); ++i) {
+            while (j < child.size() && child[j] < parent[i]) {
+                ++j;
+            }
+            if (j == child.size() || child[j] != parent[i]) {
+                ++reductions;
+            }
+            else {
+                ++j;
+            }
+        }
+
+        return reductions;
+    }
+
+    /* max_val corresponds to max parismony */
+    /* maps single read to entire tree, caching aliveness */
+    bool single_read_tree(AuxNode* curr, std::vector<int> const & parent_locations, struct read_info *read, std::set<int> &max_indices, int &max_val) {
+        std::vector<int> const my_locations = curr->mutations(read->mutations, read->start, read->end);
+
+        /* no need to worry about dead subtrees */
+        if (!curr->subtree_alive) {
+            return false;
+        }
+        else if (!curr->mapped && !curr->neighbor_mapped) {
+            /* map self */
+            // this basically ensures semantics are the exact same
+            // as the previous algorithm
+            int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
+            if (reductions) {
+                parsimony = parent_locations.size() - reductions;
+            }
+            else {
+                parsimony = my_locations.size();
+            }
+
+            if (!curr->is_leaf || reductions) {
+                if (parsimony < max_val)
+                {
+                    max_val = parsimony;
+                    max_indices = {(int)(curr - &arena[0])};
+                }
+                else if (parsimony == max_val)
+                {
+                    max_indices.insert(curr - &arena[0]);
+                }
+            }
+        }
+
+        bool any_alive = !curr->mapped && !curr->neighbor_mapped;
+        for (AuxNode *child: curr->children) {
+            any_alive |= single_read_tree(child, my_locations, read, max_indices, max_val);
+        }
+
+        return curr->subtree_alive = any_alive;
+    }
+
+    /* map all reads to all nodes, maintaining caches if not too large */
+    void cartesian_map() {
+        std::vector<int> empty_mutation_list;
+        for (size_t r = 0; r < reads.size(); ++r) {
+            std::set<int> max_indices;
+            int max_val = INT32_MAX; /* really want minimum value */
+
+            single_read_tree(&arena[0], empty_mutation_list, reads[r], max_indices, max_val);
+
+            double const delta = (double) reads[r]->degree / std::log2(1 + max_indices.size());
+            for (int arena_index: max_indices) {
+                arena[arena_index].score += delta;
+            }
+
+            this->max_parismony.emplace_back(max_val);
+            this->parsimony_multiplicity.emplace_back(max_indices.size());
+            
+            if (max_indices.size() <= MAX_CACHED_MULTIPLICITY_SIZE) {
+                this->epp_positions_cache.emplace_back(std::move(max_indices));
+            }
+            else {
+                this->epp_positions_cache.emplace_back();
+            }
+        }
+
+        for (size_t i = 0; i < arena.size(); ++i) {
+            this->current_nodes.insert(&arena[i]);
+        }
+    }
+
+    /* find all current reads that map to this node */
+    std::vector<int> find_correspondents(AuxNode *node) {
+        int const arena_index = node - &arena[0];
+        std::vector<int> correspondents;
+
+        for (int read: this->remaining_reads) {
+            if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
+                correspondents.push_back(read); 
+            }
+            else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
+                /* cached and not found */
+                continue;
+            }
+            // TODO
+            else {
+                struct read_info *r = this->reads[read];
+                std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
+                std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
+
+                int parsimony, reductions = mutation_reductions(parent, ours);
+                if (reductions) {
+                    parsimony = parent.size() - reductions;
+                }
+                else {
+                    parsimony = ours.size();
+                }
+                
+                if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
+                    correspondents.push_back(read);
+                }
+            }
+        }
+        return correspondents;
+    }
+
+    /* removes a singular read's contribution from current tree */
+    void remove_reads_effects(int index) {
+        std::set<int> recalcuated;
+        std::set<int> *epps;
+        if (this->epp_positions_cache[index].size() == (size_t) parsimony_multiplicity[index]) {
+            epps = &this->epp_positions_cache[index];
+        }
+        else {
+            /* recalculate on (almost) entire tree, generally the most optimal */
+            int max_val = INT32_MAX;
+            std::vector<int> empty;
+            single_read_tree(&arena[0], empty, reads[index], recalcuated, max_val);
+            epps = &recalcuated;
+        }
+
+        /* use ORIGINAL size */
+        double const delta = (double) reads[index]->degree / std::log2(1 + parsimony_multiplicity[index]);
+        for (int arena_index: (*epps)) {
+            AuxNode *node = &arena[arena_index];
+            if (node->mapped || node->neighbor_mapped) {
+                continue;
+            }
+            this->current_nodes.erase(node);
+            node->score -= delta;
+            this->current_nodes.insert(node);
+        }
+        this->remaining_reads.erase(index);
+    }
+
+    void singular_step(AuxNode* node) {
+        assert(!node->neighbor_mapped && !node->mapped);
+        std::cout << "Our selected peak " << node->id << " (score: " << node->score << ") reads: " << remaining_reads.size() << std::endl;
+        
+        /* 1. map remaining reads onto this node (finding correspondents) */
+        std::vector<int> correspondents = find_correspondents(node);
+
+        /* 2. map all said reads onto entire remaining set, adjusting deltas */
+        /* 3. mark correspondence */ 
+        for (int correspondent: correspondents) {
+            this->remove_reads_effects(correspondent);
+            correspondence[correspondent] = node;
+        }
+
+        peaks.push_back(node->id);
+    }
+
+    /* can both aux nodes be sent in the same batch? */
+    bool valid_two_tops(AuxNode *a, AuxNode *b) {
+         return a->mutation_distance(b) > MAX_PEAK_PEAK_MUTATION;
+    }
+
+    bool dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, AuxComparator<>>& s) {
+        if (!curr || !curr->subtree_alive) {
+            return false;
+        }
+        else if (pivot->mutation_distance(curr) > MAX_PEAK_NONPEAK_MUTATION) {
+            return curr->subtree_alive;
+        }
+
+        bool alive = false;
+        if (!curr->mapped && !curr->neighbor_mapped) {
+            s.insert(curr);
+            alive = true;
+        }
+
+        for (AuxNode* child: curr->children) {
+            alive |= dfs_possible_neighbors(pivot, child, s);
+        }
+
+        return curr->subtree_alive = alive;
+    }
+
+    void possible_neighbors(AuxNode* pivot, std::set<AuxNode*, AuxComparator<>>& s) {
+        AuxNode *curr = pivot;
+        while (curr->parent && pivot->mutation_distance(curr->parent) <= MAX_PEAK_NONPEAK_MUTATION) {
+            curr = curr->parent;
+        }
+
+        dfs_possible_neighbors(pivot, curr, s);
+    }
+
+    /* clears neighbors (and self) from map */
+    void clear_neighbors(std::vector<AuxNode*> &nodes) {
+        for (AuxNode* const& n: nodes) {
+            n->mapped = true;
+            current_nodes.erase(n);
+        }
+
+        /* candidates */
+        std::set<AuxNode*, AuxComparator<>> multisource_radius;
+        for (AuxNode *pivot: nodes) {
+            possible_neighbors(pivot, multisource_radius);
+        }
+
+        for (int i = 0; AuxNode* node: multisource_radius) {
+            if (!node->mapped && !node->neighbor_mapped) {
+                node->neighbor_mapped = true;
+                current_nodes.erase(node);
+                if (++i == MAX_NEIGHBORS) {
+                    break;
+                }
+            }
+        }
+    }
+
+    /* matches currently top_n nodes with their reads */
+    /* returns if finished or not */
+    bool step(int top_n) {
+        assert(!current_nodes.empty() && !remaining_reads.empty());
+
+        /* to get exactly same behavior as before, have a single considering set */
+        std::vector<AuxNode*> consideration;
+
+        /* get top_n (under some special constraints) */ 
+        auto it = current_nodes.begin();
+        double const min_score = (*it)->score;
+
+        if (min_score < 1e-9) {
+            return true;
+        }
+
+        for (int i = 0; 
+                i < top_n * TOP_N_EXPANDED_FACTOR && 
+                it != current_nodes.end() && 
+                abs((*it)->score - min_score) < 1e-9 &&
+                consideration.size() < (size_t) top_n; 
+            ++i, ++it) 
+        {
+            bool valid = true;
+            for (AuxNode *old: consideration) {
+                if (!valid_two_tops(old, *it)) {
+                    valid = false;
+                }
+            }
+
+            if (valid) {
+                consideration.push_back(*it);
+            }
+        }
+        for (AuxNode *&node: consideration) {
+            this->singular_step(node);
+        }
+
+        this->clear_neighbors(consideration);
+
+        return remaining_reads.empty() || current_nodes.empty();
+    }
+
+    AuxNode* from_mat_tree(AuxNode* parent, MAT::Node* node, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings) {
+        this->arena.emplace_back();
+        AuxNode *ret = &this->arena.back();
+        ret->parent = parent;
+        ret->mapped = ret->neighbor_mapped = false;
+        ret->subtree_alive = true;
+        ret->is_leaf = condensed_node_mappings.at(node).front()->is_leaf(); 
+        ret->score = 0;
+        ret->muts = node->mutations;
+        ret->stack_muts = {};
+        ret->id = node->identifier;
+        if (parent) {
+            for (const MAT::Mutation &mut : parent->stack_muts)
+            {
+                /* only need to compare to our muts since parent's are unique */
+                bool valid = true;
+                for (const MAT::Mutation &comp: node->mutations) {
+                    if (comp.position == mut.position) {
+                        valid = false;
+                        break;
+                    }
+                }
+                
+                if (valid) ret->stack_muts.push_back(mut);
+            }
+        }
+        /* maybe rewinded mutation back to original */
+        for (int i = 0; i < node->mutations.size(); ++i) {
+            if (node->mutations[i].ref_nuc != node->mutations[i].mut_nuc) {
+                ret->stack_muts.push_back(node->mutations[i]);
+            }
+        }
+        std::sort(ret->stack_muts.begin(), ret->stack_muts.end());
+
+        for (MAT::Node* child : node->children) {
+            ret->children.emplace_back(from_mat_tree(ret, child, condensed_node_mappings));
+        }
+
+        return ret;
+    }
+
+    int mat_tree_size(MAT::Node *node) {
+        if (!node) return 0;
+        int ret = 1;
+        for (MAT::Node* child: node->children) {
+            ret += mat_tree_size(child);
+        }
+        return ret;
+    }
+
+
+public:
+    /* preprocessing */
+    AuxManager(const MAT::Tree &src, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings, std::vector<read_info*> const& reads) : reads{reads} {
+        /* create auxiliary tree, ensure no reallocations */
+        this->arena.reserve(mat_tree_size(src.root));
+        this->from_mat_tree(nullptr, src.root, condensed_node_mappings);
+        
+        for (size_t i = 0; i < reads.size(); ++i) {
+            std::sort(reads[i]->mutations.begin(), reads[i]->mutations.end());
+            remaining_reads.emplace(i);   
+        }
+
+        /* map entire set of reads onto tree*/
+        this->cartesian_map();
+    }
+    
+    void analyze() {
+        for (;!step(TOP_N);) {
+            fprintf(stderr, "\nRemaining Reads: %d %d\n", (int)remaining_reads.size(), (int) current_nodes.size());
+        }
+    }
+    
+    std::vector<std::string> get_peaks() {
+        return this->peaks;
+    }
+
+};
+
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
@@ -146,22 +615,27 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     MAT::Tree T_condensed;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     
-    //GREEDY ALGORITHM for peak nodes
-    //    1. Place remaining reads on tree
-    //    2. Remove nodes not to be considered (present in Prohibited nodes)
-    //    3. Sort and Find top scoring nodes
-    //    4. Don't consider top scoring nodes in the neighborhood of other top nodes
-    //    5. Remove reads mapped to these nodes
-    //    6. Add neighbors of selected top scoring nodes to Prohibited nodes 
-    
-    
     //Create smaller tree with only sites covered by reads 
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
-    
-    //Initializing remaining_reads
-    for (size_t i = 0; i < read_map.size(); i++)
-        remaining_reads[i] = i;
 
+    // O(NM) algorithm
+    // Preprocessing: 
+    // 1. Place all reads on all nodes, find top nodes
+    // 2. Place all reads on top nodes, find corresponding reads
+    // 3. Place corresponding reads on all nodes
+    // 4. Subtract the contribution of the corresponding reads, repeat step 2
+    // 5. BFS sprawl and remove neighbors
+    std::vector<struct read_info*> read_vector;
+    std::transform(read_map.begin(), read_map.end(), std::back_inserter(read_vector), [](const auto &x) { return x.second; });
+    std::iota(remaining_reads.begin(), remaining_reads.end(), 0);
+
+    std::cout << "Start analysis" << std::endl;
+    AuxManager am{T_condensed, condensed_node_mappings, read_vector};
+    am.analyze();
+    std::vector<std::string> our_peaks = am.get_peaks();
+    std::cout << "End analysis " << timer.Stop() / 1000 << std::endl;
+    
+    std::vector<std::string> ref_peaks;
     //ITERATE till no reads left
     while ((int)remaining_reads.size() > 0) {
         printf("\n");
@@ -171,6 +645,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
             tree_range = std::min(tree_range * 2, (int)ref_seq.size());
         }
         tree_increment = tree_range - tree_overlap;
+        
         //MAP reads to nodes
         placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_reads, curr_peak_nodes, node_score_map, remove_reads, ref_seq.size(), tree_increment, tree_range, false);
         
@@ -189,14 +664,14 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
                 }
             },
         ap);
+        
         //STOP search it no new node found
         if (node_score_map.empty())
             break;
-        
+
         //SORT nodes
         tbb::concurrent_vector<std::pair<MAT::Node*, double>> node_score_vector;
         sortNodeScore(condensed_node_mappings, node_score_map, node_score_vector);
-
         //GET 4*top_n top_score values from node_score_vector into top_n_node_scores
         std::vector<std::pair<MAT::Node*, double>> top_n_node_scores;
         top_n_node_scores.reserve(std::min((4*top_n), (int)node_score_vector.size()));
@@ -223,6 +698,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
             //Proceed further if ref_n_s not in nieghborhood
             curr_peak_nodes.emplace_back(ref_n_s.first);
             auto curr_clade = getLineage(T, condensed_node_mappings[ref_n_s.first].front());
+            ref_peaks.emplace_back(ref_n_s.first->identifier);
             printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             //fprintf(stderr,"PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             if ((++nodes_found) == top_n)
@@ -294,6 +770,20 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         //Clear vectors needed for next iteration
         curr_peak_nodes.clear();
     }
+
+    std::sort(our_peaks.begin(), our_peaks.end());
+    std::sort(ref_peaks.begin(), ref_peaks.end());
+    std::vector<std::string> fake_ours;
+    std::set_difference(our_peaks.begin(), our_peaks.end(), ref_peaks.begin(), ref_peaks.end(), std::back_inserter(fake_ours));
+    for (std::string const& str : fake_ours) {
+        std::cout << "Fake ours " << str << std::endl;
+    }
+    std::vector<std::string> missing_ours;
+    std::set_difference(ref_peaks.begin(), ref_peaks.end(), our_peaks.begin(), our_peaks.end(), std::back_inserter(missing_ours));
+    for (std::string const& str : missing_ours) {
+        std::cout << "Missing ours " << str << std::endl;
+    }
+    exit(1);
 
     fprintf(stderr,"\nRemaining Reads: %d\n", (int)remaining_reads.size());
     remaining_reads.clear();
