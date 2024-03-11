@@ -82,6 +82,12 @@ void SAM::dump_proto(const std::string& filename) {
         dump->set_start_idx(read.start_idx + 1);
         dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
         dump->set_degree(read.degree);
+        dump->set_read(
+            read.raw_name + 
+            "_READ_" + std::to_string(read.start_idx + 1) + 
+            "_" + std::to_string(read.start_idx + 1 + read.aligned_string.size() - 1) + 
+            "_" + std::to_string(read.degree)
+        );
         for (size_t i = 0; i < read.aligned_string.size(); ++i) {
             if (read.aligned_string[i] != reference_seq[read.start_idx + i] && read.aligned_string[i] != '_') {
                 auto mut = dump->add_mutations();
