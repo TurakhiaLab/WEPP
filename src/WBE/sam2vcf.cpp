@@ -73,67 +73,6 @@ SAM::SAM(const std::string& ref) : reference_seq{ref} {
     this->collapsed_frequency_table.resize(ref.size());
 }
 
-void load_reads_from_proto(std::string const& filename, std::unordered_map<size_t, struct read_info *>& reads, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
-    Timer t;
-    t.Start();
-    Sam::sam data;
-
-    boost::iostreams::filtering_istream instream;
-    std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
-    if (filename.find(".gz\0") != std::string::npos) {
-        if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
-            exit(1);
-        }
-        try {
-            instream.push(boost::iostreams::gzip_decompressor());
-            instream.push(inpfile);
-        } catch(const boost::iostreams::gzip_error& e) {
-            std::cout << e.what() << '\n';
-        }
-    } else {
-        instream.push(inpfile);
-    }
-    google::protobuf::io::IstreamInputStream stream(&instream);
-    google::protobuf::io::CodedInputStream input(&stream);
-//    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
-    data.ParseFromCodedStream(&input);
-
-    int read_count = data.reads_size();
-    for (int i = 0; i < read_count; ++i) {
-        struct read_info *out = new read_info{};
-        const auto& curr = data.reads()[i];
-        out->start = curr.start_idx();
-        out->end = curr.end_idx();
-        out->degree = curr.degree();
-        out->read = curr.read();
-        for (int j = 0; j < curr.mutations_size(); ++j) {
-            const auto& mut = curr.mutations()[j];
-            MAT::Mutation mutation;
-            mutation.is_missing = mut.is_missing();
-            mutation.chrom = mut.chrom();
-            mutation.mut_nuc = mut.mut_nuc();
-            mutation.ref_nuc = mut.ref_nuc();
-            mutation.par_nuc = mut.par_nuc();
-            mutation.position = mut.position();
-            out->mutations.push_back(std::move(mutation));
-        }
-
-        reads[i] = out;
-    }
-
-    /* finally, reverse merge table */
-    for (int i = 0; i < data.reverse_columns_size(); ++i) {
-        Sam::column_info const &inv = data.reverse_columns()[i];
-        for (int j = 0; j < inv.input_columns_size(); ++j) {
-            reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
-        }
-    }
-
-    std::cout << "Loaded Reads from protobuffer in " << t.Stop() / 1000 << " seconds \n";
-}
-
-
 void SAM::dump_proto(const std::string& filename) {
     Sam::sam data;
 
