@@ -1291,126 +1291,144 @@ std::vector<MAT::Node*> updateNeighborNodes(const MAT::Tree &T, const std::unord
     std::vector<MAT::Node*> final_neighbors;
     tbb::concurrent_hash_map<MAT::Node*, bool> final_neighbors_map; 
     static tbb::affinity_partitioner ap_outer;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, curr_peak_nodes.size()),
-        [&](tbb::blocked_range<size_t> k) {
-            for (size_t i = 0; i < k.end(); ++i) {
-                std::vector<std::pair<MAT::Node*, double>> potential_neighbor_node_scores;
-                std::vector<MAT::Node*> potential_neighbor_nodes; 
-                std::queue<MAT::Node*> remaining_nodes;
-                std::vector<MAT::Mutation> curr_node_mutations_diff;
-                auto peak = curr_peak_nodes[i];
-                MAT::Node* anc_node = peak;
-                //Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
-                auto ancestor_nodes = T.rsearch(peak->identifier, false);
-                for (int j = 0; j < (int)ancestor_nodes.size(); j++) {
-                    if (!j)
-                        curr_node_mutations_diff = peak->mutations;
-                    else {
-                        for (const auto& curr_mut: ancestor_nodes[j-1]->mutations) {
-                            bool found = false;
-                            for (const auto& ref_mut: curr_node_mutations_diff) {
-                                if (ref_mut.position == curr_mut.position) {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found)
-                                curr_node_mutations_diff.emplace_back(curr_mut);
+    for (size_t i = 0; i < curr_peak_nodes.size(); ++i)
+    {
+        std::vector<std::pair<MAT::Node *, double>> potential_neighbor_node_scores;
+        std::vector<MAT::Node *> potential_neighbor_nodes;
+        std::queue<MAT::Node *> remaining_nodes;
+        std::vector<MAT::Mutation> curr_node_mutations_diff;
+        auto peak = curr_peak_nodes[i];
+        MAT::Node *anc_node = peak;
+        // Find farthest ancestor with mut distance from peak <= neighbor_dist_thresh
+        auto ancestor_nodes = T.rsearch(peak->identifier, false);
+        for (int j = 0; j < (int)ancestor_nodes.size(); j++)
+        {
+            if (!j)
+                curr_node_mutations_diff = peak->mutations;
+            else
+            {
+                for (const auto &curr_mut : ancestor_nodes[j - 1]->mutations)
+                {
+                    bool found = false;
+                    for (const auto &ref_mut : curr_node_mutations_diff)
+                    {
+                        if (ref_mut.position == curr_mut.position)
+                        {
+                            found = true;
+                            break;
                         }
                     }
-                    if ((int)curr_node_mutations_diff.size() <= neighbor_dist_thresh)
-                        anc_node = ancestor_nodes[j];
-                    else
-                        break;
+                    if (!found)
+                        curr_node_mutations_diff.emplace_back(curr_mut);
                 }
-                ancestor_nodes.clear();
-                curr_node_mutations_diff.clear();
+            }
+            if ((int)curr_node_mutations_diff.size() <= neighbor_dist_thresh)
+                anc_node = ancestor_nodes[j];
+            else
+                break;
+        }
+        ancestor_nodes.clear();
+        curr_node_mutations_diff.clear();
 
-                //Adding neighborhood peaks to potential_neighbor_nodes
-                remaining_nodes.push(anc_node);
-                while (remaining_nodes.size() > 0) {
-                    MAT::Node* present_node = remaining_nodes.front();
-                    remaining_nodes.pop();
-                    //Only add if present_node is unique AND mutation distance between peak and present_node <= neighbor_dist_thresh
-                    int m_dist = mutationDistance(T, T, present_node, peak);
-                    if (m_dist <= neighbor_dist_thresh) {
-                        if (m_dist)
-                            potential_neighbor_nodes.emplace_back(present_node);
-                        //ADD present_node's children in list for checking
-                        for (const auto& c: present_node->children)
-                            remaining_nodes.push(c);
-                    }
-                }
-            
-                //Selecting unseen nodes from potential_neighbor_nodes to potential_neighbors_node_score
-                using my_mutex_t = tbb::queuing_mutex;
-                my_mutex_t my_mutex;
-                static tbb::affinity_partitioner ap;
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, potential_neighbor_nodes.size()),
-                    [&](tbb::blocked_range<size_t> l) {
-                        for (size_t j = l.begin(); j < l.end(); ++j) {
-                            auto present_node = potential_neighbor_nodes[j];
-                            //Check if similar present_node NOT already included in curr_peak_nodes, peak_nodes, or neighbor_nodes
-                            bool found = false; int mutations_count = 0;
-                            for (size_t m = 0; m < (curr_peak_nodes.size() + peak_nodes.size() + neighbor_nodes.size()); m++) {
-                                MAT::Node* cmp_node;
-                                if (m < curr_peak_nodes.size())
-                                    cmp_node = curr_peak_nodes[m];
-                                else if (m < (curr_peak_nodes.size() + peak_nodes.size()))
-                                    cmp_node = peak_nodes[m - curr_peak_nodes.size()];
-                                else
-                                    cmp_node = neighbor_nodes[m - curr_peak_nodes.size() - peak_nodes.size()];
-                                if ((cmp_node->parent == present_node->parent) && (cmp_node->mutations.size() == present_node->mutations.size())) {
-                                    for (const auto& p_mut: present_node->mutations) {
-                                        for (const auto& c_mut: cmp_node->mutations) {
-                                            if ((p_mut.position == c_mut.position) && (p_mut.mut_nuc == c_mut.mut_nuc)) {
-                                                mutations_count++;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    if (mutations_count == (int)present_node->mutations.size()) {
-                                        found = true;
+        // Adding neighborhood peaks to potential_neighbor_nodes
+        remaining_nodes.push(anc_node);
+        while (remaining_nodes.size() > 0)
+        {
+            MAT::Node *present_node = remaining_nodes.front();
+            remaining_nodes.pop();
+            // Only add if present_node is unique AND mutation distance between peak and present_node <= neighbor_dist_thresh
+            int m_dist = mutationDistance(T, T, present_node, peak);
+            if (m_dist <= neighbor_dist_thresh)
+            {
+                if (m_dist)
+                    potential_neighbor_nodes.emplace_back(present_node);
+                // ADD present_node's children in list for checking
+                for (const auto &c : present_node->children)
+                    remaining_nodes.push(c);
+            }
+        }
+
+        // Selecting unseen nodes from potential_neighbor_nodes to potential_neighbors_node_score
+        using my_mutex_t = tbb::queuing_mutex;
+        my_mutex_t my_mutex;
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, potential_neighbor_nodes.size()),
+            [&](tbb::blocked_range<size_t> l)
+            {
+                for (size_t j = l.begin(); j < l.end(); ++j)
+                {
+                    auto present_node = potential_neighbor_nodes[j];
+                    // Check if similar present_node NOT already included in curr_peak_nodes, peak_nodes, or neighbor_nodes
+                    bool found = false;
+                    int mutations_count = 0;
+                    for (size_t m = 0; m < (curr_peak_nodes.size() + peak_nodes.size() + neighbor_nodes.size()); m++)
+                    {
+                        MAT::Node *cmp_node;
+                        if (m < curr_peak_nodes.size())
+                            cmp_node = curr_peak_nodes[m];
+                        else if (m < (curr_peak_nodes.size() + peak_nodes.size()))
+                            cmp_node = peak_nodes[m - curr_peak_nodes.size()];
+                        else
+                            cmp_node = neighbor_nodes[m - curr_peak_nodes.size() - peak_nodes.size()];
+                        if ((cmp_node->parent == present_node->parent) && (cmp_node->mutations.size() == present_node->mutations.size()))
+                        {
+                            for (const auto &p_mut : present_node->mutations)
+                            {
+                                for (const auto &c_mut : cmp_node->mutations)
+                                {
+                                    if ((p_mut.position == c_mut.position) && (p_mut.mut_nuc == c_mut.mut_nuc))
+                                    {
+                                        mutations_count++;
                                         break;
                                     }
                                 }
                             }
-                            
-                            //Only ADD if similar node NOT seen before
-                            if (!found) {
-                                tbb::concurrent_hash_map<MAT::Node*, double>::const_accessor k_ac;
-                                if (node_score_map.find(k_ac, present_node)) {
-                                    my_mutex_t::scoped_lock my_lock{my_mutex};
-                                    potential_neighbor_node_scores.emplace_back(std::make_pair(present_node, k_ac->second));
-                                }
+                            if (mutations_count == (int)present_node->mutations.size())
+                            {
+                                found = true;
+                                break;
                             }
                         }
-                    },
-                ap);
-                potential_neighbor_nodes.clear();
-                
-                //SORT potential_neighbor_node_scores
-                tbb::parallel_sort(potential_neighbor_node_scores.begin(), potential_neighbor_node_scores.end(), 
-                     [&condensed_node_mappings](const auto& a, const auto& b) {
-                        return compareNodeScore(condensed_node_mappings, a, b);
-                });
-                
-                //ADD Unique top nodes to final_neighbors
-                int neighbors_added = 0, idx = 0;
-                while (neighbors_added < neighbor_peaks_thresh) {
-                    if (idx == (int)potential_neighbor_node_scores.size())
-                        break;
-                    auto neighbor_node = potential_neighbor_node_scores[idx++].first;
-                    tbb::concurrent_hash_map<MAT::Node*, bool>::accessor ac;
-                    auto created = final_neighbors_map.insert(ac, std::make_pair(neighbor_node, true));
-                    if (created)
-                        neighbors_added++;
-                    ac.release();
+                    }
+
+                    // Only ADD if similar node NOT seen before
+                    if (!found)
+                    {
+                        tbb::concurrent_hash_map<MAT::Node *, double>::const_accessor k_ac;
+                        if (node_score_map.find(k_ac, present_node))
+                        {
+                            my_mutex_t::scoped_lock my_lock{my_mutex};
+                            potential_neighbor_node_scores.emplace_back(std::make_pair(present_node, k_ac->second));
+                        }
+                    }
                 }
-                potential_neighbor_node_scores.clear();
-            }
-        },
-    ap_outer);
+            },
+            ap);
+        potential_neighbor_nodes.clear();
+
+        // SORT potential_neighbor_node_scores
+        tbb::parallel_sort(potential_neighbor_node_scores.begin(), potential_neighbor_node_scores.end(),
+                           [&condensed_node_mappings](const auto &a, const auto &b)
+                           {
+                               return compareNodeScore(condensed_node_mappings, a, b);
+                           });
+
+        // ADD Unique top nodes to final_neighbors
+        int neighbors_added = 0, idx = 0;
+        while (neighbors_added < neighbor_peaks_thresh)
+        {
+            if (idx == (int)potential_neighbor_node_scores.size())
+                break;
+            auto neighbor_node = potential_neighbor_node_scores[idx++].first;
+            tbb::concurrent_hash_map<MAT::Node *, bool>::accessor ac;
+            auto created = final_neighbors_map.insert(ac, std::make_pair(neighbor_node, true));
+            if (created)
+                neighbors_added++;
+            ac.release();
+        }
+        potential_neighbor_node_scores.clear();
+    }
 
     for (const auto& neighbor: final_neighbors_map)
         final_neighbors.emplace_back(neighbor.first);
