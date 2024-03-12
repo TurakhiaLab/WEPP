@@ -56,6 +56,19 @@ struct SAM_read {
     int degree; // how many repeats;
     std::string aligned_string;
 
+    std::string degree_name() const {
+        return raw_name + 
+            "_READ_" + std::to_string(start_idx + 1) + 
+            "_" + std::to_string(start_idx + 1 + aligned_string.size() - 1) + 
+            "_" + std::to_string(degree);
+    }
+
+    std::string degreeless_name() const {
+        return raw_name + 
+            "_READ_" + std::to_string(start_idx + 1) + 
+            "_" + std::to_string(start_idx + 1 + aligned_string.size() - 1); 
+    }
+
     bool operator <(const SAM_read& rhs) {
         if (start_idx != rhs.start_idx) {
             return start_idx < rhs.start_idx;
@@ -147,7 +160,7 @@ void placeReads(const MAT::Tree &, const std::vector<size_t> &, const std::unord
 
 void updateParsimony(struct min_parsimony &, const std::vector<MAT::Mutation> &, const int &);
 
-void analyzeReads(const MAT::Tree &, const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, tbb::concurrent_hash_map<MAT::Node*, double> &, const std::vector<std::string> &, const std::string &, const std::string &, const std::string &);
+void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv);
 
 int mutationDistance(const MAT::Tree &, const MAT::Tree &, const MAT::Node*, const MAT::Node*);
 
