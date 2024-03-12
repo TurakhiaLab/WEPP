@@ -14,8 +14,8 @@ void refinePeaks(po::parsed_options parsed) {
     dir_prefix = path.generic_string();
     dir_prefix += "/";
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
+    std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.pb";
     std::string vcf_filename_samples = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_samples.vcf";
-    std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
     std::string hap_vcf_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotypes.vcf";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
     std::string freyja_lineage_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_freyja_results.csv";
@@ -53,40 +53,14 @@ void refinePeaks(po::parsed_options parsed) {
     std::vector<std::string> vcf_samples;
     std::unordered_map<std::string, double> hap_abun_map, freyja_lineage_abun_map;
     std::vector<MAT::Node*> peak_nodes;
-    std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
+    std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     
     //Compute mutation distance by reading files returned by python code
+    load_reads_from_proto(proto_reads, read_map, reverse_merge);
     readSampleVCF(vcf_samples, vcf_filename_samples);
     readVCF(hap_map, hap_vcf_filename, ref_seq.size());
-    //readCSV(hap_abun_map, hap_csv_filename);
-    readCSV(condensed_nodeNames_map, condensed_nodes_csv);
+    readCSV(hap_abun_map, hap_csv_filename);
     readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
-    readVCF(read_map, vcf_filename_reads, ref_seq.size());
-
-    //UPDATE hap_map if CONDENSED nodes are found
-    std::vector<struct read_info*> uncondensed_nodes;
-    for (size_t i = 0; i < hap_map.size(); i++) {
-        auto hm = hap_map[i];
-        if (hm->read.find("CONDENSED") != std::string::npos) {
-            auto node_names_list = condensed_nodeNames_map[hm->read];
-            for (size_t i = 0 ; i < node_names_list.size(); i++) {
-                auto node_name = node_names_list[i];
-                if (!i) {
-                    hm->read = node_name;
-                }
-                else {
-                    struct read_info* rp = new struct read_info;
-                    rp->read = node_name;
-                    rp->mutations = hm->mutations;
-                    uncondensed_nodes.emplace_back(rp);
-                }
-            }
-        }
-    }
-    //Insert uncondensed nodes in hap_map
-    for (const auto& hap: uncondensed_nodes)
-        hap_map.insert({hap_map.size(), hap});
-    uncondensed_nodes.clear();
 
     //MAP of sites covered by reads
     std::unordered_set<int> site_read_map;
@@ -97,7 +71,7 @@ void refinePeaks(po::parsed_options parsed) {
     }
     
     computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map, site_read_map);
-    //placeReads(T, ref_seq, read_map, hap_map);
+    //placeReads(ref_seq, read_map, hap_map, hap_abun_map);
 }
 
 //Computes distance between peaks and given samples
@@ -118,31 +92,12 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         }
 
         std::string best_node = "";
-        std::vector<MAT::Mutation> best_hap_mutations;
         auto hap_itr = hap_map.begin();
         while (hap_itr != hap_map.end()) {
-            size_t last_underscore = hap_itr->second->read.find_last_of('_');
-            std::string curr_hap_name = hap_itr->second->read.substr(0, last_underscore);
-            while (T.get_node(curr_hap_name) == NULL) {
-                last_underscore = curr_hap_name.find_last_of('_');
-                curr_hap_name = curr_hap_name.substr(0, last_underscore);
-            }
-            //Getting hap_mutations from the Tree
-            auto hap_mutations = getMutations(T, curr_hap_name);
-            //Remove mutations from hap_mutations that are not present in site_read_map
-            auto mut_itr = hap_mutations.begin();
-            while (mut_itr != hap_mutations.end()) {
-                if (site_read_map.find(mut_itr->position) == site_read_map.end())
-                    mut_itr = hap_mutations.erase(mut_itr);
-                else
-                    mut_itr++;
-            }
-
-            int curr_dist = mutationDistance(sample_mutations, hap_mutations);
+            int curr_dist = mutationDistance(sample_mutations, hap_itr->second->mutations);
             if (curr_dist < min_dist) {
                 min_dist = curr_dist;
                 best_node = hap_itr->second->read;
-                best_hap_mutations = hap_mutations;
             }
             hap_itr++;
         }
