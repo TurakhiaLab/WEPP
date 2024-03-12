@@ -139,20 +139,20 @@ void detectPeaks (po::parsed_options parsed) {
 
 constexpr int TOP_N = 25;
 constexpr int TOP_N_EXPANDED_FACTOR = 4;
-constexpr int MAX_NEIGHBORS = 600;
+constexpr int MAX_NEIGHBORS = 100;
 constexpr int MAX_PEAK_PEAK_MUTATION = 1;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
 constexpr int READ_RANGE_INCREMENT = 200;
 constexpr int READ_RANGE_SIZE = 400;
+
 struct AuxNode {
     double score;
+    int leaf_count;
     bool mapped;
-    bool neighbor_mapped;
     /* is there possibly a single nonmapped (or neighor mapped)?
        node in the subtree? */
     bool subtree_alive;
-
     bool is_leaf;
 
     /* children and mutations  */
@@ -206,7 +206,6 @@ struct AuxNode {
         return muts;
     }
 
-    /* optimized version */
     int mutation_distance(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
         return mutations(comp, min_pos, max_pos).size();
     }
@@ -222,15 +221,38 @@ struct AuxNode {
     }
 };
 
-template <class T=std::less<double>>
-struct AuxComparator {
+struct ScoreComparator {
     bool operator() (AuxNode* const& left, AuxNode* const& right) const {
-        if (left->score != right->score)
-            return T()(left->score, right->score);
-        else 
-            return left < right;
+        if (abs(left->score - right->score) > 1e-6) {
+            return left->score > right->score;
+        }
+        else if (left->leaf_count != right->leaf_count) {
+            return left->leaf_count > right->leaf_count;
+        }
+        else {
+            return left->id > right->id;
+        }
     }
 };
+
+struct MutationComparator {
+    bool operator() (AuxNode* const& left, AuxNode* const& right) const {
+        if (left->stack_muts.size() != right->stack_muts.size()) {
+            return left->stack_muts.size() < right->stack_muts.size();
+        }  
+        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
+            if (left->stack_muts[i].position != right->stack_muts[i].position) {
+                return left->stack_muts[i].position < right->stack_muts[i].position;
+            }
+            else if (left->stack_muts[i].mut_nuc != right->stack_muts[i].mut_nuc) {
+                return left->stack_muts[i].mut_nuc < right->stack_muts[i].mut_nuc;
+            }
+        }
+
+        return false;
+    }
+};
+
 /* slightly larger than O(NM) */
 class AuxManager
 {
@@ -245,13 +267,15 @@ class AuxManager
     std::vector<std::set<int>> epp_positions_cache;
     
     /* mappable nodes based on their scores */
-    std::set<AuxNode*, AuxComparator<std::greater<double>>> current_nodes;
+    std::set<AuxNode*, ScoreComparator> current_nodes;
 
     /* indices of unmapped reads */
     std::set<int> remaining_reads;
 
     /* map of read_index to built */
     std::map<int, AuxNode*> correspondence;
+
+    std::set<AuxNode*, MutationComparator> selected_peaks, selected_neighbors;
 
     /* can only map if one or mutation positions was removed */
     /* (even if total size increases) */
@@ -281,7 +305,7 @@ class AuxManager
         if (!curr->subtree_alive) {
             return false;
         }
-        else if (!curr->mapped && !curr->neighbor_mapped) {
+        else if (!curr->mapped) {
             /* map self */
             // this basically ensures semantics are the exact same
             // as the previous algorithm
@@ -306,7 +330,7 @@ class AuxManager
             }
         }
 
-        bool any_alive = !curr->mapped && !curr->neighbor_mapped;
+        bool any_alive = !curr->mapped;
         for (AuxNode *child: curr->children) {
             any_alive |= single_read_tree(child, my_locations, read, max_indices, max_val);
         }
@@ -357,7 +381,6 @@ class AuxManager
                 /* cached and not found */
                 continue;
             }
-            // TODO
             else {
                 struct read_info *r = this->reads[read];
                 std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
@@ -398,19 +421,20 @@ class AuxManager
         double const delta = (double) reads[index]->degree / std::log2(1 + parsimony_multiplicity[index]);
         for (int arena_index: (*epps)) {
             AuxNode *node = &arena[arena_index];
-            if (node->mapped || node->neighbor_mapped) {
+            if (node->mapped) {
                 continue;
             }
             this->current_nodes.erase(node);
             node->score -= delta;
-            this->current_nodes.insert(node);
+            if (node->score > 1e-6) {
+                this->current_nodes.insert(node);
+            }
         }
         this->remaining_reads.erase(index);
     }
 
     void singular_step(AuxNode* node) {
-        assert(!node->neighbor_mapped && !node->mapped);
-        std::cout << "Our selected peak " << node->id << " (score: " << node->score << ") reads: " << remaining_reads.size() << std::endl;
+        assert(!node->mapped);
         
         /* 1. map remaining reads onto this node (finding correspondents) */
         std::vector<int> correspondents = find_correspondents(node);
@@ -430,58 +454,78 @@ class AuxManager
          return a->mutation_distance(b) > MAX_PEAK_PEAK_MUTATION;
     }
 
-    bool dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, AuxComparator<>>& s) {
+
+    bool dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, ScoreComparator>& s, int radius) {
         if (!curr || !curr->subtree_alive) {
             return false;
         }
-        else if (pivot->mutation_distance(curr) > MAX_PEAK_NONPEAK_MUTATION) {
+        else if (pivot->mutation_distance(curr) > radius) {
             return curr->subtree_alive;
         }
 
         bool alive = false;
-        if (!curr->mapped && !curr->neighbor_mapped) {
+        if (!curr->mapped) {
             s.insert(curr);
             alive = true;
         }
 
         for (AuxNode* child: curr->children) {
-            alive |= dfs_possible_neighbors(pivot, child, s);
+            alive |= dfs_possible_neighbors(pivot, child, s, radius);
         }
 
         return curr->subtree_alive = alive;
     }
 
-    void possible_neighbors(AuxNode* pivot, std::set<AuxNode*, AuxComparator<>>& s) {
+    void possible_neighbors(AuxNode* pivot, std::set<AuxNode*, ScoreComparator>& s, int radius) {
         AuxNode *curr = pivot;
-        while (curr->parent && pivot->mutation_distance(curr->parent) <= MAX_PEAK_NONPEAK_MUTATION) {
+        while (curr->parent && pivot->mutation_distance(curr->parent) <= radius) {
             curr = curr->parent;
         }
 
-        dfs_possible_neighbors(pivot, curr, s);
+        dfs_possible_neighbors(pivot, curr, s, radius);
     }
 
     /* clears neighbors (and self) from map */
     void clear_neighbors(std::vector<AuxNode*> &nodes) {
         for (AuxNode* const& n: nodes) {
-            n->mapped = true;
             current_nodes.erase(n);
+            selected_peaks.insert(n);
         }
 
+        std::vector<AuxNode*> added;
         /* candidates */
-        std::set<AuxNode*, AuxComparator<>> multisource_radius;
         for (AuxNode *pivot: nodes) {
-            possible_neighbors(pivot, multisource_radius);
-        }
+            std::set<AuxNode*, ScoreComparator> multisource_radius;
+            possible_neighbors(pivot, multisource_radius, MAX_PEAK_NONPEAK_MUTATION);
 
-        for (int i = 0; AuxNode* node: multisource_radius) {
-            if (!node->mapped && !node->neighbor_mapped) {
-                node->neighbor_mapped = true;
-                current_nodes.erase(node);
-                if (++i == MAX_NEIGHBORS) {
-                    break;
+            int i = 0;
+            for (AuxNode * node : multisource_radius)
+            {
+                bool const found = selected_peaks.find(node) != selected_peaks.end() || selected_neighbors.find(node) != selected_neighbors.end();
+                if (!found) {
+                    node->mapped = true;
+                    current_nodes.erase(node);
+                    added.emplace_back(node);
+                    if (++i == MAX_NEIGHBORS)
+                    {
+                        break;
+                    }
                 }
             }
         }
+
+        for (AuxNode *pivot: nodes) {
+            std::set<AuxNode*, ScoreComparator> multisource_radius;
+            possible_neighbors(pivot, multisource_radius, MAX_PEAK_PEAK_MUTATION);
+
+            for (AuxNode * node : multisource_radius)
+            {
+                node->mapped = true;
+                current_nodes.erase(node);
+            }
+        }
+
+        selected_neighbors.insert(added.begin(), added.end());
     }
 
     /* matches currently top_n nodes with their reads */
@@ -496,14 +540,14 @@ class AuxManager
         auto it = current_nodes.begin();
         double const min_score = (*it)->score;
 
-        if (min_score < 1e-9) {
+        if (min_score < 1e-6) {
             return true;
         }
 
         for (int i = 0; 
                 i < top_n * TOP_N_EXPANDED_FACTOR && 
                 it != current_nodes.end() && 
-                abs((*it)->score - min_score) < 1e-9 &&
+                abs((*it)->score - min_score) < 1e-6 &&
                 consideration.size() < (size_t) top_n; 
             ++i, ++it) 
         {
@@ -516,13 +560,16 @@ class AuxManager
 
             if (valid) {
                 consideration.push_back(*it);
+                (*it)->mapped = true;
+                printf("%.9f id: %s\n", (*it)->score, (*it)->id.c_str());
             }
-        }
-        for (AuxNode *&node: consideration) {
-            this->singular_step(node);
         }
 
         this->clear_neighbors(consideration);
+        
+        for (AuxNode *&node: consideration) {
+            this->singular_step(node);
+        }
 
         return remaining_reads.empty() || current_nodes.empty();
     }
@@ -531,13 +578,14 @@ class AuxManager
         this->arena.emplace_back();
         AuxNode *ret = &this->arena.back();
         ret->parent = parent;
-        ret->mapped = ret->neighbor_mapped = false;
+        ret->mapped = false;
         ret->subtree_alive = true;
         ret->is_leaf = condensed_node_mappings.at(node).front()->is_leaf(); 
         ret->score = 0;
         ret->muts = node->mutations;
         ret->stack_muts = {};
         ret->id = node->identifier;
+        ret->leaf_count = getNumLeaves(condensed_node_mappings, node);
         if (parent) {
             for (const MAT::Mutation &mut : parent->stack_muts)
             {
@@ -554,7 +602,7 @@ class AuxManager
             }
         }
         /* maybe rewinded mutation back to original */
-        for (int i = 0; i < node->mutations.size(); ++i) {
+        for (size_t i = 0; i < node->mutations.size(); ++i) {
             if (node->mutations[i].ref_nuc != node->mutations[i].mut_nuc) {
                 ret->stack_muts.push_back(node->mutations[i]);
             }
@@ -562,7 +610,8 @@ class AuxManager
         std::sort(ret->stack_muts.begin(), ret->stack_muts.end());
 
         for (MAT::Node* child : node->children) {
-            ret->children.emplace_back(from_mat_tree(ret, child, condensed_node_mappings));
+            AuxNode *curr = from_mat_tree(ret, child, condensed_node_mappings); 
+            ret->children.emplace_back(curr);
         }
 
         return ret;
@@ -576,7 +625,6 @@ class AuxManager
         }
         return ret;
     }
-
 
 public:
     /* preprocessing */
@@ -596,19 +644,25 @@ public:
     
     void analyze() {
         for (;!step(TOP_N);) {
-            fprintf(stderr, "\nRemaining Reads: %d %d\n", (int)remaining_reads.size(), (int) current_nodes.size());
+            printf("\n");
         }
     }
     
     std::vector<std::string> get_peaks() {
         return this->peaks;
     }
-
 };
 
 //Main peak search algorithm
-void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
+void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
+    /*
+    int max_del = read_map.size();
+    for (int i = 100; i < max_del; ++i) {
+        read_map.erase(i);
+    }
+    */
+
     int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_increment, tree_range = 600, tree_overlap = 200, range_factor = 1;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
@@ -680,7 +734,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         for (int i = 0; i < std::min((4*top_n), (int)node_score_vector.size()); ++i) {
             auto n_s = node_score_vector[i];
             //Only consider 4*top_n nodes that have score equal to top node
-            if (abs(top_score - n_s.second) < 1e-9)  
+            if (abs(top_score - n_s.second) < 1e-6)  
                 top_n_node_scores.emplace_back(n_s);
             else 
                 break;
@@ -699,7 +753,8 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
             curr_peak_nodes.emplace_back(ref_n_s.first);
             auto curr_clade = getLineage(T, condensed_node_mappings[ref_n_s.first].front());
             ref_peaks.emplace_back(ref_n_s.first->identifier);
-            printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
+            printf("%.9f id: %s\n", ref_n_s.second, ref_n_s.first->identifier.c_str());
+            // printf("PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             //fprintf(stderr,"PEAK: %s, Score: %f, Clade:%s, reads: %d\n",ref_n_s.first->identifier.c_str(), ref_n_s.second, curr_clade.c_str(), (int)remaining_reads.size());
             if ((++nodes_found) == top_n)
                 break;
