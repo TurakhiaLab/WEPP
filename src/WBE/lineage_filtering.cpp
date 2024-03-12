@@ -14,8 +14,7 @@ void filterLineages (po::parsed_options parsed) {
     dir_prefix = path.generic_string();
     dir_prefix += "/";
     std::string input_mat_filename = dir_prefix + vm["input-mat"].as<std::string>();
-    std::string vcf_filename_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.vcf";
-    std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_sam.pb";
+    std::string proto_reads = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.pb";
     std::string hap_csv_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotype_abundance.csv";
     std::string hap_vcf_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_haplotypes.vcf";
     std::string barcode_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_barcode.csv";
@@ -54,10 +53,9 @@ void filterLineages (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     load_reads_from_proto(proto_reads, read_map, reverse_merge);
-    // readVCF(read_map, vcf_filename_reads, ref_seq.size());
 
     //Get the curr_peak_nodes
-    int tree_range = 600, tree_increment = 400, node_lim = 5, prohibited_dist_thresh = 3;
+    int tree_increment, tree_range = 600, tree_overlap = 200, node_lim = 5, prohibited_dist_thresh = 3;
     MAT::Tree T_condensed;
     std::vector<MAT::Node*> curr_peak_nodes;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
@@ -76,6 +74,7 @@ void filterLineages (po::parsed_options parsed) {
     for (size_t i = 0; i < read_map.size(); i++)
         remaining_read_ids[i] = i;
 
+    tree_increment = tree_range - tree_overlap;
     placeReadHelper(T_condensed.root, condensed_node_mappings, read_map, remaining_read_ids, curr_peak_nodes, node_score_map, remove_read_ids, ref_seq.size(), tree_increment, tree_range, true);
     fprintf(stderr, "Read mapping completed in %ld min \n\n", (timer.Stop() / (60 * 1000)));
     
