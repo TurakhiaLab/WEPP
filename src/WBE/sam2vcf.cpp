@@ -184,7 +184,8 @@ void SAM::add_read(const std::string& line) {
                 ins_count += cig_len;
                 /* build stays the same*/
                 break;
-
+            case 'S': case 'H':
+                
             case 'D':
                 // Deletion at pos 1 requires alt_nuc at pos 1 after the ref_nuc
                 if (nuc_pos == 1)

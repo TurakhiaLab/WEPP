@@ -8,7 +8,7 @@ constexpr int MAX_PEAK_PEAK_MUTATION = 1;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
 
-void detectPeaks (po::parsed_options parsed) {
+void detectPeaks(po::parsed_options parsed) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
     std::string dir_prefix = vm["output-directory"].as<std::string>();
@@ -350,28 +350,38 @@ class AuxManager
 
     /* map all reads to all nodes, maintaining caches if not too large */
     void cartesian_map() {
+        using my_mutex_t = tbb::queuing_mutex;
+        my_mutex_t my_mutex;
+
         std::vector<int> empty_mutation_list;
-        for (size_t r = 0; r < reads.size(); ++r) {
-            std::set<int> max_indices;
-            int max_val = INT32_MAX; /* really want minimum value */
+        
+        epp_positions_cache.resize(reads.size());
+        max_parismony.resize(reads.size());
+        parsimony_multiplicity.resize(reads.size());
 
-            single_read_tree(&arena[0], empty_mutation_list, reads[r], max_indices, max_val);
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), 
+            [&](tbb::blocked_range<size_t> k) {
+            for (size_t r = k.begin(); r != k.end(); ++r) {
+                std::set<int> max_indices;
+                int max_val = INT32_MAX; /* really want minimum value */
 
-            double const delta = (double) reads[r]->degree / std::log2(1 + max_indices.size());
-            for (int arena_index: max_indices) {
-                arena[arena_index].score += delta;
-            }
+                single_read_tree(&arena[0], empty_mutation_list, reads[r], max_indices, max_val);
 
-            this->max_parismony.emplace_back(max_val);
-            this->parsimony_multiplicity.emplace_back(max_indices.size());
-            
-            if (max_indices.size() <= MAX_CACHED_MULTIPLICITY_SIZE) {
-                this->epp_positions_cache.emplace_back(std::move(max_indices));
+                double const delta = (double) reads[r]->degree / std::log2(1 + max_indices.size());
+                {
+                    my_mutex_t::scoped_lock my_lock{my_mutex};
+                    for (int arena_index: max_indices) {
+                        arena[arena_index].score += delta;
+                    }
+                }
+
+                this->max_parismony[r] = max_val;
+                this->parsimony_multiplicity[r] = max_indices.size();
+                if (max_indices.size() <= MAX_CACHED_MULTIPLICITY_SIZE) {
+                    this->epp_positions_cache[r] = std::move(max_indices);
+                }
             }
-            else {
-                this->epp_positions_cache.emplace_back();
-            }
-        }
+        });
 
         for (size_t i = 0; i < arena.size(); ++i) {
             this->current_nodes.insert(&arena[i]);
