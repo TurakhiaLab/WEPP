@@ -7,6 +7,7 @@ constexpr int MAX_NEIGHBORS = 100;
 constexpr int MAX_PEAK_PEAK_MUTATION = 1;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
+constexpr int PARALLEL_READS_THRESHOLD = 256;
 
 void detectPeaks(po::parsed_options parsed) {
     //main argument for the complex extract command
@@ -389,33 +390,75 @@ class AuxManager
     }
 
     /* find all current reads that map to this node */
+    // a bit annoying that there's duplicate code
     std::vector<int> find_correspondents(AuxNode *node) {
         int const arena_index = node - &arena[0];
         std::vector<int> correspondents;
 
-        for (int read: this->remaining_reads) {
-            if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
-                correspondents.push_back(read); 
-            }
-            else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
-                /* cached and not found */
-                continue;
-            }
-            else {
-                struct read_info *r = this->reads[read];
-                std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
-                std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
+        using my_mutex_t = tbb::queuing_mutex;
+        my_mutex_t my_mutex;
 
-                int parsimony, reductions = mutation_reductions(parent, ours);
-                if (reductions) {
-                    parsimony = parent.size() - reductions;
+        // if large enough, parallelize
+        if (remaining_reads.size() >= PARALLEL_READS_THRESHOLD) {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> r) {
+                for (size_t read = r.begin(); read != r.end(); ++read) {
+                    if (this->remaining_reads.find(read) != this->remaining_reads.end()) {
+                        if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
+                            my_mutex_t::scoped_lock lock{my_mutex};
+                            correspondents.push_back(read); 
+                        }
+                        else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
+                            /* cached and not found */
+                            continue;
+                        }
+                        else {
+                            struct read_info *r = this->reads[read];
+                            std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
+                            std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
+
+                            int parsimony, reductions = mutation_reductions(parent, ours);
+                            if (reductions) {
+                                parsimony = parent.size() - reductions;
+                            }
+                            else {
+                                parsimony = ours.size();
+                            }
+                            
+                            if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
+                                my_mutex_t::scoped_lock lock{my_mutex};
+                                correspondents.push_back(read);
+                            }
+                        }
+                    }
+                }
+            });
+            std::sort(correspondents.begin(), correspondents.end());
+        }
+        else {
+            for (int read: this->remaining_reads) {
+                if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
+                    correspondents.push_back(read); 
+                }
+                else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
+                    /* cached and not found */
+                    continue;
                 }
                 else {
-                    parsimony = ours.size();
-                }
-                
-                if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
-                    correspondents.push_back(read);
+                    struct read_info *r = this->reads[read];
+                    std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
+                    std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
+
+                    int parsimony, reductions = mutation_reductions(parent, ours);
+                    if (reductions) {
+                        parsimony = parent.size() - reductions;
+                    }
+                    else {
+                        parsimony = ours.size();
+                    }
+                    
+                    if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
+                        correspondents.push_back(read);
+                    }
                 }
             }
         }
