@@ -7,7 +7,6 @@ constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
 const std::string CHROM = "NC_045512v2";
-
 void sam2VCF(po::parsed_options parsed) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
@@ -82,12 +81,7 @@ void SAM::dump_proto(const std::string& filename) {
         dump->set_start_idx(read.start_idx + 1);
         dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
         dump->set_degree(read.degree);
-        dump->set_read(
-            read.raw_name + 
-            "_READ_" + std::to_string(read.start_idx + 1) + 
-            "_" + std::to_string(read.start_idx + 1 + read.aligned_string.size() - 1) + 
-            "_" + std::to_string(read.degree)
-        );
+        dump->set_read(read.degree_name());
         for (size_t i = 0; i < read.aligned_string.size(); ++i) {
             if (read.aligned_string[i] != reference_seq[read.start_idx + i] && read.aligned_string[i] != '_') {
                 auto mut = dump->add_mutations();
@@ -191,7 +185,8 @@ void SAM::add_read(const std::string& line) {
                 ins_count += cig_len;
                 /* build stays the same*/
                 break;
-
+            case 'S': case 'H':
+                
             case 'D':
                 // Deletion at pos 1 requires alt_nuc at pos 1 after the ref_nuc
                 if (nuc_pos == 1)
@@ -308,10 +303,7 @@ void SAM::merge_duplicates() {
     /* create reverse table */
     int reverse = 0;
     for (const auto& merge: merged) {
-        std::string generated = merge.raw_name + 
-            "_READ_" + std::to_string(merge.start_idx + 1) + 
-            "_" + std::to_string(merge.start_idx + 1 + merge.aligned_string.size() - 1) + 
-            "_" + std::to_string(merge.degree);
+        std::string generated = merge.degree_name();
 
         for (int j = 0; j < merge.degree; ++j) {
             this->reverse_merge[generated].push_back(aligned_reads[j + reverse].raw_name);
@@ -343,9 +335,7 @@ void SAM::build() {
     }
     else {
         for (const auto& col: aligned_reads) {
-            std::string const col_name = col.raw_name + "_READ_" 
-                + std::to_string(col.start_idx + 1) + "_"
-                + std::to_string(col.start_idx + 1 + col.aligned_string.size() - 1);
+            std::string const col_name = col.degreeless_name();
             reverse_merge[col_name] = std::vector<std::string>{col.raw_name};
         }
     }
