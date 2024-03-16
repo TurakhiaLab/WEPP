@@ -725,66 +725,56 @@ std::string getLineage(const MAT::Tree &T, MAT::Node* n) {
 
 //Function to calculation distance between two nodes
 int mutationDistance(const MAT::Tree &T1, const MAT::Tree &T2, const MAT::Node* N1, const MAT::Node* N2) {
+    std::vector<MAT::Node*> node1_ancestor, node2_ancestor;
     std::vector<MAT::Mutation> node1_mutations, node2_mutations;
-    //Checking all ancestors of a node
-    for (auto anc: T1.rsearch(N1->identifier, true)) { 
-        for (auto mut: anc->mutations) {
-            //If mutation at same position is seen closer to leaf then consider that mutation
-            auto n1_itr = node1_mutations.begin();
-            while (n1_itr != node1_mutations.end()) {
-                if (n1_itr->position == mut.position)
-                    break;
-                n1_itr++;
-            }
-            if (n1_itr == node1_mutations.end())
-                node1_mutations.emplace_back(mut);
-        }
-    }
-    //Checking all ancestors of a node
-    for (auto anc: T2.rsearch(N2->identifier, true)) { 
-        for (auto mut: anc->mutations) {
-            //If mutation at same position is seen closer to leaf then consider that mutation
-            auto n2_itr = node2_mutations.begin();
-            while (n2_itr != node2_mutations.end()) {
-                if (n2_itr->position == mut.position)
-                    break;
-                n2_itr++;
-            }
-            if (n2_itr == node2_mutations.end())
-                node2_mutations.emplace_back(mut);
-        }
-    }
-    //Remove Back Mutations -> mutations with same ref_nuc and mut_nuc
-    auto n1_itr = node1_mutations.begin();
-    while (n1_itr != node1_mutations.end()) {
-        if (n1_itr->ref_nuc == n1_itr->mut_nuc)
-            n1_itr = node1_mutations.erase(n1_itr);
-        else
-            n1_itr++;
-    }
-    auto n2_itr = node2_mutations.begin();
-    while (n2_itr != node2_mutations.end()) {
-        if (n2_itr->ref_nuc == n2_itr->mut_nuc)
-            n2_itr = node2_mutations.erase(n2_itr);
-        else
-            n2_itr++;
-    }
-    
-    // backtraking to the lowest common ancestor
-    auto n1_it = node1_mutations.rbegin();
-    auto n2_it = node2_mutations.rbegin();
-    while (n1_it != node1_mutations.rend() && n2_it != node2_mutations.rend() &&
-            n1_it->mut_nuc == n2_it->mut_nuc && n1_it->position == n2_it->position) {
+    node1_ancestor = T1.rsearch(N1->identifier, true);
+    node2_ancestor = T2.rsearch(N2->identifier, true);
+    const MAT::Node* common_ancestor = nullptr;
+    auto n1_it = node1_ancestor.rbegin();
+    auto n2_it = node2_ancestor.rbegin();
+    while (n1_it != node1_ancestor.rend() && n2_it != node2_ancestor.rend() && *n1_it == *n2_it) {
+        common_ancestor = *n1_it;
         ++n1_it;
         ++n2_it;
     }
-    node1_mutations.erase(n1_it.base(), node1_mutations.end());
-    node2_mutations.erase(n2_it.base(), node2_mutations.end());
-
-    //Sort the mutations to find difference between node1_mutations and node2_mutations faster
+    for (const auto &anc: node1_ancestor) {
+        if (anc == common_ancestor) 
+            break;
+        for (const auto &mut : anc->mutations) {
+            auto it = std::find_if(node1_mutations.begin(), node1_mutations.end(),
+                                   [&mut](const MAT::Mutation &m) { return m.position == mut.position; });
+            if (it == node1_mutations.end())
+                node1_mutations.emplace_back(mut);
+            else
+                it->par_nuc = mut.par_nuc; // Update the par_nuc if the mutation is found again
+        }
+    }
+    for (auto anc : node2_ancestor) {
+        if (anc == common_ancestor) break;
+        for (auto &mut : anc->mutations) {
+            auto it = std::find_if(node2_mutations.begin(), node2_mutations.end(),
+                                   [&mut](const MAT::Mutation &m) { return m.position == mut.position; });
+            if (it == node2_mutations.end())
+                node2_mutations.emplace_back(mut);
+            else
+                it->par_nuc = mut.par_nuc; // Update the par_nuc if the mutation is found again
+        }
+    }
+    // Remove mutations where par_nuc and mut_nuc are the same
+    auto remove_same_mutations = [](std::vector<MAT::Mutation>& mutations) {
+        auto itr = mutations.begin();
+        while (itr != mutations.end()) {
+            if (itr->par_nuc == itr->mut_nuc)
+                itr = mutations.erase(itr);
+            else
+                ++itr;
+        }
+    };
+    remove_same_mutations(node1_mutations);
+    remove_same_mutations(node2_mutations);
+    // Sort the mutations to find difference between node1_mutations and node2_mutations faster
     tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
     tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-
     auto n1_iterator = node1_mutations.begin();
     auto n2_iterator = node2_mutations.begin();
     int distance = 0;
@@ -803,10 +793,8 @@ int mutationDistance(const MAT::Tree &T1, const MAT::Tree &T2, const MAT::Node* 
             n2_iterator++;
         }
     }
-
     distance += std::distance(n1_iterator, node1_mutations.end());
     distance += std::distance(n2_iterator, node2_mutations.end());
-
     return distance;
 }
 
@@ -1003,7 +991,7 @@ void createRangeTree(MAT::Node* ref_root, const std::unordered_map<MAT::Node*, s
                 remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, n_parent_node));
         }
         //Without any mutation, can only be Placed as a child if r_curr_node is NOT leaf node
-        else if (!condensed_node_mappings.find(r_curr_node)->second.front()->is_leaf()) {
+        else if (condensed_node_mappings.find(r_curr_node)->second.front()->children.size()) {
             //Add current_node to the n_parent_node's list in node_mappings
             node_mappings[n_parent_node].emplace_back(r_curr_node);
             //Add children to remaining_nodes    
@@ -1133,7 +1121,7 @@ void createCondensedTree(MAT::Node* ref_root, const std::unordered_map<size_t, s
                 remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
         }
         //Without any mutation, can only be Placed as a child if r_curr_node is NOT leaf node
-        else if (!r_curr_node->is_leaf()) {
+        else if (r_curr_node->children.size()) {
             //Add current_node to the n_parent_node's list in node_mappings
             node_mappings[n_parent_node].emplace_back(r_curr_node);
             //Add children to remaining_nodes    
@@ -1868,9 +1856,40 @@ void generateFilteringData(const MAT::Tree &T_orig, const MAT::Tree &T, const st
 }
 
 //Map reads to haplotypes
-void placeReads(const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*>& read_map, const std::unordered_map<size_t, struct read_info*>& hap_map, const std::unordered_map<std::string, double>& hap_abun_map) {
+void placeReads(const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*>& read_map, const std::unordered_map<size_t, struct read_info*>& hap_map, const std::unordered_map<std::string, double>& hap_abun_map, const std::vector<std::string> &vcf_samples, const std::unordered_set<int> &site_read_map) {
+    //COMPUTING ref_mutation distance
+    std::vector<std::vector<MAT::Mutation>> sample_mutations_list;
+    std::vector<int> ref_mut_distance;
+    for (auto sample: vcf_samples) {
+        int min_dist = 100000;
+        auto sample_mutations = getMutations(T, sample);
+        //Remove mutations from sample_mutations that are not present in site_read_map
+        auto mut_itr = sample_mutations.begin();
+        while (mut_itr != sample_mutations.end()) {
+            if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                mut_itr = sample_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        sample_mutations_list.emplace_back(sample_mutations);
+
+        auto hap_itr = hap_map.begin();
+        while (hap_itr != hap_map.end()) {
+            int curr_dist = mutationDistance(sample_mutations, hap_itr->second->mutations);
+            if (curr_dist < min_dist) {
+                min_dist = curr_dist;
+            }
+            hap_itr++;
+        }
+        ref_mut_distance.emplace_back(min_dist);
+        sample_mutations.clear();
+    }
+    ////////////////////////////////////////////////
+
+    std::vector<double> allele_threshold_list = {0.9,0.8,0.7,0.6,0.5,0.4};
     tbb::concurrent_hash_map<std::string, std::vector<size_t>> hap_read_map;
-    double allele_threshold = 0.9;
+    
+    //Read to haplotype mapping
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, read_map.size()),
         [&](tbb::blocked_range<size_t> k) {
@@ -1944,12 +1963,13 @@ void placeReads(const std::string &ref_seq, const std::unordered_map<size_t, str
         },
     ap);
 
-    //Check mutation region of each haplotype
+    //Check mutation region of EACH haplotype
     auto hrm_itr = hap_read_map.begin();
     while (hrm_itr != hap_read_map.end()) {
+        //CREATE local_site_reads_map
+        std::unordered_map<int, std::vector<std::pair<char, size_t>>> local_site_reads_map;
+        std::vector<MAT::Mutation> mismatched_mutations, hap_mutations;
         size_t avg_read_depth = 0;
-        //CREATE site_reads_map
-        std::unordered_map<int, std::vector<std::pair<char, size_t>>> site_reads_map;
         for (const auto& r_idx: hrm_itr->second) {
             auto rp = read_map.find(r_idx)->second;
             auto nuc_pos = rp->start;
@@ -1957,108 +1977,171 @@ void placeReads(const std::string &ref_seq, const std::unordered_map<size_t, str
                 //Store the coverage of nucleotides leading up to the mutating nucleotide
                 while (nuc_pos < mut.position) {
                     char curr_nuc = ref_seq[nuc_pos-1];
-                    if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-                        site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                    if (local_site_reads_map.find(nuc_pos) == local_site_reads_map.end()) 
+                        local_site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
                     else {
                         bool found = false;
-                        for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-                            if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-                                site_reads_map[nuc_pos][vec_idx].second++;
+                        for (size_t vec_idx = 0; vec_idx < local_site_reads_map[nuc_pos].size(); vec_idx++) {
+                            if (local_site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                                local_site_reads_map[nuc_pos][vec_idx].second++;
                                 found = true;
                                 break;
                             }
                         }
                         if (!found)
-                            site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+                            local_site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
                     }
                     nuc_pos++;
                 }
                 //Store the coverage of mutating nucleotide
                 char curr_nuc = MAT::get_nuc(mut.mut_nuc);
-                if (site_reads_map.find(mut.position) == site_reads_map.end()) 
-                    site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                if (local_site_reads_map.find(mut.position) == local_site_reads_map.end()) 
+                    local_site_reads_map.insert(std::make_pair(mut.position, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
                 else {
                     bool found = false;
-                    for (size_t vec_idx = 0; vec_idx < site_reads_map[mut.position].size(); vec_idx++) {
-                        if (site_reads_map[mut.position][vec_idx].first == curr_nuc) {
-                            site_reads_map[mut.position][vec_idx].second++;
+                    for (size_t vec_idx = 0; vec_idx < local_site_reads_map[mut.position].size(); vec_idx++) {
+                        if (local_site_reads_map[mut.position][vec_idx].first == curr_nuc) {
+                            local_site_reads_map[mut.position][vec_idx].second++;
                             found = true;
                             break;
                         }
                     }
                     if (!found)
-                        site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
+                        local_site_reads_map[mut.position].emplace_back(std::make_pair(curr_nuc, 1));
                 }
                 nuc_pos++;
             }
             //Store the coverage of nucleotide remaining after mutating ones
             while (nuc_pos <= rp->end) {
                 char curr_nuc = ref_seq[nuc_pos-1]; 
-                if (site_reads_map.find(nuc_pos) == site_reads_map.end()) 
-                    site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
+                if (local_site_reads_map.find(nuc_pos) == local_site_reads_map.end()) 
+                    local_site_reads_map.insert(std::make_pair(nuc_pos, std::vector<std::pair<char, size_t>>(1, {curr_nuc, 1})));
                 else {
                     bool found = false;
-                    for (size_t vec_idx = 0; vec_idx < site_reads_map[nuc_pos].size(); vec_idx++) {
-                        if (site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
-                            site_reads_map[nuc_pos][vec_idx].second++;
+                    for (size_t vec_idx = 0; vec_idx < local_site_reads_map[nuc_pos].size(); vec_idx++) {
+                        if (local_site_reads_map[nuc_pos][vec_idx].first == curr_nuc) {
+                            local_site_reads_map[nuc_pos][vec_idx].second++;
                             found = true;
                             break;
                         }
                     }
                     if (!found)
-                        site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
+                        local_site_reads_map[nuc_pos].emplace_back(std::make_pair(curr_nuc, 1));
                 }
                 nuc_pos++;
             }
         }
 
-        //COMPUTE avg_read_depth 
-        for (const auto& sr: site_reads_map) {
-            for (const auto& mut_count: sr.second)
-                avg_read_depth += mut_count.second;
-        }
-        avg_read_depth /= site_reads_map.size();
-    
-        //ANALYZE haplotype mutations
-        std::vector<MAT::Mutation> hap_mutations;
+        //Get haplotype mutations
         for (auto const& hr: hap_map) {
             if (hr.second->read == hrm_itr->first) {
                 hap_mutations = hr.second->mutations;
                 break;
             }
         }
-        for (const auto& sr: site_reads_map) {
-            size_t read_depth = 0;
-            bool found = false;
-            char hap_nuc;
-            //Check if hap mutation present at the site
-            for (const auto& hap_mut: hap_mutations) {
-                if (hap_mut.position == sr.first) {
-                    found = true;
-                    hap_nuc = MAT::get_nuc(hap_mut.mut_nuc);
-                    break;
+
+        //COMPUTE avg_read_depth -> Considering WHOLE genome for avg
+        for (const auto& sr: local_site_reads_map) {
+            for (const auto& mut_count: sr.second)
+                avg_read_depth += mut_count.second;
+        }
+        avg_read_depth /= ref_seq.size();
+    
+
+        //////////////////////////////////////////////
+        for (const auto& allele_threshold: allele_threshold_list) {
+            int TP = 0, FP = 0, TN = 0, FN =0;
+            //ANALYZE read mutations
+            for (const auto& sr: local_site_reads_map) {
+                size_t read_depth = 0, max_read_depth = 0;
+                char hap_mut = ref_seq[sr.first - 1];
+                int max_mut_idx = 0;
+                for (int m_idx = 0; m_idx < (int)sr.second.size(); m_idx++) {
+                    auto mut_count = sr.second[m_idx];
+                    read_depth += mut_count.second;
+                    if (mut_count.second > max_read_depth) {
+                        max_read_depth = mut_count.second;
+                        max_mut_idx = m_idx;
+                    }
+                }
+                if (read_depth >= avg_read_depth) {
+                    auto mut_count = sr.second[max_mut_idx];
+                    double mut_abundance = (double)mut_count.second / (double)read_depth;
+                    //Check if hap mutation present at the site
+                    for (const auto& mut: hap_mutations) {
+                        if (mut.position == sr.first) {
+                            hap_mut = MAT::get_nuc(mut.mut_nuc);
+                            break;
+                        }
+                    }
+                    //Above threshold
+                    if ((abs(mut_abundance - allele_threshold) < 1e-9) || (mut_abundance > allele_threshold)) {
+                        //Haplotype mutation matches with reads
+                        if (mut_count.first == hap_mut)
+                            TP++;
+                        //Haplotype mutation does NOT match with reads
+                        else {
+                            FP++;
+                            MAT::Mutation m;
+                            m.position = sr.first;
+                            m.ref_nuc = MAT::get_nuc_id(ref_seq[sr.first - 1]);
+                            m.par_nuc = m.ref_nuc;
+                            m.mut_nuc = MAT::get_nuc_id(mut_count.first);
+                            mismatched_mutations.emplace_back(m);
+                        }
+                    }
+                    //Below threshold
+                    else {
+                        if (mut_count.first == hap_mut)
+                            FN++;
+                        else
+                            TN++;
+                    }  
                 }
             }
-            for (const auto& mut_count: sr.second)
-                read_depth += mut_count.second;
-            for (const auto& mut_count: sr.second) {
-                double mut_abundance = (double)mut_count.second / (double)read_depth; 
-                if ((abs(mut_abundance - allele_threshold) < 1e-9) || (mut_abundance > allele_threshold)) {
-                    //Haplotype has different mutation present at this site
-                    if (found) {
-                        if ((mut_count.first != hap_nuc) && (read_depth >= avg_read_depth))
-                            printf("Depth: %ld, AF: %f, avg_depth: %ld, MISMATCH: %s, site: %d, hap_nuc: %c, reads_nuc: %c\n", read_depth, mut_abundance, avg_read_depth, hrm_itr->first.c_str(), sr.first, hap_nuc, mut_count.first);
+
+            /*
+            //Update hap_mutations
+            for (const auto& mis_mut: mismatched_mutations) {
+                bool found = false;
+                auto hap_mut_itr = hap_mutations.begin();
+                while (hap_mut_itr != hap_mutations.end()) {
+                    //Haplotype has mutation at same position
+                    if (hap_mut_itr->position == mis_mut.position) {
+                        //Reads have a reference
+                        if (mis_mut.mut_nuc == mis_mut.ref_nuc)
+                            hap_mutations.erase(hap_mut_itr);
+                        //Reads have a different mutation
+                        else
+                            hap_mut_itr->mut_nuc = mis_mut.mut_nuc;
+                        found = true;
+                        break;
                     }
-                    //Haplotype has a reference mutation at this site
-                    else if ((mut_count.first != ref_seq[sr.first - 1]) && (read_depth >= (size_t)avg_read_depth))
-                            printf("Depth: %ld, AF: %f, avg_depth: %ld, ABSENT: %s, site: %d, hap_nuc: %c, reads_nuc: %c\n", read_depth, mut_abundance, avg_read_depth, hrm_itr->first.c_str(), sr.first, ref_seq[sr.first - 1], mut_count.first);
-                    break;
-                }  
+                    hap_mut_itr++;
+                }
+                //Haplotype did NOT have the mutation
+                if (!found)
+                    hap_mutations.emplace_back(mis_mut);
             }
 
+            //CHECK if it improved mutation distance for any sample
+            bool distance_minimized = false;
+            for (int i = 0; i < (int)vcf_samples.size(); i++) {
+                int curr_dist = mutationDistance(sample_mutations_list[i], hap_mutations);
+                if (curr_dist < ref_mut_distance[i])
+                    distance_minimized = true;
+            }
+            */
+
+            double TPR = (double)TP / (double)(TP + FN);
+            double FPR = (double)FP / (double)(FP + TN);
+            printf("allele_thresh: %f, avg_depth: %ld TPR: %f FPR: %f, TP: %d, FN: %d, FP: %d, TN: %d\n", allele_threshold, avg_read_depth, TPR, FPR, TP, FN, FP, TN);
+            mismatched_mutations.clear();
         }
+        local_site_reads_map.clear();
         hap_mutations.clear();
-        site_reads_map.clear();
         hrm_itr++;
     }
+    sample_mutations_list.clear();
+    ref_mut_distance.clear();
 }

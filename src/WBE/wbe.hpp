@@ -191,4 +191,4 @@ void createCondensedTree(MAT::Node*, const std::unordered_map<size_t, struct rea
 
 void computeDistance(const MAT::Tree &, const std::unordered_map<size_t, struct read_info*> &, const std::vector<std::string> &, const std::unordered_map<std::string, double> &, const std::unordered_set<int> &);
 
-void placeReads(const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<std::string, double> &);
+void placeReads(const MAT::Tree &, const std::string &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<size_t, struct read_info*> &, const std::unordered_map<std::string, double> &, const std::vector<std::string> &, const std::unordered_set<int> &);

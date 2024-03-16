@@ -151,12 +151,20 @@ void detectPeaks (po::parsed_options parsed) {
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, const std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
-    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_increment, tree_range = 600, tree_overlap = 200, range_factor = 1;
+    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_increment, tree_range, tree_overlap = 0, range_factor = 1;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
     MAT::Tree T_condensed;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     
+    //Decide tree_overlap and tree_range based on range of reads
+    for (const auto& rm: read_map) {
+        int curr_range = rm.second->end - rm.second->start + 1;
+        if (curr_range > tree_overlap)
+            tree_overlap = curr_range;
+    }
+    tree_range = 2 * tree_overlap;
+
     //GREEDY ALGORITHM for peak nodes
     //    1. Place remaining reads on tree
     //    2. Remove nodes not to be considered (present in Prohibited nodes)
@@ -164,7 +172,6 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
     //    4. Don't consider top scoring nodes in the neighborhood of other top nodes
     //    5. Remove reads mapped to these nodes
     //    6. Add neighbors of selected top scoring nodes to Prohibited nodes 
-    
     
     //Create smaller tree with only sites covered by reads 
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
