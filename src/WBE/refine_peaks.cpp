@@ -71,7 +71,7 @@ void refinePeaks(po::parsed_options parsed) {
     }
     
     computeDistance(T, hap_map, vcf_samples, freyja_lineage_abun_map, site_read_map);
-    //placeReads(ref_seq, read_map, hap_map, hap_abun_map);
+    //placeReads(T, ref_seq, read_map, hap_map, hap_abun_map, vcf_samples, site_read_map);
 }
 
 //Computes distance between peaks and given samples

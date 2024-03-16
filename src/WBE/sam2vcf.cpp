@@ -167,7 +167,8 @@ void SAM::add_read(const std::string& line) {
     std::string ref_nuc, alt_nuc, build;
     for (const auto& [cig_len, cig_val]: cigar_chunks) {
         int curr_sub_len = 0;
-        while (curr_sub_len < cig_len)
+        bool update_table = true;
+        while (curr_sub_len < cig_len) 
         {
             int nuc_pos = start_idx + seq_idx - ins_count + del_count;
             switch (cig_val)
@@ -217,6 +218,18 @@ void SAM::add_read(const std::string& line) {
                 build += "N";
                 break;
 
+            case 'H':
+                curr_sub_len += cig_len;
+                update_table = false;
+                break;
+
+            case 'S':
+                curr_sub_len += cig_len;
+                seq_idx += cig_len;
+                ins_count += cig_len;
+                update_table = false;
+                break;
+
             default:
                 ref_nuc = reference_seq[nuc_pos - 1];
                 alt_nuc = std::string(1, read_seq[seq_idx]);
@@ -224,13 +237,16 @@ void SAM::add_read(const std::string& line) {
                 curr_sub_len++;
                 seq_idx++;
             }
+
             /* update frequency tables */
-            if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
-                int sub = (int) GENOME_STRING.find(alt_nuc[0]);
-                frequency_table[nuc_pos - 1][sub]++;
-            }
-            else {
-                indel_frequency_table[nuc_pos - 1][std::make_pair(ref_nuc.size(), alt_nuc)]++; 
+            if (update_table) {
+                if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
+                    int sub = (int) GENOME_STRING.find(alt_nuc[0]);
+                    frequency_table[nuc_pos - 1][sub]++;
+                }
+                else {
+                    indel_frequency_table[nuc_pos - 1][std::make_pair(ref_nuc.size(), alt_nuc)]++; 
+                }
             }
         }
     }

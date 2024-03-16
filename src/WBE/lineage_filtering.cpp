@@ -53,15 +53,25 @@ void filterLineages (po::parsed_options parsed) {
     std::unordered_map<size_t, struct read_info*> read_map;
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     load_reads_from_proto(proto_reads, read_map, reverse_merge);
+    fprintf(stderr,"Unique reads: %ld\n\n", read_map.size());
 
     //Get the curr_peak_nodes
-    int tree_increment, tree_range = 600, tree_overlap = 200, node_lim = 5, prohibited_dist_thresh = 3;
+    int tree_increment, tree_range, tree_overlap = 0, node_lim = 5, prohibited_dist_thresh = 3;
     MAT::Tree T_condensed;
     std::vector<MAT::Node*> curr_peak_nodes;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
     tbb::concurrent_vector<std::pair<MAT::Node*, double>> node_score_vector;
     std::vector<size_t> remaining_read_ids(read_map.size()), remove_read_ids;
+    
+    //Decide tree_overlap and tree_range based on range of reads
+    for (const auto& rm: read_map) {
+        int curr_range = rm.second->end - rm.second->start + 1;
+        if (curr_range > tree_overlap)
+            tree_overlap = curr_range;
+    }
+    tree_range = 2 * tree_overlap;
+    fprintf(stderr,"Max read range: %d\n\n", tree_overlap);
     
     //Create smaller tree with only sites covered by reads 
     timer.Start();
