@@ -158,6 +158,7 @@ void detectPeaks(po::parsed_options parsed) {
 }
 
 struct AuxNode {
+
     double score;
     int leaf_count;
     bool mapped;
@@ -267,6 +268,8 @@ struct MutationComparator {
 /* slightly larger than O(NM) */
 class AuxManager
 {
+    using my_mutex_t = tbb::queuing_mutex;
+
     std::vector<AuxNode> arena;
     const std::vector<read_info *>& reads;
     std::vector<int> max_parismony;
@@ -346,6 +349,10 @@ class AuxManager
             any_alive |= single_read_tree(child, my_locations, read, max_indices, max_val);
         }
 
+        /* naively this would be a race condition */
+        /* however, the only time it's executed together */
+        /* is when the values are the same */
+        /* this it is not an issue */
         return curr->subtree_alive = any_alive;
     }
 
@@ -466,7 +473,7 @@ class AuxManager
     }
 
     /* removes a singular read's contribution from current tree */
-    void remove_reads_effects(int index) {
+    void remove_reads_effects(int index, std::set<AuxNode*> &modified_queue, my_mutex_t * mutex) {
         std::set<int> recalcuated;
         std::set<int> *epps;
         if (this->epp_positions_cache[index].size() == (size_t) parsimony_multiplicity[index]) {
@@ -483,17 +490,20 @@ class AuxManager
         /* use ORIGINAL size */
         double const delta = (double) reads[index]->degree / std::log2(1 + parsimony_multiplicity[index]);
         for (int arena_index: (*epps)) {
+            my_mutex_t::scoped_lock lock{*mutex};
+
             AuxNode *node = &arena[arena_index];
             if (node->mapped) {
                 continue;
             }
-            this->current_nodes.erase(node);
-            node->score -= delta;
-            if (node->score > 1e-6) {
-                this->current_nodes.insert(node);
+            
+            /* if already modified, no need to erase */
+            if (modified_queue.find(node) == modified_queue.end()) {
+                this->current_nodes.erase(node);
             }
+            node->score -= delta;
+            modified_queue.insert(node);
         }
-        this->remaining_reads.erase(index);
     }
 
     void singular_step(AuxNode* node) {
@@ -502,11 +512,33 @@ class AuxManager
         /* 1. map remaining reads onto this node (finding correspondents) */
         std::vector<int> correspondents = find_correspondents(node);
 
+        my_mutex_t my_mutex;
         /* 2. map all said reads onto entire remaining set, adjusting deltas */
         /* 3. mark correspondence */ 
+
+        // optimization: rather than immediately adding a node to current_nodes
+        // after score update, we can instead buffer it and add it all at once
+        // this helps in scenarios where multiple reads affect the same node
+        std::set<AuxNode*> modified_nodes;
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, correspondents.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    this->remove_reads_effects(correspondents[i], modified_nodes, &my_mutex);
+                }
+            }
+        );
+
         for (int correspondent: correspondents) {
-            this->remove_reads_effects(correspondent);
             correspondence[correspondent] = node;
+            this->remaining_reads.erase(correspondent);
+        }
+
+        /* readd current_nodes that were taken out */
+        for (AuxNode* node: modified_nodes) {
+            if (node->score > 1e-6) {
+                this->current_nodes.insert(node);
+            }
         }
     }
 
