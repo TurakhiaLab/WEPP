@@ -175,6 +175,8 @@ struct AuxNode {
     MAT::Node* condensed_source;
     std::vector<AuxNode*> children;
 
+    // given a range and reference mutation list
+    // tells the positions where the this mutation list differs from reference
     std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
         int i = 0, j = 0;
         std::vector<int> muts;
@@ -233,6 +235,7 @@ struct AuxNode {
     }
 };
 
+/* used to sort auxnodes by their score */
 struct ScoreComparator {
     bool operator() (AuxNode* const& left, AuxNode* const& right) const {
         if (abs(left->score - right->score) > 1e-6) {
@@ -247,6 +250,7 @@ struct ScoreComparator {
     }
 };
 
+/* used to sort auxnodes by their mutation list */
 struct MutationComparator {
     bool operator() (AuxNode* const& left, AuxNode* const& right) const {
         if (left->stack_muts.size() != right->stack_muts.size()) {
@@ -275,24 +279,34 @@ class AuxManager
     std::vector<int> max_parismony;
     std::vector<int> parsimony_multiplicity;
     
-    /* if epp[i].size() != multiplicity[i], that means not cached */
+    /* if epp_positions_cache[i].size() != multiplicity[i], that means not cached */
     /* since there's too many. Also, values are arena indices */
     std::vector<std::set<int>> epp_positions_cache;
     
     /* mappable nodes based on their scores */
+    /* a node is 'mappable' if */
     std::set<AuxNode*, ScoreComparator> current_nodes;
 
     /* indices of unmapped reads */
     std::set<int> remaining_reads;
 
-    /* map of read_index to built */
+    /* map of read_index to paired peak node */
     std::map<int, AuxNode*> correspondence;
 
-    std::vector<MAT::Node*> peaks, neighbors;
+    // selected peaks and neighbors
     std::set<AuxNode*, MutationComparator> selected_peaks, selected_neighbors;
+    
+    // peaks and neighbors in vector form, and using MAT::Node
+    std::vector<MAT::Node*> peaks, neighbors;
 
-    /* can only map if one or mutation positions was removed */
-    /* (even if total size increases) */
+    /* For a fixed read, we are given the positions where the parent node */
+    /* differs from the read, and the positions where the current node */
+    /* differs from the read. This function counts how many difference the parent has */
+    /* that the child does not. This is NOT the same as the absolute difference in vector sizes */
+    /* since in this function, positions the child has that the parent does not */
+    /* are of no relevance */
+    /* (this is to match reference behavior: can only map if one or mutation positions was removed */
+    /* even if total size increases) */
     int mutation_reductions(std::vector<int> const& parent, std::vector<int> const& child) {
         int reductions = 0;
         for (size_t i = 0, j = 0; i < parent.size(); ++i) {
@@ -310,12 +324,17 @@ class AuxManager
         return reductions;
     }
 
+    /* maps a single read to entire tree, caching aliveness */
+    /* and finding the epp positions of a given read */
+    /* parent_locations is the positions where the parent has different mutations than the read */
     /* max_val corresponds to max parismony */
-    /* maps single read to entire tree, caching aliveness */
+    /* max indices correspond to the indices of the epp nodes */
     bool single_read_tree(AuxNode* curr, std::vector<int> const & parent_locations, struct read_info *read, std::set<int> &max_indices, int &max_val) {
+        // positions where this node differs from the read */
         std::vector<int> const my_locations = curr->mutations(read->mutations, read->start, read->end);
 
         /* no need to worry about dead subtrees */
+        /* remember that a subtree is dead if the entire subtree is removed from current_nodes */
         if (!curr->subtree_alive) {
             return false;
         }
@@ -410,6 +429,7 @@ class AuxManager
             tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> r) {
                 for (size_t read = r.begin(); read != r.end(); ++read) {
                     if (this->remaining_reads.find(read) != this->remaining_reads.end()) {
+                        /* if cached correspond, use that */
                         if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
                             my_mutex_t::scoped_lock lock{my_mutex};
                             correspondents.push_back(read); 
@@ -419,6 +439,7 @@ class AuxManager
                             continue;
                         }
                         else {
+                            /* recompute to see if correspondent */
                             struct read_info *r = this->reads[read];
                             std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
                             std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
@@ -443,6 +464,7 @@ class AuxManager
         }
         else {
             for (int read: this->remaining_reads) {
+                /* if cached correspond, use that */
                 if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
                     correspondents.push_back(read); 
                 }
@@ -451,6 +473,7 @@ class AuxManager
                     continue;
                 }
                 else {
+                    /* recompute to see if correspondent */
                     struct read_info *r = this->reads[read];
                     std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
                     std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
@@ -473,9 +496,11 @@ class AuxManager
     }
 
     /* removes a singular read's contribution from current tree */
+    /* modified_queue is for optimization purposes, see below in singular step */
     void remove_reads_effects(int index, std::set<AuxNode*> &modified_queue, my_mutex_t * mutex) {
         std::set<int> recalcuated;
         std::set<int> *epps;
+        /* if cached, just take that */
         if (this->epp_positions_cache[index].size() == (size_t) parsimony_multiplicity[index]) {
             epps = &this->epp_positions_cache[index];
         }
@@ -512,9 +537,8 @@ class AuxManager
         /* 1. map remaining reads onto this node (finding correspondents) */
         std::vector<int> correspondents = find_correspondents(node);
 
-        my_mutex_t my_mutex;
         /* 2. map all said reads onto entire remaining set, adjusting deltas */
-        /* 3. mark correspondence */ 
+        my_mutex_t my_mutex;
 
         // optimization: rather than immediately adding a node to current_nodes
         // after score update, we can instead buffer it and add it all at once
@@ -529,12 +553,13 @@ class AuxManager
             }
         );
 
+        /* 3. mark correspondence */ 
         for (int correspondent: correspondents) {
             correspondence[correspondent] = node;
             this->remaining_reads.erase(correspondent);
         }
 
-        /* readd current_nodes that were taken out */
+        /* 4. readd current_nodes that were taken out (if their score is not 0) */
         for (AuxNode* node: modified_nodes) {
             if (node->score > 1e-6) {
                 this->current_nodes.insert(node);
@@ -547,6 +572,7 @@ class AuxManager
          return a->mutation_distance(b) > MAX_PEAK_PEAK_MUTATION;
     }
 
+    /* adds possible neighbors of subtree to the given set if the mutation distance is less than a threshold */
     bool dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, ScoreComparator>& s, int radius) {
         if (!curr || !curr->subtree_alive) {
             return false;
@@ -568,6 +594,7 @@ class AuxManager
         return curr->subtree_alive = alive;
     }
 
+    /* find all possible neighbors within a radius from a given node */
     void possible_neighbors(AuxNode* pivot, std::set<AuxNode*, ScoreComparator>& s, int radius) {
         AuxNode *curr = pivot;
         while (curr->parent && pivot->mutation_distance(curr->parent) <= radius) {
@@ -579,6 +606,7 @@ class AuxManager
 
     /* clears neighbors (and self) from map */
     void clear_neighbors(std::vector<AuxNode*> &nodes) {
+        /* 1. mark as peak */
         for (AuxNode* const& n: nodes) {
             current_nodes.erase(n);
             selected_peaks.insert(n);
@@ -586,7 +614,8 @@ class AuxManager
         }
 
         std::vector<AuxNode*> added;
-        /* candidates */
+        /* 2. find candidates within radius (taking only top n for each pivot) */
+        /* buffer the selected neighbors into added */
         for (AuxNode *pivot: nodes) {
             std::set<AuxNode*, ScoreComparator> multisource_radius;
             possible_neighbors(pivot, multisource_radius, MAX_PEAK_NONPEAK_MUTATION);
@@ -608,6 +637,7 @@ class AuxManager
             }
         }
 
+        /* 3. for all nodes within small radius, forcefuly remove even if more than 100 */        
         for (AuxNode *pivot: nodes) {
             std::set<AuxNode*, ScoreComparator> multisource_radius;
             possible_neighbors(pivot, multisource_radius, MAX_PEAK_PEAK_MUTATION);
@@ -618,6 +648,7 @@ class AuxManager
                 current_nodes.erase(node);
             }
         }
+
 
         selected_neighbors.insert(added.begin(), added.end());
     }
@@ -634,10 +665,16 @@ class AuxManager
         auto it = current_nodes.begin();
         double const min_score = (*it)->score;
 
+        /* no available peaks */
         if (min_score < 1e-6) {
             return true;
         }
 
+        /* while: */
+        /* 1. we have not been searching for too long */
+        /* 2. we have current_nodes left */
+        /* 3. the score is all the samae */
+        /* 4. we have not selected 25 yet */
         for (int i = 0; 
                 i < top_n * TOP_N_EXPANDED_FACTOR && 
                 it != current_nodes.end() && 
@@ -659,8 +696,10 @@ class AuxManager
             }
         }
 
+        /* clear neighbors of selected peaks */
         this->clear_neighbors(consideration);
-        
+
+        /* remove associated reads of selected peaks */ 
         for (AuxNode *&node: consideration) {
             this->singular_step(node);
         }
@@ -668,6 +707,7 @@ class AuxManager
         return remaining_reads.empty() || current_nodes.empty();
     }
 
+    /* construct auxiliary tree from mat_tree */
     AuxNode* from_mat_tree(AuxNode* parent, MAT::Node* node, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings) {
         this->arena.emplace_back();
         AuxNode *ret = &this->arena.back();
@@ -680,6 +720,7 @@ class AuxManager
         ret->id = node->identifier;
         ret->condensed_source = node;
         ret->leaf_count = getNumLeaves(condensed_node_mappings, node);
+        /* flatten mutation list */
         if (parent) {
             for (const MAT::Mutation &mut : parent->stack_muts)
             {
