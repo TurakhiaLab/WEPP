@@ -1,13 +1,18 @@
 #include "wbe.hpp"
 
 constexpr bool USE_FAST = true;
+constexpr int NUM_RANGE_TREES = 10;
+// if correspondents > this value
+// then we will resort the entire set instead of inserting
+// and deleting (which has a high overhead)
+constexpr int CORRESPONDENTS_RESORT_THRESHOLD = 128;
 constexpr int TOP_N = 25;
 constexpr int TOP_N_EXPANDED_FACTOR = 4;
 constexpr int MAX_NEIGHBORS = 100;
 constexpr int MAX_PEAK_PEAK_MUTATION = 1;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
-constexpr int PARALLEL_READS_THRESHOLD = 256;
+constexpr double SCORE_EPSILON = 1e-6;
 
 void detectPeaks(po::parsed_options parsed) {
     //main argument for the complex extract command
@@ -175,15 +180,24 @@ struct AuxNode {
     MAT::Node* condensed_source;
     std::vector<AuxNode*> children;
 
+    bool has_mutations_in_range(int start, int end) {
+        MAT::Mutation search;
+        search.position = start;
+        auto it = std::lower_bound(condensed_source->mutations.begin(), condensed_source->mutations.end(), search);
+        return it != condensed_source->mutations.end() && it->position <= end;
+    }
+
     // given a range and reference mutation list
     // tells the positions where the this mutation list differs from reference
     std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
-        int i = 0, j = 0;
         std::vector<int> muts;
 
-        int last_i = stack_muts.size();
-        while (i < (int) stack_muts.size() && stack_muts[i].position < min_pos) ++i;
-        while (last_i > 0 && stack_muts[last_i - 1].position > max_pos) --last_i;
+        MAT::Mutation search;
+        search.position = min_pos;
+        int i = std::lower_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
+        search.position = max_pos;
+        int last_i = std::upper_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
+        int j = 0;
 
         while (i < last_i || j < (int) comp.size()) {
             if (i == last_i) {                
@@ -194,6 +208,7 @@ struct AuxNode {
                 ++i;
             }
             else if (stack_muts[i].position > max_pos) {
+                assert(0);
                 return muts;
             }
             else if (j == (int) comp.size()) {
@@ -224,21 +239,31 @@ struct AuxNode {
         return mutations(comp, min_pos, max_pos).size();
     }
 
-    /* N not counted */
     int mutation_distance(struct read_info* other) {
         return mutation_distance(other->mutations, other->start, other->end);
     }
 
-    /* N is counted */
     int mutation_distance(AuxNode * other) {
         return mutation_distance(other->stack_muts, 0, INT_MAX);
+    }
+};
+
+struct RangedNode {
+    AuxNode* root;
+    /* dead nodes can be safely removed */
+    std::vector<AuxNode*> alive_sources;
+    /* arena indices of ranged node children */
+    std::vector<int> children;
+
+    std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
+        return root->mutations(comp, min_pos, max_pos);
     }
 };
 
 /* used to sort auxnodes by their score */
 struct ScoreComparator {
     bool operator() (AuxNode* const& left, AuxNode* const& right) const {
-        if (abs(left->score - right->score) > 1e-6) {
+        if (abs(left->score - right->score) > SCORE_EPSILON) {
             return left->score > right->score;
         }
         else if (left->leaf_count != right->leaf_count) {
@@ -272,9 +297,14 @@ struct MutationComparator {
 /* slightly larger than O(NM) */
 class AuxManager
 {
-    using my_mutex_t = tbb::queuing_mutex;
+    using mutex_t = tbb::queuing_mutex;
 
     std::vector<AuxNode> arena;
+    std::vector<RangedNode> ranged_arena;
+
+    // maps ranges to RangeTree roots (indices)
+    std::map<std::pair<int, int>, int> ranged_root_map;
+
     const std::vector<read_info *>& reads;
     std::vector<int> max_parismony;
     std::vector<int> parsimony_multiplicity;
@@ -284,8 +314,10 @@ class AuxManager
     std::vector<std::set<int>> epp_positions_cache;
     
     /* mappable nodes based on their scores */
-    /* a node is 'mappable' if */
-    std::set<AuxNode*, ScoreComparator> current_nodes;
+    /* a node is 'mappable' if has not been marked as a peak or neighbor */
+    /* while a sorted set is more approrpriate, it's overhead is too high*/
+    /* so we just sort when necessary */
+    std::vector<AuxNode*> current_nodes;
 
     /* indices of unmapped reads */
     std::set<int> remaining_reads;
@@ -325,20 +357,17 @@ class AuxManager
     }
 
     /* maps a single read to entire tree, caching aliveness */
-    /* and finding the epp positions of a given read */
     /* parent_locations is the positions where the parent has different mutations than the read */
-    /* max_val corresponds to max parismony */
-    /* max indices correspond to the indices of the epp nodes */
-    bool single_read_tree(AuxNode* curr, std::vector<int> const & parent_locations, struct read_info *read, std::set<int> &max_indices, int &max_val) {
+    void single_read_tree(RangedNode* curr, std::vector<int> const & parent_locations, struct read_info const*read, std::vector<RangedNode*> &max_nodes, int &max_val) {
         // positions where this node differs from the read */
         std::vector<int> const my_locations = curr->mutations(read->mutations, read->start, read->end);
 
         /* no need to worry about dead subtrees */
         /* remember that a subtree is dead if the entire subtree is removed from current_nodes */
-        if (!curr->subtree_alive) {
-            return false;
+        if (!curr->root->subtree_alive) {
+            return;
         }
-        else if (!curr->mapped) {
+        else {
             /* map self */
             // this basically ensures semantics are the exact same
             // as the previous algorithm
@@ -350,38 +379,60 @@ class AuxManager
                 parsimony = my_locations.size();
             }
 
-            if (!curr->is_leaf || reductions) {
+            if (!curr->root->is_leaf || reductions) {
                 if (parsimony < max_val)
                 {
                     max_val = parsimony;
-                    max_indices = {(int)(curr - &arena[0])};
+                    max_nodes = {curr};
                 }
                 else if (parsimony == max_val)
                 {
-                    max_indices.insert(curr - &arena[0]);
+                    max_nodes.emplace_back(curr);
                 }
             }
         }
 
-        bool any_alive = !curr->mapped;
-        for (AuxNode *child: curr->children) {
-            any_alive |= single_read_tree(child, my_locations, read, max_indices, max_val);
+        for (int child: curr->children) {
+            single_read_tree(&ranged_arena[child], my_locations, read, max_nodes, max_val);
         }
+    }
 
-        /* naively this would be a race condition */
-        /* however, the only time it's executed together */
-        /* is when the values are the same */
-        /* this it is not an issue */
-        return curr->subtree_alive = any_alive;
+    RangedNode* find_range_tree_for(read_info const * read) {
+        std::pair<int, int> search = {read->start, INT_MAX};
+        auto it = ranged_root_map.upper_bound(search);
+        do {
+            it = std::prev(it);
+            if (read->start >= it->first.first && read->end <= it->first.second) {
+                return &ranged_arena[it->second];
+            }
+        } while (it != ranged_root_map.begin());
+
+        assert(0);
+        return nullptr;
+    }
+
+    /* maps a single read to entire tree, caching aliveness */
+    /* and finding the epp positions of a given read */
+    /* parent_locations is the positions where the parent has different mutations than the read */
+    /* max_val corresponds to max parismony */
+    /* max indices correspond to the indices of the epp nodes */
+    void single_read_tree(struct read_info const* read, std::set<int> &max_indices, int &max_val) {
+        std::vector<int> empty_mutation_list;
+        std::vector<RangedNode*> max_nodes;
+        RangedNode *root = find_range_tree_for(read);
+        single_read_tree(root, empty_mutation_list, read, max_nodes, max_val);
+
+        for (RangedNode* rnode: max_nodes) {
+            for (AuxNode *src: rnode->alive_sources) {
+                max_indices.emplace(src - &arena[0]);
+            }
+        }
     }
 
     /* map all reads to all nodes, maintaining caches if not too large */
     void cartesian_map() {
-        using my_mutex_t = tbb::queuing_mutex;
-        my_mutex_t my_mutex;
+        mutex_t my_mutex;
 
-        std::vector<int> empty_mutation_list;
-        
         epp_positions_cache.resize(reads.size());
         max_parismony.resize(reads.size());
         parsimony_multiplicity.resize(reads.size());
@@ -392,11 +443,11 @@ class AuxManager
                 std::set<int> max_indices;
                 int max_val = INT32_MAX; /* really want minimum value */
 
-                single_read_tree(&arena[0], empty_mutation_list, reads[r], max_indices, max_val);
+                single_read_tree(reads[r], max_indices, max_val);
 
                 double const delta = (double) reads[r]->degree / std::log2(1 + max_indices.size());
                 {
-                    my_mutex_t::scoped_lock my_lock{my_mutex};
+                    mutex_t::scoped_lock my_lock{my_mutex};
                     for (int arena_index: max_indices) {
                         arena[arena_index].score += delta;
                     }
@@ -409,95 +460,65 @@ class AuxManager
                 }
             }
         });
-
+        
         for (size_t i = 0; i < arena.size(); ++i) {
-            this->current_nodes.insert(&arena[i]);
+            this->current_nodes.emplace_back(&arena[i]);
         }
+        /* initial sort into scores */
+        std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
     }
 
     /* find all current reads that map to this node */
-    // a bit annoying that there's duplicate code
     std::vector<int> find_correspondents(AuxNode *node) {
         int const arena_index = node - &arena[0];
         std::vector<int> correspondents;
 
-        using my_mutex_t = tbb::queuing_mutex;
-        my_mutex_t my_mutex;
+        mutex_t my_mutex;
 
-        // if large enough, parallelize
-        if (remaining_reads.size() >= PARALLEL_READS_THRESHOLD) {
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> r) {
-                for (size_t read = r.begin(); read != r.end(); ++read) {
-                    if (this->remaining_reads.find(read) != this->remaining_reads.end()) {
-                        /* if cached correspond, use that */
-                        if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
-                            my_mutex_t::scoped_lock lock{my_mutex};
-                            correspondents.push_back(read); 
-                        }
-                        else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
-                            /* cached and not found */
-                            continue;
-                        }
-                        else {
-                            /* recompute to see if correspondent */
-                            struct read_info *r = this->reads[read];
-                            std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
-                            std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
-
-                            int parsimony, reductions = mutation_reductions(parent, ours);
-                            if (reductions) {
-                                parsimony = parent.size() - reductions;
-                            }
-                            else {
-                                parsimony = ours.size();
-                            }
-                            
-                            if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
-                                my_mutex_t::scoped_lock lock{my_mutex};
-                                correspondents.push_back(read);
-                            }
-                        }
+        std::vector<int> remaining(remaining_reads.begin(), remaining_reads.end());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, remaining.size()),
+            [&](tbb::blocked_range<size_t> r) {
+                for (size_t i = r.begin(); i != r.end(); ++i) {
+                    size_t const read = remaining[i]; 
+                    /* if cached correspond, use that */
+                    if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
+                        mutex_t::scoped_lock lock{my_mutex};
+                        correspondents.push_back(read); 
                     }
-                }
-            });
-            std::sort(correspondents.begin(), correspondents.end());
-        }
-        else {
-            for (int read: this->remaining_reads) {
-                /* if cached correspond, use that */
-                if (epp_positions_cache[read].find(arena_index) != epp_positions_cache[read].end()) {
-                    correspondents.push_back(read); 
-                }
-                else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
-                    /* cached and not found */
-                    continue;
-                }
-                else {
-                    /* recompute to see if correspondent */
-                    struct read_info *r = this->reads[read];
-                    std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
-                    std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
-
-                    int parsimony, reductions = mutation_reductions(parent, ours);
-                    if (reductions) {
-                        parsimony = parent.size() - reductions;
+                    else if (epp_positions_cache[read].size() == (size_t) parsimony_multiplicity[read]) {
+                        /* cached and not found */
+                        continue;
                     }
                     else {
-                        parsimony = ours.size();
+                        /* recompute to see if correspondent */
+                        struct read_info *r = this->reads[read];
+                        std::vector<int> parent = node->parent ? node->parent->mutations(r->mutations, r->start, r->end) : std::vector<int>();
+                        std::vector<int> ours = node->mutations(r->mutations, r->start, r->end);
+
+                        int parsimony, reductions = mutation_reductions(parent, ours);
+                        if (reductions) {
+                            parsimony = parent.size() - reductions;
+                        }
+                        else {
+                            parsimony = ours.size();
+                        }
+                        
+                        if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
+                            mutex_t::scoped_lock lock{my_mutex};
+                            correspondents.push_back(read);
+                        }
                     }
-                    
-                    if ((!node->is_leaf || reductions) && parsimony == max_parismony[read]) {
-                        correspondents.push_back(read);
-                    }
-                }
+                } 
             }
-        }
+        );
+        std::sort(correspondents.begin(), correspondents.end());
+
         return correspondents;
     }
 
     /* removes a singular read's contribution from current tree */
-    /* modified_queue is for optimization purposes, see below in singular step */
-    void remove_reads_effects(int index, std::set<AuxNode*> &modified_queue, my_mutex_t * mutex) {
+    /* if updated_nodes_buffer is not none*/
+    void remove_reads_effects(int index, mutex_t * mutex) {
         std::set<int> recalcuated;
         std::set<int> *epps;
         /* if cached, just take that */
@@ -507,27 +528,20 @@ class AuxManager
         else {
             /* recalculate on (almost) entire tree, generally the most optimal */
             int max_val = INT32_MAX;
-            std::vector<int> empty;
-            single_read_tree(&arena[0], empty, reads[index], recalcuated, max_val);
+            single_read_tree(reads[index], recalcuated, max_val);
             epps = &recalcuated;
         }
 
         /* use ORIGINAL size */
+        mutex_t::scoped_lock lock{*mutex};
         double const delta = (double) reads[index]->degree / std::log2(1 + parsimony_multiplicity[index]);
         for (int arena_index: (*epps)) {
-            my_mutex_t::scoped_lock lock{*mutex};
-
             AuxNode *node = &arena[arena_index];
             if (node->mapped) {
                 continue;
             }
             
-            /* if already modified, no need to erase */
-            if (modified_queue.find(node) == modified_queue.end()) {
-                this->current_nodes.erase(node);
-            }
             node->score -= delta;
-            modified_queue.insert(node);
         }
     }
 
@@ -538,17 +552,12 @@ class AuxManager
         std::vector<int> correspondents = find_correspondents(node);
 
         /* 2. map all said reads onto entire remaining set, adjusting deltas */
-        my_mutex_t my_mutex;
-
-        // optimization: rather than immediately adding a node to current_nodes
-        // after score update, we can instead buffer it and add it all at once
-        // this helps in scenarios where multiple reads affect the same node
-        std::set<AuxNode*> modified_nodes;
+        mutex_t my_mutex;
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, correspondents.size()),
             [&](tbb::blocked_range<size_t> range) {
                 for (size_t i = range.begin(); i < range.end(); ++i) {
-                    this->remove_reads_effects(correspondents[i], modified_nodes, &my_mutex);
+                    this->remove_reads_effects(correspondents[i], &my_mutex);
                 }
             }
         );
@@ -557,13 +566,6 @@ class AuxManager
         for (int correspondent: correspondents) {
             correspondence[correspondent] = node;
             this->remaining_reads.erase(correspondent);
-        }
-
-        /* 4. readd current_nodes that were taken out (if their score is not 0) */
-        for (AuxNode* node: modified_nodes) {
-            if (node->score > 1e-6) {
-                this->current_nodes.insert(node);
-            }
         }
     }
 
@@ -608,7 +610,6 @@ class AuxManager
     void clear_neighbors(std::vector<AuxNode*> &nodes) {
         /* 1. mark as peak */
         for (AuxNode* const& n: nodes) {
-            current_nodes.erase(n);
             selected_peaks.insert(n);
             peaks.emplace_back(n->condensed_source);
         }
@@ -626,7 +627,6 @@ class AuxManager
                 bool const found = selected_peaks.find(node) != selected_peaks.end() || selected_neighbors.find(node) != selected_neighbors.end();
                 if (!found) {
                     node->mapped = true;
-                    current_nodes.erase(node);
                     added.emplace_back(node);
                     neighbors.emplace_back(node->condensed_source);
                     if (++i == MAX_NEIGHBORS)
@@ -645,7 +645,6 @@ class AuxManager
             for (AuxNode * node : multisource_radius)
             {
                 node->mapped = true;
-                current_nodes.erase(node);
             }
         }
 
@@ -666,7 +665,7 @@ class AuxManager
         double const min_score = (*it)->score;
 
         /* no available peaks */
-        if (min_score < 1e-6) {
+        if (min_score < SCORE_EPSILON) {
             return true;
         }
 
@@ -678,7 +677,7 @@ class AuxManager
         for (int i = 0; 
                 i < top_n * TOP_N_EXPANDED_FACTOR && 
                 it != current_nodes.end() && 
-                abs((*it)->score - min_score) < 1e-6 &&
+                abs((*it)->score - min_score) < SCORE_EPSILON &&
                 consideration.size() < (size_t) top_n; 
             ++i, ++it) 
         {
@@ -703,6 +702,17 @@ class AuxManager
         for (AuxNode *&node: consideration) {
             this->singular_step(node);
         }
+
+        /* resort current_nodes (removing mapped nodes as well) */
+        current_nodes.erase(
+            std::remove_if(current_nodes.begin(), current_nodes.end(),
+                [](AuxNode* const& curr) {
+                    return curr->mapped || curr->score <= SCORE_EPSILON;
+                }
+            ),
+            current_nodes.end()
+        );
+        std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
 
         return remaining_reads.empty() || current_nodes.empty();
     }
@@ -761,12 +771,77 @@ class AuxManager
         return ret;
     }
 
+
+    int build_range_tree(int parent, AuxNode* curr, int start, int end) {
+        int ret;
+        if (parent == -1 || curr->has_mutations_in_range(start, end)) {
+            ret = ranged_arena.size();
+            ranged_arena.emplace_back();
+            ranged_arena[ret].root = curr;
+            ranged_arena[ret].alive_sources = {curr};
+        }
+        else if (!curr->is_leaf) {
+            ret = parent;
+            ranged_arena[parent].alive_sources.push_back(curr);
+        }
+        else {
+            // leafs should not be included if they dont have mutations (since they wont have reductions)
+            ret = parent;
+        }
+
+        for (AuxNode* child: curr->children) {
+            int const sub = build_range_tree(ret, child, start, end);
+            if (sub != ret) {
+                ranged_arena[ret].children.emplace_back(sub);
+            }
+        }
+
+        return ret;
+    }
+
+    void build_range_trees() {
+        // get ranges (heuristic based approach)
+        using range = std::pair<int, int>;
+        std::vector<range> read_ranges;
+        std::transform(reads.begin(), reads.end(), std::back_inserter(read_ranges),
+            [](read_info * const &read) {
+                return std::make_pair(read->start, read->end);
+            }
+        );
+        std::sort(read_ranges.begin(), read_ranges.end());
+
+        int const num = std::min((int) read_ranges.size(), NUM_RANGE_TREES);
+        for (int i = 0; i < num; ++i) {
+            int s = read_ranges.size() * i / num;
+            int e = read_ranges.size() * (i + 1) / num;
+            int read_start = read_ranges[s].first;
+            int read_end = 0;
+            for (int j = s; j < e; ++j) {
+                read_end = std::max(read_end, read_ranges[j].second);
+            }
+
+            std::cout << "Building Range " << read_start << " to " << read_end << std::endl;
+
+            // there is technically a chance we can have a collision 
+            // where multiple range trees are for the exact same range
+            // (to see this, if all reads are the exact same range
+            // then all range trees will be the exact same)
+            // However, this is not an issue even in the case that there are duplicates, 
+            // it only reduces performance, it doesn't actually make anything break
+            range r{read_start, read_end};
+            if (this->ranged_root_map.find(r) == ranged_root_map.end()) {
+                this->ranged_root_map[r] = build_range_tree(-1, &arena[0], read_start, read_end);
+            }
+        }
+    }
+
 public:
     /* preprocessing */
     AuxManager(const MAT::Tree &src, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings, std::vector<read_info*> const& reads) : reads{reads} {
         /* create auxiliary tree, ensure no reallocations */
         this->arena.reserve(mat_tree_size(src.root));
         this->from_mat_tree(nullptr, src.root, condensed_node_mappings);
+        this->build_range_trees();
         
         for (size_t i = 0; i < reads.size(); ++i) {
             std::sort(reads[i]->mutations.begin(), reads[i]->mutations.end());

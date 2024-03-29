@@ -8,6 +8,7 @@
 #include <random>
 #include <string>
 #include <map>
+#include <optional>
 #include <utility>
 #include <ostream>
 #include <boost/program_options.hpp>
