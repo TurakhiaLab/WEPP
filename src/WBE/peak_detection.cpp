@@ -2,10 +2,6 @@
 
 constexpr bool USE_FAST = true;
 constexpr int NUM_RANGE_TREES = 10;
-// if correspondents > this value
-// then we will resort the entire set instead of inserting
-// and deleting (which has a high overhead)
-constexpr int CORRESPONDENTS_RESORT_THRESHOLD = 128;
 constexpr int TOP_N = 25;
 constexpr int TOP_N_EXPANDED_FACTOR = 4;
 constexpr int MAX_NEIGHBORS = 100;
@@ -169,7 +165,6 @@ struct AuxNode {
     bool mapped;
     /* is there possibly a single nonmapped (or neighor mapped)?
        node in the subtree? */
-    bool subtree_alive;
     bool is_leaf;
 
     /* children and mutations  */
@@ -362,33 +357,26 @@ class AuxManager
         // positions where this node differs from the read */
         std::vector<int> const my_locations = curr->mutations(read->mutations, read->start, read->end);
 
-        /* no need to worry about dead subtrees */
-        /* remember that a subtree is dead if the entire subtree is removed from current_nodes */
-        if (!curr->root->subtree_alive) {
-            return;
+        /* map self */
+        // this basically ensures semantics are the exact same
+        // as the previous algorithm
+        int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
+        if (reductions) {
+            parsimony = parent_locations.size() - reductions;
         }
         else {
-            /* map self */
-            // this basically ensures semantics are the exact same
-            // as the previous algorithm
-            int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
-            if (reductions) {
-                parsimony = parent_locations.size() - reductions;
-            }
-            else {
-                parsimony = my_locations.size();
-            }
+            parsimony = my_locations.size();
+        }
 
-            if (!curr->root->is_leaf || reductions) {
-                if (parsimony < max_val)
-                {
-                    max_val = parsimony;
-                    max_nodes = {curr};
-                }
-                else if (parsimony == max_val)
-                {
-                    max_nodes.emplace_back(curr);
-                }
+        if (!curr->root->is_leaf || reductions) {
+            if (parsimony < max_val)
+            {
+                max_val = parsimony;
+                max_nodes = {curr};
+            }
+            else if (parsimony == max_val)
+            {
+                max_nodes.emplace_back(curr);
             }
         }
 
@@ -575,25 +563,19 @@ class AuxManager
     }
 
     /* adds possible neighbors of subtree to the given set if the mutation distance is less than a threshold */
-    bool dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, ScoreComparator>& s, int radius) {
-        if (!curr || !curr->subtree_alive) {
-            return false;
-        }
-        else if (pivot->mutation_distance(curr) > radius) {
-            return curr->subtree_alive;
+    void dfs_possible_neighbors(AuxNode* pivot, AuxNode *curr, std::set<AuxNode*, ScoreComparator>& s, int radius) {
+        if (pivot->mutation_distance(curr) > radius) {
+            return;
         }
 
         bool alive = false;
         if (!curr->mapped) {
             s.insert(curr);
-            alive = true;
         }
 
         for (AuxNode* child: curr->children) {
-            alive |= dfs_possible_neighbors(pivot, child, s, radius);
+            dfs_possible_neighbors(pivot, child, s, radius);
         }
-
-        return curr->subtree_alive = alive;
     }
 
     /* find all possible neighbors within a radius from a given node */
@@ -723,7 +705,6 @@ class AuxManager
         AuxNode *ret = &this->arena.back();
         ret->parent = parent;
         ret->mapped = false;
-        ret->subtree_alive = true;
         ret->is_leaf = condensed_node_mappings.at(node).front()->is_leaf(); 
         ret->score = 0;
         ret->stack_muts = {};
