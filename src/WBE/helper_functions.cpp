@@ -100,16 +100,44 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
 }
 
 
-void dump_proto_raw_data(const std::string& filename, const std::unordered_map<size_t, struct read_info *>& reads, const std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+void dump_proto_raw_data(const std::string& filename, const std::unordered_map<size_t, struct read_info *>& read_map, const std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
     Sam::sam data;
+
+    std::vector<struct read_info*> reads(read_map.begin(), read_map.end());
+    const auto comp = [](struct read_info *lhs, struct read_info *rhs) -> int {
+        if (lhs->start != rhs->start) return lhs->start - rhs->start; 
+        if (rhs->end != rhs->end) return lhs->end - rhs->end; 
+        if (lhs->mutations.size() != rhs->mutations.size()) return lhs->mutations.size() - rhs->mutations.size();
+        for (size_t i = 0; i < lhs->mutations.size(); ++i) {
+            if (lhs->mutations[i].position != rhs->mutations[i].position) {
+                return lhs->mutations[i].position - rhs->mutations[i].position;
+            }
+            if (lhs->mutations[i].mut_nuc != rhs->mutations[i].mut_nuc) {
+                return lhs->mutations[i].mut_nuc - rhs->mutations[i].mut_nuc;
+            }
+        }
+
+        return 0;
+    };
+    std::sort(reads.begin(), reads.end(), [&](struct read_info *const &lhs, struct read_info *const &rhs) -> bool { return comp(lhs, rhs) < 0; });
+
+    std::vector<struct read_info*> merged{reads[0]};
+    for (size_t i = 1; i < reads.size(); ++i) {
+        if (comp(reads[i],  reads[i - 1]) == 0) {
+            merged.back()->degree += reads[i]->degree;
+        }
+        else {
+            merged.emplace_back(reads[i]);
+        }
+    }
 
     for (const auto& read: reads) {
         auto dump = data.add_reads();
-        dump->set_start_idx(read.second->start + 1);
-        dump->set_end_idx(read.second->end);
-        dump->set_degree(read.second->degree);
-        dump->set_read(read.second->read);
-        for (const MAT::Mutation& m: read.second->mutations) {
+        dump->set_start_idx(read->start + 1);
+        dump->set_end_idx(read->end);
+        dump->set_degree(read->degree);
+        dump->set_read(read->read);
+        for (const MAT::Mutation& m: read->mutations) {
             auto mut = dump->add_mutations();
             mut->set_position(m.position);
             mut->set_ref_nuc(m.ref_nuc);
