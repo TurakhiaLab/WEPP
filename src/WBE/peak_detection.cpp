@@ -163,8 +163,6 @@ struct AuxNode {
     double score;
     int leaf_count;
     bool mapped;
-    /* is there possibly a single nonmapped (or neighor mapped)?
-       node in the subtree? */
     bool is_leaf;
 
     /* children and mutations  */
@@ -505,7 +503,6 @@ class AuxManager
     }
 
     /* removes a singular read's contribution from current tree */
-    /* if updated_nodes_buffer is not none*/
     void remove_reads_effects(int index, mutex_t * mutex) {
         std::set<int> recalcuated;
         std::set<int> *epps;
@@ -568,7 +565,6 @@ class AuxManager
             return;
         }
 
-        bool alive = false;
         if (!curr->mapped) {
             s.insert(curr);
         }
@@ -629,7 +625,6 @@ class AuxManager
                 node->mapped = true;
             }
         }
-
 
         selected_neighbors.insert(added.begin(), added.end());
     }
@@ -752,7 +747,6 @@ class AuxManager
         return ret;
     }
 
-
     int build_range_tree(int parent, AuxNode* curr, int start, int end) {
         int ret;
         if (parent == -1 || curr->has_mutations_in_range(start, end)) {
@@ -800,8 +794,6 @@ class AuxManager
             for (int j = s; j < e; ++j) {
                 read_end = std::max(read_end, read_ranges[j].second);
             }
-
-            std::cout << "Building Range " << read_start << " to " << read_end << std::endl;
 
             // there is technically a chance we can have a collision 
             // where multiple range trees are for the exact same range
@@ -851,19 +843,10 @@ public:
 //Main peak search algorithm
 void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
     timer.Start();
-    int top_n = 25, prohibited_dist_thresh = 1, neighbor_dist_thresh = 4, neighbor_peaks_thresh = 100, tree_increment, tree_range, tree_overlap = 0, range_factor = 1;
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
     MAT::Tree T_condensed;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
-    
-    //Decide tree_overlap and tree_range based on range of reads
-    for (const auto& rm: read_map) {
-        int curr_range = rm.second->end - rm.second->start + 1;
-        if (curr_range > tree_overlap)
-            tree_overlap = curr_range;
-    }
-    tree_range = 2 * tree_overlap;
     
     //Create smaller tree with only sites covered by reads 
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);

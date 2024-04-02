@@ -99,6 +99,59 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
     fprintf(stderr,"%s parsed in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
 }
 
+
+void dump_proto_raw_data(const std::string& filename, const std::unordered_map<size_t, struct read_info *>& reads, const std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+    Sam::sam data;
+
+    for (const auto& read: reads) {
+        auto dump = data.add_reads();
+        dump->set_start_idx(read.second->start + 1);
+        dump->set_end_idx(read.second->end);
+        dump->set_degree(read.second->degree);
+        dump->set_read(read.second->read);
+        for (const MAT::Mutation& m: read.second->mutations) {
+            auto mut = dump->add_mutations();
+            mut->set_position(m.position);
+            mut->set_ref_nuc(m.ref_nuc);
+            mut->set_par_nuc(m.par_nuc);
+            mut->set_mut_nuc(m.mut_nuc);
+            mut->set_is_missing(m.is_missing);
+            mut->set_chrom(m.chrom);
+        }
+    }
+
+    for (const auto& kv: reverse_merge) {
+        Sam::column_info *col = data.add_reverse_columns();
+        col->set_column_name(kv.first);
+        for (const auto& str: kv.second) {
+            std::string* dump = col->add_input_columns();
+            *dump = str;
+        }
+    }
+
+    // Boost library used to stream the contents to the output protobuf file in
+    // uncompressed or compressed .gz format
+    std::ofstream outfile(filename, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf< boost::iostreams::output> outbuf;
+
+    if (filename.find(".gz\0") != std::string::npos) {
+        try {
+            outbuf.push(boost::iostreams::gzip_compressor());
+            outbuf.push(outfile);
+            std::ostream outstream(&outbuf);
+            data.SerializeToOstream(&outstream);
+            boost::iostreams::close(outbuf);
+            outfile.close();
+        } catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+    } else {
+        data.SerializeToOstream(&outfile);
+        outfile.close();
+        std::cout << " Written " << outfile.fail() << std::endl;
+    }
+}
+
 //Get the names of samples prsent in samples.vcf
 void readSampleVCF(std::vector<std::string> &vcf_samples, const std::string vcf_filename_samples) {
     // Boost library used to stream the contents of the input VCF file
