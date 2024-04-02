@@ -123,7 +123,7 @@ void dump_proto_raw_data(const std::string& filename, const std::unordered_map<s
 
     std::vector<struct read_info*> merged{reads[0]};
     for (size_t i = 1; i < reads.size(); ++i) {
-        if (comp(reads[i],  reads[i - 1]) == 0) {
+        if (comp(reads[i], reads[i - 1]) == 0) {
             merged.back()->degree += reads[i]->degree;
         }
         else {
@@ -133,7 +133,7 @@ void dump_proto_raw_data(const std::string& filename, const std::unordered_map<s
 
     for (const auto& read: reads) {
         auto dump = data.add_reads();
-        dump->set_start_idx(read->start + 1);
+        dump->set_start_idx(read->start);
         dump->set_end_idx(read->end);
         dump->set_degree(read->degree);
         dump->set_read(read->read);
