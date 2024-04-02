@@ -103,7 +103,10 @@ void load_reads_from_proto(std::string const& filename, std::unordered_map<size_
 void dump_proto_raw_data(const std::string& filename, const std::unordered_map<size_t, struct read_info *>& read_map, const std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
     Sam::sam data;
 
-    std::vector<struct read_info*> reads(read_map.begin(), read_map.end());
+    std::vector<struct read_info*> reads;
+    for (const auto& r: read_map) {
+        reads.push_back(r.second);
+    }
     const auto comp = [](struct read_info *lhs, struct read_info *rhs) -> int {
         if (lhs->start != rhs->start) return lhs->start - rhs->start; 
         if (lhs->end != rhs->end) return lhs->end - rhs->end; 
