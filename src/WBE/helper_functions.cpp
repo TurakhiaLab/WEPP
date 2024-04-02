@@ -106,7 +106,7 @@ void dump_proto_raw_data(const std::string& filename, const std::unordered_map<s
     std::vector<struct read_info*> reads(read_map.begin(), read_map.end());
     const auto comp = [](struct read_info *lhs, struct read_info *rhs) -> int {
         if (lhs->start != rhs->start) return lhs->start - rhs->start; 
-        if (rhs->end != rhs->end) return lhs->end - rhs->end; 
+        if (lhs->end != rhs->end) return lhs->end - rhs->end; 
         if (lhs->mutations.size() != rhs->mutations.size()) return lhs->mutations.size() - rhs->mutations.size();
         for (size_t i = 0; i < lhs->mutations.size(); ++i) {
             if (lhs->mutations[i].position != rhs->mutations[i].position) {
