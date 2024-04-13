@@ -1,9 +1,11 @@
 #include "wbe.hpp"
 
-constexpr bool USE_FAST = true;
-constexpr int NUM_RANGE_TREES = 10;
+constexpr int NUM_RANGE_TREES = 25;
+constexpr int MAX_PEAKS = 250;
 constexpr int TOP_N = 25;
 constexpr int TOP_N_EXPANDED_FACTOR = 4;
+// number of range bins for read distribution
+constexpr int NUM_RANGE_BINS = 60;
 constexpr int MAX_NEIGHBORS = 100;
 constexpr int MAX_PEAK_PEAK_MUTATION = 1;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
@@ -84,83 +86,24 @@ void detectPeaks(po::parsed_options parsed) {
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
     
     //Get Freyja Lineages
-    readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
+    // readCSV(freyja_lineage_abun_map, freyja_lineage_csv_filename);
 
     //CREATE condensed tree for neighbor lineage search
-    int neighbor_dist_thresh = 4;
     MAT::Tree T_condensed;
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
     
-    //EXTRACT lineages from haplotype names
-    std::string check_string = "CONDENSED";
-    for (const auto& hap_abun: hap_abun_map) {
-        if (hap_abun.first.find(check_string) != std::string::npos) {
-            auto node_names_list = condensed_nodeNames_map[hap_abun.first];
-            for (int i = 0; i < (int)node_names_list.size(); i++) {
-                auto node_name = node_names_list[i];
-                size_t last_underscore = node_name.find_last_of('_');
-                std::string real_node_name = node_name.substr(0, last_underscore);
-                while (T.get_node(real_node_name) == NULL) {
-                    last_underscore = real_node_name.find_last_of('_');
-                    real_node_name = real_node_name.substr(0, last_underscore);
-                }
-                if (!i)
-                    curr_peak_nodes.emplace_back(T_condensed.get_node(real_node_name));
-                std::string curr_lineage = node_name.substr(last_underscore + 1);
-                if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end())
-                    selected_lineages.emplace_back(curr_lineage);
-            }
-
-        }
-        else {
-            size_t last_underscore = hap_abun.first.find_last_of('_');
-            std::string real_node_name = hap_abun.first.substr(0, last_underscore);
-            while (T.get_node(real_node_name) == NULL) {
-                last_underscore = real_node_name.find_last_of('_');
-                real_node_name = real_node_name.substr(0, last_underscore);
-            }
-            curr_peak_nodes.emplace_back(T_condensed.get_node(real_node_name));
-            std::string curr_lineage = hap_abun.first.substr(last_underscore + 1);
-            if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end())
-                selected_lineages.emplace_back(curr_lineage);
-        }
-    }
-
-    //ADD Neighboring LINEAGES
-    addNeighborLineages(T_condensed, T, condensed_node_mappings, curr_peak_nodes, selected_lineages, neighbor_dist_thresh);
-    curr_peak_nodes.clear();
-    condensed_node_mappings.clear();
-    MAT::clear_tree(T_condensed);
-
-    //ADD Freyja lineages
-    for (const auto& lin_abun: freyja_lineage_abun_map) {
-        auto& curr_lineage = lin_abun.first;
-        if (std::find(selected_lineages.begin(), selected_lineages.end(), curr_lineage) == selected_lineages.end()) {
-            selected_lineages.emplace_back(curr_lineage);
-            printf("Freya lineage: %s\n", curr_lineage.c_str());
-        }
-    }
-    fprintf(stderr, "Added Lineages in %ld sec\n\n", (timer.Stop() / 1000));
-    
-    //CREATE new tree containg only selected_lineages
-    tbb::concurrent_hash_map<MAT::Node*, double> node_score_map;
-    MAT::Tree T_lin;
-    createLineageTree(T.root, selected_lineages, T_lin);
-    selected_lineages.clear();
-
-    analyzeReads(T, T_lin, ref_seq, read_map, node_score_map, vcf_samples, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
-    
-    //RUN peaks_filtering
-    std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
-    int result = std::system(command.c_str());
-    if (result)
-        fprintf(stderr, "\nCannot run peak_filtering.py\n");
+    analyzeReads(T, ref_seq, read_map, vcf_samples, condensed_nodes_csv);    
+    // //RUN peaks_filtering
+    // std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
+    // int result = std::system(command.c_str());
+    // if (result)
+    //     fprintf(stderr, "\nCannot run peak_filtering.py\n");
 }
 
 struct AuxNode {
-
     double score;
+    double dist_divergence;
     int leaf_count;
     bool mapped;
     bool is_leaf;
@@ -172,6 +115,7 @@ struct AuxNode {
     std::string id;
     MAT::Node* condensed_source;
     std::vector<AuxNode*> children;
+    std::array<double, NUM_RANGE_BINS> mapped_read_freqs;
 
     bool has_mutations_in_range(int start, int end) {
         MAT::Mutation search;
@@ -239,6 +183,10 @@ struct AuxNode {
     int mutation_distance(AuxNode * other) {
         return mutation_distance(other->stack_muts, 0, INT_MAX);
     }
+
+    double full_score() {
+        return score / (1 + dist_divergence);
+    }
 };
 
 struct RangedNode {
@@ -256,8 +204,11 @@ struct RangedNode {
 /* used to sort auxnodes by their score */
 struct ScoreComparator {
     bool operator() (AuxNode* const& left, AuxNode* const& right) const {
-        if (abs(left->score - right->score) > SCORE_EPSILON) {
-            return left->score > right->score;
+        double const effective_left = left->full_score(); 
+        double const effective_right = right->full_score(); 
+
+        if (abs(effective_left - effective_right) > SCORE_EPSILON) {
+            return effective_left > effective_right;
         }
         else if (left->leaf_count != right->leaf_count) {
             return left->leaf_count > right->leaf_count;
@@ -297,6 +248,9 @@ class AuxManager
 
     // maps ranges to RangeTree roots (indices)
     std::map<std::pair<int, int>, int> ranged_root_map;
+    int num_reads;
+    int read_distribution_bin_size;
+    std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
     const std::vector<read_info *>& reads;
     std::vector<int> max_parismony;
@@ -366,16 +320,15 @@ class AuxManager
             parsimony = my_locations.size();
         }
 
-        if (!curr->root->is_leaf || reductions) {
-            if (parsimony < max_val)
-            {
-                max_val = parsimony;
-                max_nodes = {curr};
-            }
-            else if (parsimony == max_val)
-            {
-                max_nodes.emplace_back(curr);
-            }
+        // if (!curr->root->is_leaf || reductions) {
+        if (parsimony < max_val)
+        {
+            max_val = parsimony;
+            max_nodes = {curr};
+        }
+        else if (parsimony == max_val)
+        {
+            max_nodes.emplace_back(curr);
         }
 
         for (int child: curr->children) {
@@ -415,6 +368,10 @@ class AuxManager
         }
     }
 
+    double node_score(int parsimony, int epps, int degree) {
+        return (double) degree / (epps * (1 + parsimony * parsimony));
+    }
+
     /* map all reads to all nodes, maintaining caches if not too large */
     void cartesian_map() {
         mutex_t my_mutex;
@@ -431,11 +388,13 @@ class AuxManager
 
                 single_read_tree(reads[r], max_indices, max_val);
 
-                double const delta = (double) reads[r]->degree / std::log2(1 + max_indices.size());
+                double const delta = node_score(max_val, max_indices.size(), reads[r]->degree);
                 {
                     mutex_t::scoped_lock my_lock{my_mutex};
                     for (int arena_index: max_indices) {
                         arena[arena_index].score += delta;
+                        // normalization done at the end
+                        arena[arena_index].mapped_read_freqs[reads[r]->start / this->read_distribution_bin_size] += reads[r]->degree;
                     }
                 }
 
@@ -448,6 +407,22 @@ class AuxManager
         });
         
         for (size_t i = 0; i < arena.size(); ++i) {
+            /* calculate divergence */
+            double const total = std::accumulate(arena[i].mapped_read_freqs.begin(), arena[i].mapped_read_freqs.end(), 0);
+            for (size_t j = 0; j < NUM_RANGE_BINS; ++j) {
+                arena[i].mapped_read_freqs[j] /= total;
+            }
+
+            double divergence = 0;
+            for (size_t j = 0; j < NUM_RANGE_BINS; ++j) {
+                if (arena[i].mapped_read_freqs[j] > 0) {
+                    double const p = arena[i].mapped_read_freqs[j];
+                    double const q = true_read_distribution[j];
+                    divergence += p * log2(p / q);
+                }
+            }
+            arena[i].dist_divergence = divergence;
+
             this->current_nodes.emplace_back(&arena[i]);
         }
         /* initial sort into scores */
@@ -519,7 +494,7 @@ class AuxManager
 
         /* use ORIGINAL size */
         mutex_t::scoped_lock lock{*mutex};
-        double const delta = (double) reads[index]->degree / std::log2(1 + parsimony_multiplicity[index]);
+        double const delta = node_score(max_parismony[index], parsimony_multiplicity[index], reads[index]->degree);
         for (int arena_index: (*epps)) {
             AuxNode *node = &arena[arena_index];
             if (node->mapped) {
@@ -631,7 +606,7 @@ class AuxManager
 
     /* matches currently top_n nodes with their reads */
     /* returns if finished or not */
-    bool step(int top_n) {
+    bool step() {
         assert(!current_nodes.empty() && !remaining_reads.empty());
 
         /* to get exactly same behavior as before, have a single considering set */
@@ -639,7 +614,7 @@ class AuxManager
 
         /* get top_n (under some special constraints) */ 
         auto it = current_nodes.begin();
-        double const min_score = (*it)->score;
+        double const min_score = (*it)->full_score();
 
         /* no available peaks */
         if (min_score < SCORE_EPSILON) {
@@ -651,11 +626,13 @@ class AuxManager
         /* 2. we have current_nodes left */
         /* 3. the score is all the samae */
         /* 4. we have not selected 25 yet */
+        /* 5. we have not exceeded max peaks */
         for (int i = 0; 
-                i < top_n * TOP_N_EXPANDED_FACTOR && 
+                i < TOP_N * TOP_N_EXPANDED_FACTOR && 
                 it != current_nodes.end() && 
-                abs((*it)->score - min_score) < SCORE_EPSILON &&
-                consideration.size() < (size_t) top_n; 
+                abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
+                consideration.size() < (size_t) TOP_N &&
+                consideration.size() + selected_peaks.size() < MAX_PEAKS;
             ++i, ++it) 
         {
             bool valid = true;
@@ -668,7 +645,7 @@ class AuxManager
             if (valid) {
                 consideration.push_back(*it);
                 (*it)->mapped = true;
-                printf("%.9f id: %s\n", (*it)->score, (*it)->id.c_str());
+                printf("%.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
             }
         }
 
@@ -691,7 +668,7 @@ class AuxManager
         );
         std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
 
-        return remaining_reads.empty() || current_nodes.empty();
+        return selected_peaks.size() >= MAX_PEAKS || remaining_reads.empty() || current_nodes.empty();
     }
 
     /* construct auxiliary tree from mat_tree */
@@ -755,13 +732,9 @@ class AuxManager
             ranged_arena[ret].root = curr;
             ranged_arena[ret].alive_sources = {curr};
         }
-        else if (!curr->is_leaf) {
+        else {
             ret = parent;
             ranged_arena[parent].alive_sources.push_back(curr);
-        }
-        else {
-            // leafs should not be included if they dont have mutations (since they wont have reductions)
-            ret = parent;
         }
 
         for (AuxNode* child: curr->children) {
@@ -806,6 +779,17 @@ class AuxManager
                 this->ranged_root_map[r] = build_range_tree(-1, &arena[0], read_start, read_end);
             }
         }
+
+        this->read_distribution_bin_size = (read_ranges.back().first + NUM_RANGE_BINS - 1) / NUM_RANGE_BINS;
+        this->num_reads = 0;
+        std::fill(true_read_distribution.begin(), true_read_distribution.end(), 0);
+        for (const auto& r: reads) {
+            true_read_distribution[r->start / read_distribution_bin_size] += r->degree;
+            this->num_reads += r->degree;
+        }
+        for (size_t i = 0; i < NUM_RANGE_BINS; ++i) {
+            true_read_distribution[i] /= this->num_reads;
+        }
     }
 
 public:
@@ -826,22 +810,22 @@ public:
     }
     
     void analyze() {
-        for (;!step(TOP_N);) {
+        for (;!step();) {
             printf("\n");
         }
     }
     
-    std::vector<MAT::Node*> get_peaks() {
+    std::vector<MAT::Node*> get_peaks(void) {
         return peaks;
     }
 
-    std::vector<MAT::Node*> get_neighbors() {
+    std::vector<MAT::Node*> get_neighbors(void) {
         return neighbors;
     }
 };
 
 //Main peak search algorithm
-void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, tbb::concurrent_hash_map<MAT::Node*, double> &node_score_map, const std::vector<std::string> &vcf_samples, const std::string &barcode_file, const std::string &read_mutation_depth_vcf, const std::string &condensed_nodes_csv) {
+void analyzeReads(const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples, const std::string &condensed_nodes_csv) {
     timer.Start();
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
@@ -874,9 +858,10 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
             site_read_map.insert(j);
     }
 
+    double average_distance = 0;
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
-        auto sample_mutations = getMutations(T_ref, sample);
+        auto sample_mutations = getMutations(T, sample);
         //Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end()) {
@@ -890,7 +875,7 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
         for (const auto &pn: peak_nodes) {
             for (const auto &node: condensed_node_mappings.find(pn)->second) {
                 //Getting node_mutations from the Tree
-                auto node_mutations = getMutations(T_ref, node->identifier);
+                auto node_mutations = getMutations(T, node->identifier);
                 //Remove mutations from node_mutations that are not present in site_read_map
                 auto mut_itr = node_mutations.begin();
                 while (mut_itr != node_mutations.end()) {
@@ -907,16 +892,18 @@ void analyzeReads(const MAT::Tree &T_ref, const MAT::Tree &T, const std::string 
                 }
             }
         }
+        average_distance += (float) min_dist / vcf_samples.size();
         printf("Node: %s, Closest_node: %s, mutation_distance: %d\n", sample.c_str(), best_node->identifier.c_str(), min_dist);
     }
     fprintf(stderr,"Mutation Distance Verification took %ld sec\n\n", (timer.Stop() / 1000));
+    printf("Average Distance %f\n", average_distance);
     
-    //ADD neighbor_nodes to peak_nodes
-    peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
-    peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
-    neighbor_nodes.clear();
+    // //ADD neighbor_nodes to peak_nodes
+    // peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
+    // peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
+    // neighbor_nodes.clear();
     
-    generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
-    condensed_node_mappings.clear();
-    MAT::clear_tree(T_condensed);
+    // generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
+    // condensed_node_mappings.clear();
+    // MAT::clear_tree(T_condensed);
 }
