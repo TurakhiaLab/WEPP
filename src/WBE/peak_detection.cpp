@@ -4,6 +4,7 @@ constexpr int NUM_RANGE_TREES = 25;
 constexpr int MAX_PEAKS = 250;
 constexpr int TOP_N = 25;
 constexpr int TOP_N_EXPANDED_FACTOR = 4;
+constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
 constexpr int NUM_RANGE_BINS = 60;
 constexpr int MAX_NEIGHBORS = 100;
@@ -93,12 +94,20 @@ void detectPeaks(po::parsed_options parsed) {
     std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> condensed_node_mappings;
     createCondensedTree(T.root, read_map, condensed_node_mappings, T_condensed);
     
-    analyzeReads(T, ref_seq, read_map, vcf_samples, condensed_nodes_csv);    
+    analyzeReads(
+        T, 
+        ref_seq, 
+        read_map, 
+        vcf_samples, 
+        condensed_nodes_csv,
+        barcode_file,
+        read_mutation_depth_vcf
+    );    
     // //RUN peaks_filtering
-    // std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
-    // int result = std::system(command.c_str());
-    // if (result)
-    //     fprintf(stderr, "\nCannot run peak_filtering.py\n");
+    std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
+    int result = std::system(command.c_str());
+    if (result)
+        fprintf(stderr, "\nCannot run peak_filtering.py\n");
 }
 
 struct AuxNode {
@@ -115,7 +124,7 @@ struct AuxNode {
     std::string id;
     MAT::Node* condensed_source;
     std::vector<AuxNode*> children;
-    std::array<double, NUM_RANGE_BINS> mapped_read_freqs;
+    std::array<int, NUM_RANGE_BINS> mapped_read_counts;
 
     bool has_mutations_in_range(int start, int end) {
         MAT::Mutation search;
@@ -185,7 +194,7 @@ struct AuxNode {
     }
 
     double full_score() {
-        return score / (1 + dist_divergence);
+        return score * dist_divergence * dist_divergence;
     }
 };
 
@@ -250,6 +259,7 @@ class AuxManager
     std::map<std::pair<int, int>, int> ranged_root_map;
     int num_reads;
     int read_distribution_bin_size;
+    std::array<int, NUM_RANGE_BINS> true_read_counts;
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
     const std::vector<read_info *>& reads;
@@ -394,7 +404,7 @@ class AuxManager
                     for (int arena_index: max_indices) {
                         arena[arena_index].score += delta;
                         // normalization done at the end
-                        arena[arena_index].mapped_read_freqs[reads[r]->start / this->read_distribution_bin_size] += reads[r]->degree;
+                        arena[arena_index].mapped_read_counts[reads[r]->start / this->read_distribution_bin_size] += reads[r]->degree;
                     }
                 }
 
@@ -405,26 +415,21 @@ class AuxManager
                 }
             }
         });
-        
+
         for (size_t i = 0; i < arena.size(); ++i) {
             /* calculate divergence */
-            double const total = std::accumulate(arena[i].mapped_read_freqs.begin(), arena[i].mapped_read_freqs.end(), 0);
-            for (size_t j = 0; j < NUM_RANGE_BINS; ++j) {
-                arena[i].mapped_read_freqs[j] /= total;
-            }
-
             double divergence = 0;
             for (size_t j = 0; j < NUM_RANGE_BINS; ++j) {
-                if (arena[i].mapped_read_freqs[j] > 0) {
-                    double const p = arena[i].mapped_read_freqs[j];
-                    double const q = true_read_distribution[j];
-                    divergence += p * log2(p / q);
+                double const proportion = (double) arena[i].mapped_read_counts[j] / true_read_counts[j];
+                if (proportion > READ_DIST_FACTOR_THRESHOLD) {
+                    divergence += 1.0 / NUM_RANGE_BINS;
                 }
             }
             arena[i].dist_divergence = divergence;
 
             this->current_nodes.emplace_back(&arena[i]);
         }
+
         /* initial sort into scores */
         std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
     }
@@ -782,13 +787,13 @@ class AuxManager
 
         this->read_distribution_bin_size = (read_ranges.back().first + NUM_RANGE_BINS - 1) / NUM_RANGE_BINS;
         this->num_reads = 0;
-        std::fill(true_read_distribution.begin(), true_read_distribution.end(), 0);
+        std::fill(true_read_counts.begin(), true_read_counts.end(), 0);
         for (const auto& r: reads) {
-            true_read_distribution[r->start / read_distribution_bin_size] += r->degree;
+            true_read_counts[r->start / read_distribution_bin_size] += r->degree;
             this->num_reads += r->degree;
         }
         for (size_t i = 0; i < NUM_RANGE_BINS; ++i) {
-            true_read_distribution[i] /= this->num_reads;
+            true_read_distribution[i] = (double) true_read_counts[i] / this->num_reads;
         }
     }
 
@@ -825,7 +830,15 @@ public:
 };
 
 //Main peak search algorithm
-void analyzeReads(const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples, const std::string &condensed_nodes_csv) {
+void analyzeReads(
+    const MAT::Tree &T, 
+    const std::string &ref_seq, 
+    std::unordered_map<size_t, struct read_info*> &read_map,
+    const std::vector<std::string> &vcf_samples,
+    const std::string &condensed_nodes_csv,
+    const std::string &barcode_file,
+    const std::string &read_mutation_depth_vcf
+) {
     timer.Start();
     std::vector<MAT::Node*> peak_nodes, curr_peak_nodes, prohibited_nodes, neighbor_nodes, curr_neighbor_nodes;
     std::vector<size_t> remaining_reads(read_map.size()), remove_reads;
@@ -899,11 +912,11 @@ void analyzeReads(const MAT::Tree &T, const std::string &ref_seq, std::unordered
     printf("Average Distance %f\n", average_distance);
     
     // //ADD neighbor_nodes to peak_nodes
-    // peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
-    // peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
-    // neighbor_nodes.clear();
+    peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
+    peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
+    neighbor_nodes.clear();
     
-    // generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
-    // condensed_node_mappings.clear();
-    // MAT::clear_tree(T_condensed);
+    generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
+    condensed_node_mappings.clear();
+    MAT::clear_tree(T_condensed);
 }
