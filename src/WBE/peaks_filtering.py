@@ -99,17 +99,20 @@ def solve_abundance(hap_mut_matrix, read_af, depth_values, haplotypes, mutations
     A = hap_mut_matrix.T
     #Running the loop twice to ensure abundances sum up to 1
     for i in range(2):
-        sol, ref_cost = cp_solve(A, read_af, depth_values)
-        #Make the proportion to be 0 for anything < 0
-        sol[sol < 0] = 0
-        #Removing haplotypes that are < 0 in abundance
+        sol, cost = cp_solve(A, read_af, depth_values)
+        if (i):
+            print(f"\nMin Cost: {cost}\n")
+        #Make the proportion to be 0 for anything < eps
+        sol[sol < eps] = 0
+        #Removing haplotypes that are < eps in abundance
         hap_idx_remove = np.where(sol == 0)[0]
         sol = [val for i, val in enumerate(sol) if i not in hap_idx_remove]
         haplotypes = [val for i, val in enumerate(haplotypes) if i not in hap_idx_remove]
         A = np.delete(A, hap_idx_remove, axis = 1)
     
     #Extract top_n haplotypes
-    top_n_sorted_indices = sorted(range(len(sol)), key=lambda k: sol[k], reverse=True)[:top_n]
+    #top_n_sorted_indices = sorted(range(len(sol)), key=lambda k: sol[k], reverse=True)[:min(len(sol), top_n)]
+    top_n_sorted_indices = sorted(range(len(sol)), key=lambda k: sol[k], reverse=True)
     sol = [sol[i] for i in top_n_sorted_indices]
     haplotypes = [haplotypes[i] for i in top_n_sorted_indices] 
     A = A[:, top_n_sorted_indices]
@@ -134,6 +137,7 @@ try:
     top_n = int(sys.argv[3])
 except ValueError:
     print("Invalid top_n value. Pass an integer.")
+eps = 0.005
 
 # Reading File
 barcode_file_path = directory + "/" + file_prefix + "_barcode.csv"
