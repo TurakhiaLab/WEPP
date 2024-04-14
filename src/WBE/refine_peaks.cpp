@@ -78,6 +78,8 @@ void refinePeaks(po::parsed_options parsed) {
 void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct read_info*> &hap_map, const std::vector<std::string> &vcf_samples, const std::unordered_map<std::string, double> &freyja_lineage_abun_map, const std::unordered_set<int> &site_read_map) {
     printf("Haplotypes: %d\n\n", (int)hap_map.size());
     printf("\nMUTATION DISTANCE NEW:\n");
+
+    double our_avg = 0;
     //Closest distance of sample from peak
     for (auto sample: vcf_samples) {
         int min_dist = 100000;
@@ -102,9 +104,11 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
             hap_itr++;
         }
         printf("\nNode: %s, Closest_node: %s, mutationDistance: %d", sample.c_str(), best_node.c_str(), min_dist);
-    
+        our_avg += (double) min_dist / vcf_samples.size(); 
     }
+    std::cout << "\nOverall New Average Mutation Distance " << our_avg << std::endl;
 
+    /*
     //Closest distance of sample from root node of lineage
     printf("\n\nFREYJA AVG MUTATION DISTANCE:\n");
     //Depth first expansion to get all nodes in the tree
@@ -148,4 +152,5 @@ void computeDistance(const MAT::Tree &T, const std::unordered_map<size_t, struct
         }
         printf("\nNode: %s, Closest_node: %s, mutationDistance: %d", sample.c_str(), best_node.c_str(), min_dist);
     }
+    */
 }

@@ -161,7 +161,15 @@ void placeReads(const MAT::Tree &, const std::vector<size_t> &, const std::unord
 
 void updateParsimony(struct min_parsimony &, const std::vector<MAT::Mutation> &, const int &);
 
-void analyzeReads(const MAT::Tree &T, const std::string &ref_seq, std::unordered_map<size_t, struct read_info*> &read_map, const std::vector<std::string> &vcf_samples, const std::string &condensed_nodes_csv);
+void analyzeReads(
+    const MAT::Tree &T, 
+    const std::string &ref_seq, 
+    std::unordered_map<size_t, struct read_info*> &read_map,
+    const std::vector<std::string> &vcf_samples,
+    const std::string &condensed_nodes_csv,
+    const std::string &barcode_file,
+    const std::string &read_mutation_depth_vcf
+);
 
 int mutationDistance(const MAT::Tree &, const MAT::Tree &, const MAT::Node*, const MAT::Node*);
 
