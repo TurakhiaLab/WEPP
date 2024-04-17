@@ -42,6 +42,30 @@ void detectPeaks(po::parsed_options parsed) {
     tbb::task_scheduler_init init(num_threads);
     
     timer.Start();
+    //Read samples.vcf to check how close are peaks to samples 
+    std::vector<std::string> vcf_samples;
+    readSampleVCF(vcf_samples, vcf_filename_samples);
+    //Get the input reads data
+    std::unordered_map<size_t, struct read_info*> read_map;
+    std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
+    load_reads_from_proto(proto_reads, read_map, reverse_merge);
+
+    std::vector<int> freqs;
+    int sum = 0;
+    for (size_t i = 0; i < read_map.size(); ++i) {
+        freqs.emplace_back(read_map[i]->degree);
+        sum += read_map[i]->degree;
+    }
+    std::sort(freqs.begin(), freqs.end(), std::greater<int>());
+    int curr = 0;
+    int percent = 0;
+    for (size_t i = 0; i < freqs.size(); ++i) {
+        curr += freqs[i];
+        while (curr * 100 / sum > percent) {
+            printf("Percent %d happens at %zu\n", percent, i);
+            percent++;
+        }
+    }
     //Get prior lineages
     std::vector<std::string> selected_lineages; 
     std::stringstream lin_str(prior_lineages);
@@ -70,20 +94,11 @@ void detectPeaks(po::parsed_options parsed) {
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld sec \n\n", (timer.Stop() / 1000));
 
-    //Read samples.vcf to check how close are peaks to samples 
-    std::vector<std::string> vcf_samples;
-    readSampleVCF(vcf_samples, vcf_filename_samples);
-    //Get the input reads data
-    std::unordered_map<size_t, struct read_info*> read_map;
-    std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
-    load_reads_from_proto(proto_reads, read_map, reverse_merge);
+
     
     //Get haplotype abundances and condensed node names
     timer.Start();
-    std::unordered_map<std::string, double> hap_abun_map, freyja_lineage_abun_map;
     std::unordered_map<std::string, std::vector<std::string>> condensed_nodeNames_map;
-    std::vector<MAT::Node*> curr_peak_nodes;
-    readCSV(hap_abun_map, hap_csv_filename);
     readCSV(condensed_nodeNames_map, condensed_nodes_csv);
     
     //Get Freyja Lineages
@@ -111,19 +126,33 @@ void detectPeaks(po::parsed_options parsed) {
 }
 
 struct AuxNode {
+    // raw score
     double score;
+    // 'f' score, where it rewards
+    // nodes who's corresponding reads come from a 
+    // wide variety of genome places
     double dist_divergence;
+    // based on uncompressed tree
     int leaf_count;
+    // whether or not it has been selected 
+    // as a peak or neighbor
     bool mapped;
+    // based on uncompressed tree
     bool is_leaf;
 
     /* children and mutations  */
     AuxNode* parent;
     /* muts from root to here */
     std::vector<MAT::Mutation> stack_muts;
+
+    // original tree
     std::string id;
     MAT::Node* condensed_source;
+
     std::vector<AuxNode*> children;
+    // note: does not handle overlapping ranges
+    // instead, the i'th bucket corresponds to the interval
+    // i * max_genome_size / buckets to (i + 1) * max_genome_size / buckets
     std::array<int, NUM_RANGE_BINS> mapped_read_counts;
 
     bool has_mutations_in_range(int start, int end) {
@@ -134,9 +163,12 @@ struct AuxNode {
     }
 
     // given a range and reference mutation list
-    // tells the positions where the this mutation list differs from reference
+    // tells the (genome) positions where the this mutation list differs from reference
+    // min_pos and max_pos are genome positions
     std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
         std::vector<int> muts;
+
+        const int unknown_nuc = 0b1111;
 
         MAT::Mutation search;
         search.position = min_pos;
@@ -147,7 +179,9 @@ struct AuxNode {
 
         while (i < last_i || j < (int) comp.size()) {
             if (i == last_i) {                
-                muts.push_back(comp[j].position);
+                if (comp[j].mut_nuc != unknown_nuc) {
+                    muts.push_back(comp[j].position);
+                }
                 ++j;
             }
             else if (stack_muts[i].position < min_pos) {
@@ -166,10 +200,12 @@ struct AuxNode {
                 ++i;
             }
             else if (stack_muts[i].position > comp[j].position) {
-                muts.push_back(comp[j].position);
+                if (comp[j].mut_nuc != unknown_nuc) {
+                    muts.push_back(comp[j].position);
+                }
                 ++j;
             }
-            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc) {
+            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && stack_muts[i].mut_nuc != unknown_nuc) {
                 muts.push_back(comp[j].position);
                 ++i; ++j;
             }
@@ -200,8 +236,9 @@ struct AuxNode {
 
 struct RangedNode {
     AuxNode* root;
-    /* dead nodes can be safely removed */
-    std::vector<AuxNode*> alive_sources;
+    /* the original aux nodes that correspond to this range tree */
+    std::vector<AuxNode*> sources;
+
     /* arena indices of ranged node children */
     std::vector<int> children;
 
@@ -252,10 +289,19 @@ class AuxManager
 {
     using mutex_t = tbb::queuing_mutex;
 
+    // list of all the tree nodes
+    // whenever we say arena index
+    // we mean this list
     std::vector<AuxNode> arena;
+
+    // list of all the range tree nodes
+    // whenever we say range tree arena index, it refers
+    // to this list
     std::vector<RangedNode> ranged_arena;
 
     // maps ranges to RangeTree roots (indices)
+    // key is a range (say 1000 to 1400)
+    // value is the range tree arena index
     std::map<std::pair<int, int>, int> ranged_root_map;
     int num_reads;
     int read_distribution_bin_size;
@@ -263,11 +309,18 @@ class AuxManager
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
     const std::vector<read_info *>& reads;
+    // given a read index
+    // what is its maximum parismony score?
+    // i.e max_parismony[i] = best parsimony of ith read
     std::vector<int> max_parismony;
+    // given a read index
+    // how many epp positions does it map to
+    // parsimony_multiplicity[i] = epps of ith read
     std::vector<int> parsimony_multiplicity;
     
     /* if epp_positions_cache[i].size() != multiplicity[i], that means not cached */
     /* since there's too many. Also, values are arena indices */
+    // epp_positions_cache[i] = either empty or the arena indices of the epps
     std::vector<std::set<int>> epp_positions_cache;
     
     /* mappable nodes based on their scores */
@@ -372,7 +425,7 @@ class AuxManager
         single_read_tree(root, empty_mutation_list, read, max_nodes, max_val);
 
         for (RangedNode* rnode: max_nodes) {
-            for (AuxNode *src: rnode->alive_sources) {
+            for (AuxNode *src: rnode->sources) {
                 max_indices.emplace(src - &arena[0]);
             }
         }
@@ -735,11 +788,11 @@ class AuxManager
             ret = ranged_arena.size();
             ranged_arena.emplace_back();
             ranged_arena[ret].root = curr;
-            ranged_arena[ret].alive_sources = {curr};
+            ranged_arena[ret].sources = {curr};
         }
         else {
             ret = parent;
-            ranged_arena[parent].alive_sources.push_back(curr);
+            ranged_arena[parent].sources.push_back(curr);
         }
 
         for (AuxNode* child: curr->children) {
