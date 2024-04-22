@@ -3,7 +3,6 @@
 constexpr int NUM_RANGE_TREES = 25;
 constexpr int MAX_PEAKS = 250;
 constexpr int TOP_N = 25;
-constexpr int TOP_N_EXPANDED_FACTOR = 4;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
 constexpr int NUM_RANGE_BINS = 60;
@@ -50,6 +49,7 @@ void detectPeaks(po::parsed_options parsed) {
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge;
     load_reads_from_proto(proto_reads, read_map, reverse_merge);
 
+    /*
     std::vector<int> freqs;
     int sum = 0;
     for (size_t i = 0; i < read_map.size(); ++i) {
@@ -66,6 +66,7 @@ void detectPeaks(po::parsed_options parsed) {
             percent++;
         }
     }
+    */
     //Get prior lineages
     std::vector<std::string> selected_lineages; 
     std::stringstream lin_str(prior_lineages);
@@ -119,10 +120,10 @@ void detectPeaks(po::parsed_options parsed) {
         read_mutation_depth_vcf
     );    
     // //RUN peaks_filtering
-    std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
-    int result = std::system(command.c_str());
-    if (result)
-        fprintf(stderr, "\nCannot run peak_filtering.py\n");
+    // std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
+    // int result = std::system(command.c_str());
+    // if (result)
+    //     fprintf(stderr, "\nCannot run peak_filtering.py\n");
 }
 
 struct AuxNode {
@@ -325,7 +326,7 @@ class AuxManager
     
     /* mappable nodes based on their scores */
     /* a node is 'mappable' if has not been marked as a peak or neighbor */
-    /* while a sorted set is more approrpriate, it's overhead is too high*/
+    /* while a fibbonacci heap is more approrpriate, it's overhead is too high*/
     /* so we just sort when necessary */
     std::vector<AuxNode*> current_nodes;
 
@@ -680,13 +681,11 @@ class AuxManager
         }
 
         /* while: */
-        /* 1. we have not been searching for too long */
-        /* 2. we have current_nodes left */
-        /* 3. the score is all the samae */
-        /* 4. we have not selected 25 yet */
-        /* 5. we have not exceeded max peaks */
+        /* 1. we have current_nodes left */
+        /* 2. the score is all the samae */
+        /* 3. we have not selected 25 yet */
+        /* 4. we have not exceeded max peaks */
         for (int i = 0; 
-                i < TOP_N * TOP_N_EXPANDED_FACTOR && 
                 it != current_nodes.end() && 
                 abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
                 consideration.size() < (size_t) TOP_N &&
@@ -850,6 +849,95 @@ class AuxManager
         }
     }
 
+
+    void postprocess() {
+        double const sigma = 3.0;
+        double const coeff = log(1 / (sigma * sqrt(2 * M_PI)));
+
+        current_nodes.clear();
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, arena.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    arena[i].mapped = false;
+                    arena[i].score = 0;
+                    arena[i].dist_divergence = 1;
+                }
+            } 
+        );
+        std::vector<AuxNode*> subset;
+        subset.insert(subset.end(), selected_peaks.begin(), selected_peaks.end());
+        subset.insert(subset.end(), selected_neighbors.begin(), selected_neighbors.end());
+        current_nodes.insert(current_nodes.end(), subset.begin(), subset.end());
+        
+        std::vector<std::vector<double>> parsimony(reads.size(), std::vector<double>(subset.size()));
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+             [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    for (size_t j = 0; j < reads.size(); ++j) {
+                        double dist = subset[i]->mutation_distance(reads[j]) / sigma;
+                        parsimony[j][i] = reads[j]->degree * (coeff - dist * dist);
+                        subset[i]->score += parsimony[j][i];
+                    }
+                }
+             }
+        );
+
+        selected_peaks.clear();
+        selected_neighbors.clear();
+        peaks.clear();
+        neighbors.clear();
+
+        for (size_t q = 0; q < MAX_PEAKS; ++q) {
+            std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
+
+            selected_peaks.emplace(current_nodes[0]);
+            peaks.emplace_back(current_nodes[0]->condensed_source); 
+            current_nodes[0]->mapped = true;
+
+            std::cout << " Working score " << current_nodes[0]->score << " name " << current_nodes[0]->id << std::endl;
+
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                        subset[i]->score = 0;
+                    }
+                }
+            );
+
+            std::vector<double> comp(reads.size());
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                        double dist = current_nodes[0]->mutation_distance(reads[i]) / sigma;
+                        comp[i] = reads[i]->degree * (coeff - dist * dist);
+                    }
+                }
+            );
+
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                        for (size_t j = 0; j < reads.size(); ++j) {
+                            parsimony[j][i] = std::max(parsimony[j][i], comp[j]);
+                            subset[i]->score += parsimony[j][i];
+                        }
+                    }
+                }
+            );
+
+            current_nodes.erase(
+                std::remove_if(
+                    current_nodes.begin(),
+                    current_nodes.end(),
+                    [](AuxNode* const &node) -> bool {
+                        return node->mapped;
+                    }
+                ),
+                current_nodes.end()
+            );
+        }
+    }
+
 public:
     /* preprocessing */
     AuxManager(const MAT::Tree &src, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings, std::vector<read_info*> const& reads) : reads{reads} {
@@ -863,14 +951,26 @@ public:
             remaining_reads.emplace(i);   
         }
 
-        /* map entire set of reads onto tree*/
+        /* map entire set of reads onto tree */
         this->cartesian_map();
+        // for (size_t i = 0; i < arena.size(); ++i) {
+        //     for (auto x: condensed_node_mappings[arena[i].condensed_source]) {
+        //         if (x->clade_annotations[1] != "") {
+        //             selected_peaks.emplace(&arena[i]);
+        //             break;
+        //         }
+        //     }
+        // }
     }
     
     void analyze() {
         for (;!step();) {
             printf("\n");
         }
+
+        std::cout << "Lineages " << selected_peaks.size() << std::endl;
+
+        this->postprocess();
     }
     
     std::vector<MAT::Node*> get_peaks(void) {
@@ -965,6 +1065,7 @@ void analyzeReads(
     printf("Average Distance %f\n", average_distance);
     
     // //ADD neighbor_nodes to peak_nodes
+    /*
     peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
     peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
     neighbor_nodes.clear();
@@ -972,4 +1073,5 @@ void analyzeReads(
     generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
     condensed_node_mappings.clear();
     MAT::clear_tree(T_condensed);
+    */
 }
