@@ -433,7 +433,8 @@ class AuxManager
     }
 
     double node_score(int parsimony, int epps, int degree) {
-        return (double) degree / (epps * (1 + parsimony * parsimony));
+        return (double) degree * 1 / (1 + log(epps));
+        // return (double) degree / (epps * (1 + parsimony * parsimony));
     }
 
     /* map all reads to all nodes, maintaining caches if not too large */
@@ -864,6 +865,7 @@ class AuxManager
                 }
             } 
         );
+
         std::vector<AuxNode*> subset;
         subset.insert(subset.end(), selected_peaks.begin(), selected_peaks.end());
         subset.insert(subset.end(), selected_neighbors.begin(), selected_neighbors.end());
@@ -887,12 +889,13 @@ class AuxManager
         peaks.clear();
         neighbors.clear();
 
-        for (size_t q = 0; q < MAX_PEAKS; ++q) {
+        std::vector<AuxNode*> consideration;
+
+        for (size_t q = 0; q < subset.size() && q < MAX_PEAKS; ++q) {
             std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
 
-            selected_peaks.emplace(current_nodes[0]);
-            peaks.emplace_back(current_nodes[0]->condensed_source); 
             current_nodes[0]->mapped = true;
+            consideration.emplace_back(current_nodes[0]);
 
             std::cout << " Working score " << current_nodes[0]->score << " name " << current_nodes[0]->id << std::endl;
 
@@ -936,6 +939,9 @@ class AuxManager
                 current_nodes.end()
             );
         }
+
+        /* clear neighbors */
+        this->clear_neighbors(consideration);
     }
 
 public:
@@ -968,9 +974,9 @@ public:
             printf("\n");
         }
 
-        std::cout << "Lineages " << selected_peaks.size() << std::endl;
-
-        this->postprocess();
+        for (int i = 0; i < 4; ++i) {
+            this->postprocess();
+        }
     }
     
     std::vector<MAT::Node*> get_peaks(void) {
