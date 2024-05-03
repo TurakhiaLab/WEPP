@@ -6,11 +6,14 @@ constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
 constexpr int NUM_RANGE_BINS = 60;
-constexpr int MAX_NEIGHBORS = 100;
+constexpr int MAX_NEIGHBORS = 200;
 constexpr int MAX_PEAK_PEAK_MUTATION = 1;
-constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
+constexpr int MAX_PEAK_NONPEAK_MUTATION = 5;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
 constexpr double SCORE_EPSILON = 1e-6;
+constexpr double ERROR_RATE = 0.01;
+constexpr double EM_EPSILON = 0.1;
+constexpr double MIN_PROPORTION = 0.5 / 100;
 
 void detectPeaks(po::parsed_options parsed) {
     //main argument for the complex extract command
@@ -433,7 +436,7 @@ class AuxManager
     }
 
     double node_score(int parsimony, int epps, int degree) {
-        return (double) degree * 1 / (1 + log(epps));
+        return (double) degree / ((1 + parsimony) * epps * epps);
         // return (double) degree / (epps * (1 + parsimony * parsimony));
     }
 
@@ -850,6 +853,114 @@ class AuxManager
         }
     }
 
+    void em_postprocess() {
+        current_nodes.clear();
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, arena.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    arena[i].mapped = false;
+                    arena[i].score = 0;
+                    arena[i].dist_divergence = 1;
+                }
+            } 
+        );
+
+        std::vector<AuxNode*> subset;
+        subset.insert(subset.end(), selected_peaks.begin(), selected_peaks.end());
+        subset.insert(subset.end(), selected_neighbors.begin(), selected_neighbors.end());
+        current_nodes.insert(current_nodes.end(), subset.begin(), subset.end());
+
+        std::vector<std::vector<double>> q(subset.size(), std::vector<double>(reads.size()));
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+             [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    for (size_t j = 0; j < reads.size(); ++j) {
+                        double dist = subset[i]->mutation_distance(reads[j]);
+                        q[i][j] = std::pow(ERROR_RATE, dist) * std::pow(1 - ERROR_RATE, reads[j]->end - reads[j]->start + 1 - dist);
+                    }
+                }
+             }
+        );
+
+        double prev = 0, curr = 0;
+        int max_it = 15;
+        std::vector<double> p(subset.size(), 1.0 / subset.size());
+        do {
+            prev = curr;
+
+            std::vector<double> denom(reads.size());
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), 
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t j = range.begin(); j < range.end(); ++j) {
+                        double sum = 0;
+                        for (size_t l = 0; l < subset.size(); ++l) {
+                            sum += p[l] * q[l][j];
+                        }
+                        denom[j] = sum;
+                    }
+                }
+            );
+
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()), 
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                        double sum = 0;
+                        size_t count = 0;
+                        for (size_t j = 0; j < reads.size(); ++j) {
+                            sum += reads[j]->degree * p[i] * q[i][j] / denom[j];
+                            count += reads[j]->degree;
+                        }
+                        // don't even need multiple p
+                        p[i] = sum / count;
+                    }
+                } 
+            );
+
+            std::vector<double> logl(reads.size());
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), 
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t j = range.begin(); j < range.end(); ++j) {
+                        double sum = 0;
+                        for (size_t l = 0; l < subset.size(); ++l) {
+                            sum += p[l] * q[l][j];
+                        }
+                        logl[j] = std::log(sum);
+                    }
+                }
+            );
+
+            curr = std::accumulate(logl.begin(), logl.end(), 0.0);
+            std::cout << " Curr " << curr << std::endl;
+        } while (abs(curr - prev) > EM_EPSILON && --max_it);
+
+        for (size_t i = 0; i < p.size(); ++i) {
+            subset[i]->score = p[i];
+        }
+        std::sort(subset.begin(), subset.end(), ScoreComparator());
+
+        if (subset.size() > (size_t) (1 / MIN_PROPORTION)) {
+            subset.erase(subset.begin() + (size_t)(1 / MIN_PROPORTION), subset.end());
+            double proportion = 0;
+            for (size_t i = 0; i < subset.size(); ++i) {
+                proportion += subset[i]->score;
+            }
+            for (size_t i = 0; i < subset.size(); ++i) {
+                subset[i]->score = subset[i]->score / proportion;
+            }
+        }
+
+        auto it = subset.begin();
+        while ((*it)->score >= MIN_PROPORTION) {
+            ++it;
+        }
+        subset.erase(it, subset.end());
+
+        this->clear_neighbors(subset);
+
+        for (size_t i = 0; i < subset.size(); ++i) {
+            std::cout << "EM Selected " << subset[i]->id << std::endl;
+        }
+    }
 
     void postprocess() {
         double const sigma = 3.0;
@@ -944,6 +1055,23 @@ class AuxManager
         this->clear_neighbors(consideration);
     }
 
+    void init_from_peaks( std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings) {
+        std::set<std::string> peak_names = {
+            "USA/UT-UPHL-211207411157/2021|OL850427.1|2021-10-23","England/DHSC-CYNGP8M/2022|2022-01-16","USA/CUIMC-NP-5364/2021|MZ680974.1|2021-02-15","England/LOND-1359F9C/2021|OV314953.1|2021-11-25","USA/KPL-313_Nasal_Swab/2021|OP222737.1|2021-12-31","IMS-10150-CVDP-E66912C7-5ACA-4977-82E2-F6E1A70B5626|OU156786.1|2021-04-27","England/PLYM-20729CC/2021|OU864667.1|2021-10-06","node_1298822","Wales/PHWC-PDC7YQ/2021|2021-08-30","USA/NE-Noblis-S964.BC78.BT22.v1.1/2021|OM938984.1|2021-12-01","Denmark/DCGC-428071/2022|OX066483.1|2022-03-10","IMS-10183-CVDP-CADB58B9-51E0-43B4-9C19-7929C70E0374|OU567904.1|2021-07-24","AUS/VIC10358/2020|MW155076.1|2020-09-01","IMS-10087-CVDP-BA589A66-531B-4195-8258-22F9CC7C4497|OV679107.1|2021-12-14","node_933420","USA/CA-CDPH-2000010508/2020|ON216856.1|2020-12-11","Switzerland/SH-ETHZ-34783124/2021|OV326774.1|2021-11-14","USA/IL-CDC-LC0734800/2022|ON941006.1|2022-06-21","Northern_Ireland/NIRE-017cc7/2021|2021-12-17","England/ALDP-1778CF6/2021|OU358113.1|2021-06-18","USA/FL-CDC-ASC210249230/2021|MZ995678.1|2021-07-27","England/DHSC-CYDBKF5/2022|2022-01-04","USA/CO-CDPHE-2102916618/2022|OM860194.1|2022-02-10","USA/CA-CDC-ASC210113480/2021|OK296679.1|2021-07-11","THA/CONI-3328/2022|OP060789.1|2022-03-27","node_1179775","IMS-10023-CVDP-8806CB6B-FCB4-415E-BA08-B698B100AA90|OU109880.1|2021-03-21","BRA/SARS-CoV-2_mutants_generated_from_sequential_passages_in_Huh-7_cells/2020|OQ048259.1|2020-08-10","England/DHSC-CYYE8FU/2022|2022-02-20","England/PHEC-YYD1DP5/2022|2022-03-11","USA/CO-CDC-ASC210430719/2021|OL927628.1|2021-11-22","Switzerland/BL-ETHZ-35963862/2022|OV882561.1|2022-01-24","node_163491","England/QEUH-135D639/2021|OU034669.1|2021-02-28","node_880064","England/CAMC-C98EAD/2020|OD917787.1|2020-12-17","USA/WA-CDC-UW21121709950/2021|OM065614.1|2021-12-17","20220201815|OX448615.1|2022-01-11","OX314535.1|2022-01-01","USA/WI-UW-11513/2022|OP515931.1|2022-05-31","USA/SEARCH-0247-SAN/2020|MT810954.1|2020-03-27","USA/JW6938/2022|ON953779.1|2022-06-22","USA/FL-CDC-ASC210639430/2021|OM173419.1|2021-12-22","node_572285","hCoV-19/USA/NY-MSHSPSP-PV24650/2020|EPI_ISL_1300881|2020-12-06","USA/OK-CDC-ASC210638269/2021|OM172730.1|2021-12-20","USA/WI-CDC-ASC210638273/2021|OM172744.1|2021-12-21","node_691758","IMS-10172-CVDP-6B55DDB4-06C6-4887-A529-748794394385|OU122101.1|2021-03-10","node_357298","USA/FL-CDC-ASC210642292/2021|OM199050.1|2021-12-23","RNA|OW122540.1|2022-02-15","Molecular_surveillance_of_SARS-CoV-2_in_Germany|OV356720.1|2021-09-20","node_927614","USA/FL-BPHL-10749/2021|OL344995.1|2021-06-10","USA/NJ-CDC-LC0802670/2022|OP167632.1|2022-07-25","USA/IN-GD-083121-371/2021|OK158676.1|2021-08-14","hCoV-19/England/MILK-2DF642C/2021|EPI_ISL_7718520|2021-12-09","UZB/hCoV-19-Uzb-CGB-38/2021|MZ892624.1|2021-07-23","England/MILK-360C621/2022|OV969049.1|2022-02-08","node_1004504","USA/MI-CDC-STM-9UQJNQY2H/2021|OL499938.1|2021-10-21","node_911967","USA/ID-CDC-ASC210716187/2021|OL945444.1|2021-11-27","USA/SC-CDC-LC0013080/2021|MW642988.1|2021-02-01","USA/SC-CDC-ASC210244598/2021|MZ981235.1|2021-07-24","USA/MN-CDC-ASC210125244/2021|OK229736.1|2021-09-03","England/MILK-15268AA/2021|OU260439.1|2021-04-18","node_1250243","USA/NY-PRL-2021_0429_01C14/2021|MZ641224.1|2021-04-27","IRQ/Samawa-29/2021|MZ145315.1|2021-02-20","England/PHEP-020369/2021|2021-07-28","node_275296","USA/IL-CDC-ASC210584547/2022|OM517283.1|2022-01-13","Germany/2022|OW656430.1|2022-04-10","USA/CO-Noblis-S686B18/2021|MZ842997.1|2021-06-21","England/PHEC-3K044KB2/2021|2021-09-30","England/LSPA-3752852/2022|OW057126.1|2022-02-16","HUN/Hun-1/2020|OM812693.1|2020-11","node_905025","USA/CA-CDPH-FS48074591/2022|OQ112266.1|2022-11-16","USA/TG920857/2020|ON415701.1|2020-08-26","USA/TX-CDC-ASC210567824/2021|OM156012.1|2021-12-22","England/DHSC-CYBG3DE/2022|2022-02-04","USA/MN-CDC-IBX003537889913/2022|OM722843.1|2022-02-03","node_1127092","England/PHEC-4G0BAZ31/2021|2021-12-27","England/PHEC-4X03EZ00/2022|2022-01-22","USA/22007788/2022|OM614677.1|2022-01-19","England/DHSC-CYY4RZC/2022|2022-02-15","England/DHSC-CYYGBY8/2022|2022-01-04","England/MILK-32A2269/2022|OV734831.1|2022-01-15","USA/LA-EVTL9564/2021|OM997223.1|2021-12-13","USA/DE-CDC-ASC210560083/2021|OM331912.1|2021-12-28","USA/FL-CDC-ASC210571376/2021|OM261674.1|2021-12-27","OX307087.1|2021-11-26","USA/FL-BPHL-1553/2020|MW056104.1|2020-09-09","England/PHEC-YY84T8F/2023|2023-01-07","Molecular_surveillance_of_SARS-CoV-2_in_Germany|OV196096.1|2021-10-18","England/DHSC-CYN6EGB/2022|2022-01-16",
+            "hCoV-19/England/MILK-9E05B3/2020|EPI_ISL_601443|2020-09-20","hCoV-19/Japan/IC-0564/2021|EPI_ISL_792683|2021-01-02","hCoV-19/USA/NY-MSHSPSP-PV24650/2020|EPI_ISL_1300881|2020-12-06","hCoV-19/India/MH-NCCS-P1162000182735/2021|EPI_ISL_1544014|2021-02-27","hCoV-19/Hong","hCoV-19/Australia/QLD2568/2021|EPI_ISL_7190366|2021-12-01","hCoV-19/England/MILK-2DF642C/2021|EPI_ISL_7718520|2021-12-09","hCoV-19/Denmark/DCGC-493190/2022|EPI_ISL_12248637|2022-04-17"
+        };
+        std::vector<AuxNode*> peaks;
+        for (size_t i = 0; i < arena.size(); ++i) {
+            for (auto node: condensed_node_mappings[arena[i].condensed_source]) {
+                if (peak_names.find(node->identifier) != peak_names.end()) {
+                    peaks.emplace_back(&arena[i]);
+                }
+            }
+        }
+
+        clear_neighbors(peaks);
+    }
+
 public:
     /* preprocessing */
     AuxManager(const MAT::Tree &src, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings, std::vector<read_info*> const& reads) : reads{reads} {
@@ -959,14 +1087,7 @@ public:
 
         /* map entire set of reads onto tree */
         this->cartesian_map();
-        // for (size_t i = 0; i < arena.size(); ++i) {
-        //     for (auto x: condensed_node_mappings[arena[i].condensed_source]) {
-        //         if (x->clade_annotations[1] != "") {
-        //             selected_peaks.emplace(&arena[i]);
-        //             break;
-        //         }
-        //     }
-        // }
+        // this->init_from_peaks(condensed_node_mappings);
     }
     
     void analyze() {
@@ -974,9 +1095,8 @@ public:
             printf("\n");
         }
 
-        for (int i = 0; i < 4; ++i) {
-            this->postprocess();
-        }
+        // this->postprocess();
+        this->em_postprocess();
     }
     
     std::vector<MAT::Node*> get_peaks(void) {
@@ -1022,6 +1142,8 @@ void analyzeReads(
     //Verify Recovery of Input Samples
     printf("MUTATION DISTANCE ORIG:\n"); 
     timer.Start();
+
+    // peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
 
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < read_map.size(); i++) {

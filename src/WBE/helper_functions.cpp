@@ -1215,7 +1215,7 @@ void createCondensedTree(MAT::Node* ref_root, const std::unordered_map<size_t, s
                 remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
         }
         //Without any mutation, can only be Placed as a child if r_curr_node is NOT leaf node
-        else if (r_curr_node->children.size()) {
+        else {
             //Add current_node to the n_parent_node's list in node_mappings
             node_mappings[n_parent_node].emplace_back(r_curr_node);
             //Add children to remaining_nodes    
