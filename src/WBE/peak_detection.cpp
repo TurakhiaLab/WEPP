@@ -1,7 +1,7 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 250;
+constexpr int MAX_PEAKS = 350;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
@@ -436,7 +436,7 @@ class AuxManager
     }
 
     double node_score(int parsimony, int epps, int degree) {
-        return (double) degree / ((1 + parsimony) * epps * epps);
+        return (double) degree / ((1 + parsimony) * epps);
         // return (double) degree / (epps * (1 + parsimony * parsimony));
     }
 
@@ -926,7 +926,7 @@ class AuxManager
                         }
                         logl[j] = std::log(sum);
                     }
-                }
+                } 
             );
 
             curr = std::accumulate(logl.begin(), logl.end(), 0.0);
@@ -937,20 +937,10 @@ class AuxManager
             subset[i]->score = p[i];
         }
         std::sort(subset.begin(), subset.end(), ScoreComparator());
-
-        if (subset.size() > (size_t) (1 / MIN_PROPORTION)) {
-            subset.erase(subset.begin() + (size_t)(1 / MIN_PROPORTION), subset.end());
-            double proportion = 0;
-            for (size_t i = 0; i < subset.size(); ++i) {
-                proportion += subset[i]->score;
-            }
-            for (size_t i = 0; i < subset.size(); ++i) {
-                subset[i]->score = subset[i]->score / proportion;
-            }
-        }
-
         auto it = subset.begin();
-        while ((*it)->score >= MIN_PROPORTION) {
+        double total = 0;
+        while (it != subset.end() && (*it)->score / ((*it)->score + total) >= MIN_PROPORTION) {
+            total += (*it)->score;
             ++it;
         }
         subset.erase(it, subset.end());
@@ -958,7 +948,7 @@ class AuxManager
         this->clear_neighbors(subset);
 
         for (size_t i = 0; i < subset.size(); ++i) {
-            std::cout << "EM Selected " << subset[i]->id << std::endl;
+            std::cout << "EM Selected " << subset[i]->id << " with abundance " << std::fixed << std::setprecision(9) << subset[i]->score / total << std::endl;
         }
     }
 
