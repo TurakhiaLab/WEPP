@@ -1,13 +1,13 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 350;
+constexpr int MAX_PEAKS = 300;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
 constexpr int NUM_RANGE_BINS = 60;
 constexpr int MAX_NEIGHBORS = 200;
-constexpr int MAX_PEAK_PEAK_MUTATION = 1;
+constexpr int MAX_PEAK_PEAK_MUTATION = 2;
 constexpr int MAX_PEAK_NONPEAK_MUTATION = 5;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
 constexpr double SCORE_EPSILON = 1e-6;
@@ -234,7 +234,7 @@ struct AuxNode {
     }
 
     double full_score() {
-        return score * dist_divergence * dist_divergence;
+        return score * sqrt(dist_divergence);
     }
 };
 
