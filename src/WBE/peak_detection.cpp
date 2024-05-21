@@ -1,17 +1,19 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 300;
+constexpr int MAX_PEAKS = 7500;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
 constexpr int NUM_RANGE_BINS = 60;
-constexpr int MAX_NEIGHBORS = 200;
+constexpr int MAX_NEIGHBORS = 150;
 constexpr int MAX_PEAK_PEAK_MUTATION = 2;
-constexpr int MAX_PEAK_NONPEAK_MUTATION = 5;
+constexpr int MAX_PEAK_NONPEAK_MUTATION = 4;
 constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
+// take scores from top 1 to 0.8 * top 1
+constexpr double SINGLE_BATCH_CUTOFF = 0.8;
 constexpr double SCORE_EPSILON = 1e-6;
-constexpr double ERROR_RATE = 0.01;
+constexpr double ERROR_RATE = 0.02;
 constexpr double EM_EPSILON = 0.1;
 constexpr double MIN_PROPORTION = 0.5 / 100;
 
@@ -152,6 +154,8 @@ struct AuxNode {
     // original tree
     std::string id;
     MAT::Node* condensed_source;
+
+    std::vector<AuxNode*> selected_neighbors;
 
     std::vector<AuxNode*> children;
     // note: does not handle overlapping ranges
@@ -569,8 +573,6 @@ class AuxManager
     }
 
     void singular_step(AuxNode* node) {
-        assert(!node->mapped);
-        
         /* 1. map remaining reads onto this node (finding correspondents) */
         std::vector<int> correspondents = find_correspondents(node);
 
@@ -622,13 +624,17 @@ class AuxManager
         dfs_possible_neighbors(pivot, curr, s, radius);
     }
 
-    /* clears neighbors (and self) from map */
-    void clear_neighbors(std::vector<AuxNode*> &nodes) {
-        /* 1. mark as peak */
+    void mark_as_peaks(std::vector<AuxNode*> const& nodes) {
         for (AuxNode* const& n: nodes) {
             selected_peaks.insert(n);
             peaks.emplace_back(n->condensed_source);
         }
+    }
+
+    /* clears neighbors (and self) from map */
+    void clear_neighbors(std::vector<AuxNode*> const &nodes) {
+        /* 1. mark as peak */
+        this->mark_as_peaks(nodes);
 
         std::vector<AuxNode*> added;
         /* 2. find candidates within radius (taking only top n for each pivot) */
@@ -637,6 +643,7 @@ class AuxManager
             std::set<AuxNode*, ScoreComparator> multisource_radius;
             possible_neighbors(pivot, multisource_radius, MAX_PEAK_NONPEAK_MUTATION);
 
+            pivot->selected_neighbors.clear();
             int i = 0;
             for (AuxNode * node : multisource_radius)
             {
@@ -645,6 +652,7 @@ class AuxManager
                     node->mapped = true;
                     added.emplace_back(node);
                     neighbors.emplace_back(node->condensed_source);
+                    pivot->selected_neighbors.emplace_back(node);
                     if (++i == MAX_NEIGHBORS)
                     {
                         break;
@@ -686,13 +694,11 @@ class AuxManager
 
         /* while: */
         /* 1. we have current_nodes left */
-        /* 2. the score is all the samae */
-        /* 3. we have not selected 25 yet */
-        /* 4. we have not exceeded max peaks */
+        /* 2. the score is relatively the same */
+        /* 3. we have not exceeded max peaks */
         for (int i = 0; 
                 it != current_nodes.end() && 
-                abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
-                consideration.size() < (size_t) TOP_N &&
+                abs((*it)->full_score() / min_score) > SINGLE_BATCH_CUTOFF &&
                 consideration.size() + selected_peaks.size() < MAX_PEAKS;
             ++i, ++it) 
         {
@@ -710,13 +716,16 @@ class AuxManager
             }
         }
 
-        /* clear neighbors of selected peaks */
+        /* clear neighbors of selected peaks (marking them as mapped as well) */
         this->clear_neighbors(consideration);
 
-        /* remove associated reads of selected peaks */ 
-        for (AuxNode *&node: consideration) {
-            this->singular_step(node);
+        /* remove associated reads of ONLY the top */ 
+        if (!consideration.empty()) {
+            this->singular_step(consideration[0]);
         }
+        // for (AuxNode *&node: consideration) {
+        //     this->singular_step(node);
+        // }
 
         /* resort current_nodes (removing mapped nodes as well) */
         current_nodes.erase(
@@ -853,7 +862,7 @@ class AuxManager
         }
     }
 
-    void em_postprocess() {
+    void em_postprocess(bool include_neighbors) {
         current_nodes.clear();
         tbb::parallel_for(tbb::blocked_range<size_t>(0, arena.size()),
             [&](tbb::blocked_range<size_t> range) {
@@ -867,7 +876,11 @@ class AuxManager
 
         std::vector<AuxNode*> subset;
         subset.insert(subset.end(), selected_peaks.begin(), selected_peaks.end());
-        subset.insert(subset.end(), selected_neighbors.begin(), selected_neighbors.end());
+        if (include_neighbors) {
+            for (AuxNode* peak: selected_peaks) {
+                subset.insert(subset.end(), peak->selected_neighbors.begin(), peak->selected_neighbors.end());
+            }
+        }
         current_nodes.insert(current_nodes.end(), subset.begin(), subset.end());
 
         std::vector<std::vector<double>> q(subset.size(), std::vector<double>(reads.size()));
@@ -930,7 +943,6 @@ class AuxManager
             );
 
             curr = std::accumulate(logl.begin(), logl.end(), 0.0);
-            std::cout << " Curr " << curr << std::endl;
         } while (abs(curr - prev) > EM_EPSILON && --max_it);
 
         for (size_t i = 0; i < p.size(); ++i) {
@@ -945,7 +957,15 @@ class AuxManager
         }
         subset.erase(it, subset.end());
 
-        this->clear_neighbors(subset);
+        this->selected_peaks = this->selected_neighbors = {};
+        this->mark_as_peaks(subset);
+
+        if (include_neighbors) {
+            std::cout << "****Final EM (" << subset.size() << ")****" << std::endl;
+        }
+        else {
+            std::cout << "****Initial EM (" << subset.size() << ")****" << std::endl;
+        }
 
         for (size_t i = 0; i < subset.size(); ++i) {
             std::cout << "EM Selected " << subset[i]->id << " with abundance " << std::fixed << std::setprecision(9) << subset[i]->score / total << std::endl;
@@ -1086,7 +1106,16 @@ public:
         }
 
         // this->postprocess();
-        this->em_postprocess();
+
+        // without neighbors
+        this->em_postprocess(false);
+        this->em_postprocess(true);
+        // std::set<AuxNode*, MutationComparator> prev_iteration;
+        // do {
+        //     prev_iteration = this->selected_peaks;
+        //     // with neighbors
+        //     this->em_postprocess(true);
+        // } while (prev_iteration != this->selected_peaks);
     }
     
     std::vector<MAT::Node*> get_peaks(void) {
@@ -1123,6 +1152,7 @@ void analyzeReads(
     std::transform(read_map.begin(), read_map.end(), std::back_inserter(read_vector), [](const auto &x) { return x.second; });
 
     AuxManager am{T_condensed, condensed_node_mappings, read_vector};
+    std::cout << "Finished cartesian mapping in " << timer.Stop() / 1000 <<  " seconds " << std::endl;
     am.analyze();
     peak_nodes = am.get_peaks();
     neighbor_nodes = am.get_neighbors();
