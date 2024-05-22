@@ -1109,7 +1109,9 @@ public:
 
         // without neighbors
         this->em_postprocess(false);
-        this->em_postprocess(true);
+        for (int i = 0; i < 5; ++i) {
+            this->em_postprocess(true);
+        }
         // std::set<AuxNode*, MutationComparator> prev_iteration;
         // do {
         //     prev_iteration = this->selected_peaks;
