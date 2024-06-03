@@ -1,7 +1,7 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 7500;
+constexpr int MAX_PEAKS = 250;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
@@ -14,7 +14,7 @@ constexpr int MAX_CACHED_MULTIPLICITY_SIZE = 1024;
 constexpr double SINGLE_BATCH_CUTOFF = 0.8;
 constexpr double SCORE_EPSILON = 1e-6;
 constexpr double ERROR_RATE = 0.02;
-constexpr double EM_EPSILON = 0.1;
+constexpr double EM_EPSILON = 0.0;
 constexpr double MIN_PROPORTION = 0.5 / 100;
 
 void detectPeaks(po::parsed_options parsed) {
@@ -694,11 +694,13 @@ class AuxManager
 
         /* while: */
         /* 1. we have current_nodes left */
-        /* 2. the score is relatively the same */
-        /* 3. we have not exceeded max peaks */
+        /* 2. the score is all the samae */
+        /* 3. we have not selected 25 yet */
+        /* 4. we have not exceeded max peaks */
         for (int i = 0; 
                 it != current_nodes.end() && 
-                abs((*it)->full_score() / min_score) > SINGLE_BATCH_CUTOFF &&
+                abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
+                consideration.size() < (size_t) TOP_N &&
                 consideration.size() + selected_peaks.size() < MAX_PEAKS;
             ++i, ++it) 
         {
@@ -719,13 +721,9 @@ class AuxManager
         /* clear neighbors of selected peaks (marking them as mapped as well) */
         this->clear_neighbors(consideration);
 
-        /* remove associated reads of ONLY the top */ 
-        if (!consideration.empty()) {
-            this->singular_step(consideration[0]);
+        for (AuxNode *&node: consideration) {
+            this->singular_step(node);
         }
-        // for (AuxNode *&node: consideration) {
-        //     this->singular_step(node);
-        // }
 
         /* resort current_nodes (removing mapped nodes as well) */
         current_nodes.erase(
@@ -896,7 +894,7 @@ class AuxManager
         );
 
         double prev = 0, curr = 0;
-        int max_it = 15;
+        int max_it = 50;
         std::vector<double> p(subset.size(), 1.0 / subset.size());
         do {
             prev = curr;
@@ -957,11 +955,12 @@ class AuxManager
         }
         subset.erase(it, subset.end());
 
+        this->peaks = {};
         this->selected_peaks = this->selected_neighbors = {};
         this->mark_as_peaks(subset);
 
         if (include_neighbors) {
-            std::cout << "****Final EM (" << subset.size() << ")****" << std::endl;
+            std::cout << "****Secondary EM (" << subset.size() << ")****" << std::endl;
         }
         else {
             std::cout << "****Initial EM (" << subset.size() << ")****" << std::endl;
@@ -989,7 +988,9 @@ class AuxManager
 
         std::vector<AuxNode*> subset;
         subset.insert(subset.end(), selected_peaks.begin(), selected_peaks.end());
-        subset.insert(subset.end(), selected_neighbors.begin(), selected_neighbors.end());
+        for (AuxNode* node: selected_peaks) {
+            subset.insert(subset.end(), node->selected_neighbors.begin(), node->selected_neighbors.end());
+        }
         current_nodes.insert(current_nodes.end(), subset.begin(), subset.end());
         
         std::vector<std::vector<double>> parsimony(reads.size(), std::vector<double>(subset.size()));
@@ -1062,7 +1063,121 @@ class AuxManager
         }
 
         /* clear neighbors */
-        this->clear_neighbors(consideration);
+        this->mark_as_peaks(consideration);
+    }
+
+    void kmeans_full_algo(double min_abundance) {
+        constexpr int max_it = 10, explore_rad = 4;
+        std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+        
+        const size_t n = (size_t) (1 + 1 / min_abundance);
+
+        std::vector<AuxNode*> selected;
+        // initially select random indices (ok if duplicates)
+        for (size_t i = 0; i < n; ++i) {
+            selected.emplace_back(&arena[rng() % this->arena.size()]);
+        }
+
+        size_t total_reads_degree = 0;
+        for (size_t i = 0; i < reads.size(); ++i) {
+            total_reads_degree += reads[i]->degree;
+        }
+
+        for (int i = 0; i < max_it; ++i) {
+            my_mutex_t mutex;
+            std::vector<std::vector<int>> corresponding_reads(selected.size());
+            std::vector<std::pair<double, int>> index_set(selected.size());
+            for (size_t i = 0; i < selected.size(); ++i) {
+                index_set[i].second = i;
+            }
+
+            // map all reads to current peaks
+            // and create epp sets
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), 
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                        int min_dist = INT_MAX;
+                        std::vector<size_t> best;
+                        for (size_t j = 0; j < selected.size(); ++j) {
+                            int dist = selected[j]->mutation_distance(this->reads[i]);
+                            if (dist < min_dist) {
+                                min_dist = dist;
+                                best = {j};
+                            }
+                            else if (dist == min_dist) {
+                                best.emplace_back(j);    
+                            }
+                        }
+
+                        // avoiding data race on both rng and corresponding_reads
+                        my_mutex_t::scoped_lock _lock{mutex};
+                        int ind = best[rng() % best.size()];
+                        corresponding_reads[ind].emplace_back(i);
+                        index_set[ind].first += (double) reads[ind]->degree / total_reads_degree;
+                    }
+                }
+            );
+
+            std::sort(index_set.begin(), index_set.end());
+            std::vector<AuxNode*> seeds;
+            size_t j = 0;
+            double running_abundance = 0;
+            // we delete nodes with too little abundance
+            // and split nodes with too high abudance
+            // < abundance / 2 = delete
+            // > abundance * 2 = split (theoretically to same node)
+            while (j < index_set.size()) {
+                if (index_set[j].first + running_abundance + 1e-6 >= min_abundance) {
+                    seeds.emplace_back(selected[index_set[j].second]);
+                    index_set[j].first -= min_abundance - running_abundance;
+                    running_abundance = 0;
+                }
+                else {
+                    running_abundance += index_set[j].first;
+                    index_set[j].first = 0;
+                    ++j;
+                } 
+            }
+            std::vector<AuxNode*> new_selection;
+
+            // debug 
+            seeds = selected;
+            
+            // map n -> n'
+            for (size_t i = 0; i < seeds.size(); ++i) {
+                std::set<AuxNode *, ScoreComparator> all_neighbors;
+                possible_neighbors(seeds[i], all_neighbors, explore_rad);
+
+                // randomly select weighted neighbor based on scores
+                AuxNode* best_node = seeds[i];
+                int best_score = INT_MAX;
+                my_mutex_t mutex;
+                for (AuxNode* node: all_neighbors) {
+                    int total_sum = 0;
+                    tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> range) {
+                        int sum = 0;
+                        for (size_t i = range.begin(); i < range.end(); ++i)
+                        {
+                            sum += node->mutation_distance(this->reads[i]);
+                        }
+
+                        my_mutex_t::scoped_lock _lock{mutex};
+                        total_sum += sum; 
+                    });
+                    if (total_sum < best_score) {
+                        total_sum = best_score;
+                        best_node = node;
+                    }
+                }
+
+                new_selection.emplace_back(best_node);
+            }
+
+            selected = new_selection;
+            std::cout << "Selection Size" << std::set<AuxNode*, MutationComparator>(selected.begin(), selected.end()).size() << std::endl;
+        }
+
+        mark_as_peaks(selected);
     }
 
     void init_from_peaks( std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings) {
@@ -1088,7 +1203,7 @@ public:
         /* create auxiliary tree, ensure no reallocations */
         this->arena.reserve(mat_tree_size(src.root));
         this->from_mat_tree(nullptr, src.root, condensed_node_mappings);
-        this->build_range_trees();
+        // this->build_range_trees();
         
         for (size_t i = 0; i < reads.size(); ++i) {
             std::sort(reads[i]->mutations.begin(), reads[i]->mutations.end());
@@ -1096,21 +1211,31 @@ public:
         }
 
         /* map entire set of reads onto tree */
-        this->cartesian_map();
+        // this->cartesian_map();
         // this->init_from_peaks(condensed_node_mappings);
     }
     
     void analyze() {
-        for (;!step();) {
-            printf("\n");
-        }
-
-        // this->postprocess();
+        this->kmeans_full_algo(0.5 / 100);
+        // for (;!step();) {
+        //     printf("\n");
+        // }
 
         // without neighbors
-        this->em_postprocess(false);
-        for (int i = 0; i < 5; ++i) {
-            this->em_postprocess(true);
+        // this->postprocess();
+        // this->em_postprocess(false);
+        // for (int i = 0; i < 5; ++i) {
+            // this->em_postprocess(true);
+        // }
+
+        for (AuxNode* n: this->selected_peaks) {
+            int min_dist = INT_MAX;
+            for (AuxNode* n2: this->selected_peaks) {
+                if (n != n2) {
+                    min_dist = std::min(min_dist, (int) n->mutation_distance(n2));
+                }
+            }
+            std::cout << " Distance " << min_dist << std::endl;
         }
         // std::set<AuxNode*, MutationComparator> prev_iteration;
         // do {
