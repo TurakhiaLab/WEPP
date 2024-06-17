@@ -210,6 +210,7 @@ void SAM::add_read(const std::string& line) {
                 curr_sub_len++;
                 seq_idx++;
                 build += "N";
+                update_table = false;
                 break;
 
             case 'H':

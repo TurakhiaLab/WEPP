@@ -1,7 +1,7 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 250;
+constexpr int MAX_PEAKS = 50;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
@@ -1066,24 +1066,37 @@ class AuxManager
         this->mark_as_peaks(consideration);
     }
 
-    void kmeans_full_algo(double min_abundance) {
-        constexpr int max_it = 10, explore_rad = 4;
+    void kmeans_postprocess(double min_abundance) {
+        constexpr int max_it = 15, explore_rad = 5;
+        constexpr double stay_factor = 0.75;
         std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
         
         const size_t n = (size_t) (1 + 1 / min_abundance);
+        
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, arena.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    arena[i].mapped = false;
+                    arena[i].score = 0;
+                    arena[i].dist_divergence = 1;
+                }
+            } 
+        );
 
-        std::vector<AuxNode*> selected;
-        // initially select random indices (ok if duplicates)
-        for (size_t i = 0; i < n; ++i) {
-            selected.emplace_back(&arena[rng() % this->arena.size()]);
-        }
+        // initially take results from WEPP
+        std::vector<AuxNode*> selected(selected_peaks.begin(), selected_peaks.end());
+        // std::vector<AuxNode*> selected;
+        // for (size_t j = 0; j < n; ++j) {
+            // selected.push_back(&arena[rng() % arena.size()]);
+        // }
+        std::cout << " Selected Size " << selected.size() << std::endl;
 
         size_t total_reads_degree = 0;
         for (size_t i = 0; i < reads.size(); ++i) {
             total_reads_degree += reads[i]->degree;
         }
 
-        for (int i = 0; i < max_it; ++i) {
+        for (int k = 0; k < max_it; ++k) {
             my_mutex_t mutex;
             std::vector<std::vector<int>> corresponding_reads(selected.size());
             std::vector<std::pair<double, int>> index_set(selected.size());
@@ -1119,64 +1132,99 @@ class AuxManager
             );
 
             std::sort(index_set.begin(), index_set.end());
-            std::vector<AuxNode*> seeds;
+            // index of previous selection
+            std::vector<size_t> seeds;
             size_t j = 0;
             double running_abundance = 0;
             // we delete nodes with too little abundance
             // and split nodes with too high abudance
+            // idea is basically that
             // < abundance / 2 = delete
             // > abundance * 2 = split (theoretically to same node)
-            while (j < index_set.size()) {
-                if (index_set[j].first + running_abundance + 1e-6 >= min_abundance) {
-                    seeds.emplace_back(selected[index_set[j].second]);
-                    index_set[j].first -= min_abundance - running_abundance;
-                    running_abundance = 0;
-                }
-                else {
-                    running_abundance += index_set[j].first;
-                    index_set[j].first = 0;
-                    ++j;
-                } 
-            }
+            // while (j < index_set.size()) {
+            //     if (index_set[j].first + running_abundance + 1e-6 >= min_abundance) {
+            //         seeds.emplace_back(index_set[j].second);
+            //         index_set[j].first -= min_abundance - running_abundance;
+            //         running_abundance = 0;
+            //     }
+            //     else {
+            //         running_abundance += index_set[j].first;
+            //         index_set[j].first = 0;
+            //         ++j;
+            //     } 
+            // }
             std::vector<AuxNode*> new_selection;
 
-            // debug 
-            seeds = selected;
+            // debug (ignore running abundance)
+            //seeds = std::vector<size_t>(selected.size());
+            //std::iota(seeds.begin(), seeds.end(), 0);
+            seeds = {};
+            for (size_t j = 0; j < index_set.size(); ++j) {
+                if (index_set[j].first < min_abundance * 2) {
+                    seeds.push_back(index_set[j].second);
+                }
+                else {
+                    seeds.push_back(index_set[j].second);
+                    // seeds.push_back(index_set[j].second);
+                }
+            }
             
             // map n -> n'
             for (size_t i = 0; i < seeds.size(); ++i) {
                 std::set<AuxNode *, ScoreComparator> all_neighbors;
-                possible_neighbors(seeds[i], all_neighbors, explore_rad);
+                possible_neighbors(selected[seeds[i]], all_neighbors, explore_rad);
 
                 // randomly select weighted neighbor based on scores
-                AuxNode* best_node = seeds[i];
-                int best_score = INT_MAX;
                 my_mutex_t mutex;
-                for (AuxNode* node: all_neighbors) {
-                    int total_sum = 0;
-                    tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> range) {
-                        int sum = 0;
-                        for (size_t i = range.begin(); i < range.end(); ++i)
+
+                std::vector<AuxNode*> flat(all_neighbors.begin(), all_neighbors.end());
+                std::vector<size_t> distances;
+                size_t best_distance = SIZE_MAX;
+                for (AuxNode* node: flat) {
+                    size_t total_sum = 0;
+                    tbb::parallel_for(tbb::blocked_range<size_t>(0, corresponding_reads[seeds[i]].size()), [&](tbb::blocked_range<size_t> range) {
+                        size_t sum = 0;
+                        for (size_t j = range.begin(); j < range.end(); ++j)
                         {
-                            sum += node->mutation_distance(this->reads[i]);
+                            struct read_info* read = this->reads[corresponding_reads[seeds[i]][j]];
+                            sum += (size_t) read->degree * node->mutation_distance(read);
                         }
 
                         my_mutex_t::scoped_lock _lock{mutex};
                         total_sum += sum; 
                     });
-                    if (total_sum < best_score) {
-                        total_sum = best_score;
-                        best_node = node;
-                    }
+
+                    distances.push_back(total_sum);
+                    best_distance = std::min(best_distance, total_sum);
                 }
 
+                // lower average -> higher chance of selection
+                std::vector<double> prob;
+                double normalization = 0;
+                for (size_t j = 0; j < flat.size(); ++j) {
+                    normalization += exp(-stay_factor * (double) (distances[j] - best_distance) / flat.size());
+                    prob.push_back(normalization);
+                }
+                std::uniform_real_distribution<double> unif(0, normalization);
+                double rand = unif(rng);
+                double prev = 0;
+                AuxNode* best_node = flat.back();
+                for (size_t j = 0; j < prob.size(); ++j) {
+                    if (prev <= rand && rand < prob[j]) {
+                        best_node = flat[j];
+                        break;
+                    }
+                    prev = prob[j];
+                }
                 new_selection.emplace_back(best_node);
             }
 
             selected = new_selection;
-            std::cout << "Selection Size" << std::set<AuxNode*, MutationComparator>(selected.begin(), selected.end()).size() << std::endl;
+            std::cout << "Selection Size raw " << selected.size() <<  " unique " << std::set<AuxNode*>(selected.begin(), selected.end()).size() << std::endl;
         }
 
+        selected_peaks = {};
+        peaks = {};
         mark_as_peaks(selected);
     }
 
@@ -1203,7 +1251,7 @@ public:
         /* create auxiliary tree, ensure no reallocations */
         this->arena.reserve(mat_tree_size(src.root));
         this->from_mat_tree(nullptr, src.root, condensed_node_mappings);
-        // this->build_range_trees();
+        this->build_range_trees();
         
         for (size_t i = 0; i < reads.size(); ++i) {
             std::sort(reads[i]->mutations.begin(), reads[i]->mutations.end());
@@ -1211,15 +1259,16 @@ public:
         }
 
         /* map entire set of reads onto tree */
-        // this->cartesian_map();
+        this->cartesian_map();
         // this->init_from_peaks(condensed_node_mappings);
     }
     
     void analyze() {
-        this->kmeans_full_algo(0.5 / 100);
-        // for (;!step();) {
-        //     printf("\n");
-        // }
+        for (;!step();) {
+            printf("\n");
+        }
+        // this->kmeans_postprocess(0.5 / 100);
+        this->postprocess();
 
         // without neighbors
         // this->postprocess();
