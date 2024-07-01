@@ -1,7 +1,8 @@
 #include "wbe.hpp"
 
 constexpr int NUM_RANGE_TREES = 25;
-constexpr int MAX_PEAKS = 50;
+constexpr int MAX_PEAKS = 500;
+constexpr int FINAL_PEAKS = 85;
 constexpr int TOP_N = 25;
 constexpr double READ_DIST_FACTOR_THRESHOLD = 0.5 / 100;
 // number of range bins for read distribution
@@ -123,8 +124,7 @@ void detectPeaks(po::parsed_options parsed) {
         condensed_nodes_csv,
         barcode_file,
         read_mutation_depth_vcf
-    );    
-    // //RUN peaks_filtering
+    );
     // std::string command = "python src/WBE/peaks_filtering.py " + vm["output-files-prefix"].as<std::string>() + " " + std::string(dir_prefix) + " 100";
     // int result = std::system(command.c_str());
     // if (result)
@@ -972,7 +972,7 @@ class AuxManager
     }
 
     void postprocess() {
-        double const sigma = 3.0;
+        double const sigma = 4.0;
         double const coeff = log(1 / (sigma * sqrt(2 * M_PI)));
 
         current_nodes.clear();
@@ -1013,13 +1013,11 @@ class AuxManager
 
         std::vector<AuxNode*> consideration;
 
-        for (size_t q = 0; q < subset.size() && q < MAX_PEAKS; ++q) {
+        for (size_t q = 0; q < subset.size() && q < FINAL_PEAKS; ++q) {
             std::sort(current_nodes.begin(), current_nodes.end(), ScoreComparator());
 
             current_nodes[0]->mapped = true;
             consideration.emplace_back(current_nodes[0]);
-
-            std::cout << " Working score " << current_nodes[0]->score << " name " << current_nodes[0]->id << std::endl;
 
             tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
                 [&](tbb::blocked_range<size_t> range) {
@@ -1230,8 +1228,14 @@ class AuxManager
 
     void init_from_peaks( std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings) {
         std::set<std::string> peak_names = {
-            "USA/UT-UPHL-211207411157/2021|OL850427.1|2021-10-23","England/DHSC-CYNGP8M/2022|2022-01-16","USA/CUIMC-NP-5364/2021|MZ680974.1|2021-02-15","England/LOND-1359F9C/2021|OV314953.1|2021-11-25","USA/KPL-313_Nasal_Swab/2021|OP222737.1|2021-12-31","IMS-10150-CVDP-E66912C7-5ACA-4977-82E2-F6E1A70B5626|OU156786.1|2021-04-27","England/PLYM-20729CC/2021|OU864667.1|2021-10-06","node_1298822","Wales/PHWC-PDC7YQ/2021|2021-08-30","USA/NE-Noblis-S964.BC78.BT22.v1.1/2021|OM938984.1|2021-12-01","Denmark/DCGC-428071/2022|OX066483.1|2022-03-10","IMS-10183-CVDP-CADB58B9-51E0-43B4-9C19-7929C70E0374|OU567904.1|2021-07-24","AUS/VIC10358/2020|MW155076.1|2020-09-01","IMS-10087-CVDP-BA589A66-531B-4195-8258-22F9CC7C4497|OV679107.1|2021-12-14","node_933420","USA/CA-CDPH-2000010508/2020|ON216856.1|2020-12-11","Switzerland/SH-ETHZ-34783124/2021|OV326774.1|2021-11-14","USA/IL-CDC-LC0734800/2022|ON941006.1|2022-06-21","Northern_Ireland/NIRE-017cc7/2021|2021-12-17","England/ALDP-1778CF6/2021|OU358113.1|2021-06-18","USA/FL-CDC-ASC210249230/2021|MZ995678.1|2021-07-27","England/DHSC-CYDBKF5/2022|2022-01-04","USA/CO-CDPHE-2102916618/2022|OM860194.1|2022-02-10","USA/CA-CDC-ASC210113480/2021|OK296679.1|2021-07-11","THA/CONI-3328/2022|OP060789.1|2022-03-27","node_1179775","IMS-10023-CVDP-8806CB6B-FCB4-415E-BA08-B698B100AA90|OU109880.1|2021-03-21","BRA/SARS-CoV-2_mutants_generated_from_sequential_passages_in_Huh-7_cells/2020|OQ048259.1|2020-08-10","England/DHSC-CYYE8FU/2022|2022-02-20","England/PHEC-YYD1DP5/2022|2022-03-11","USA/CO-CDC-ASC210430719/2021|OL927628.1|2021-11-22","Switzerland/BL-ETHZ-35963862/2022|OV882561.1|2022-01-24","node_163491","England/QEUH-135D639/2021|OU034669.1|2021-02-28","node_880064","England/CAMC-C98EAD/2020|OD917787.1|2020-12-17","USA/WA-CDC-UW21121709950/2021|OM065614.1|2021-12-17","20220201815|OX448615.1|2022-01-11","OX314535.1|2022-01-01","USA/WI-UW-11513/2022|OP515931.1|2022-05-31","USA/SEARCH-0247-SAN/2020|MT810954.1|2020-03-27","USA/JW6938/2022|ON953779.1|2022-06-22","USA/FL-CDC-ASC210639430/2021|OM173419.1|2021-12-22","node_572285","hCoV-19/USA/NY-MSHSPSP-PV24650/2020|EPI_ISL_1300881|2020-12-06","USA/OK-CDC-ASC210638269/2021|OM172730.1|2021-12-20","USA/WI-CDC-ASC210638273/2021|OM172744.1|2021-12-21","node_691758","IMS-10172-CVDP-6B55DDB4-06C6-4887-A529-748794394385|OU122101.1|2021-03-10","node_357298","USA/FL-CDC-ASC210642292/2021|OM199050.1|2021-12-23","RNA|OW122540.1|2022-02-15","Molecular_surveillance_of_SARS-CoV-2_in_Germany|OV356720.1|2021-09-20","node_927614","USA/FL-BPHL-10749/2021|OL344995.1|2021-06-10","USA/NJ-CDC-LC0802670/2022|OP167632.1|2022-07-25","USA/IN-GD-083121-371/2021|OK158676.1|2021-08-14","hCoV-19/England/MILK-2DF642C/2021|EPI_ISL_7718520|2021-12-09","UZB/hCoV-19-Uzb-CGB-38/2021|MZ892624.1|2021-07-23","England/MILK-360C621/2022|OV969049.1|2022-02-08","node_1004504","USA/MI-CDC-STM-9UQJNQY2H/2021|OL499938.1|2021-10-21","node_911967","USA/ID-CDC-ASC210716187/2021|OL945444.1|2021-11-27","USA/SC-CDC-LC0013080/2021|MW642988.1|2021-02-01","USA/SC-CDC-ASC210244598/2021|MZ981235.1|2021-07-24","USA/MN-CDC-ASC210125244/2021|OK229736.1|2021-09-03","England/MILK-15268AA/2021|OU260439.1|2021-04-18","node_1250243","USA/NY-PRL-2021_0429_01C14/2021|MZ641224.1|2021-04-27","IRQ/Samawa-29/2021|MZ145315.1|2021-02-20","England/PHEP-020369/2021|2021-07-28","node_275296","USA/IL-CDC-ASC210584547/2022|OM517283.1|2022-01-13","Germany/2022|OW656430.1|2022-04-10","USA/CO-Noblis-S686B18/2021|MZ842997.1|2021-06-21","England/PHEC-3K044KB2/2021|2021-09-30","England/LSPA-3752852/2022|OW057126.1|2022-02-16","HUN/Hun-1/2020|OM812693.1|2020-11","node_905025","USA/CA-CDPH-FS48074591/2022|OQ112266.1|2022-11-16","USA/TG920857/2020|ON415701.1|2020-08-26","USA/TX-CDC-ASC210567824/2021|OM156012.1|2021-12-22","England/DHSC-CYBG3DE/2022|2022-02-04","USA/MN-CDC-IBX003537889913/2022|OM722843.1|2022-02-03","node_1127092","England/PHEC-4G0BAZ31/2021|2021-12-27","England/PHEC-4X03EZ00/2022|2022-01-22","USA/22007788/2022|OM614677.1|2022-01-19","England/DHSC-CYY4RZC/2022|2022-02-15","England/DHSC-CYYGBY8/2022|2022-01-04","England/MILK-32A2269/2022|OV734831.1|2022-01-15","USA/LA-EVTL9564/2021|OM997223.1|2021-12-13","USA/DE-CDC-ASC210560083/2021|OM331912.1|2021-12-28","USA/FL-CDC-ASC210571376/2021|OM261674.1|2021-12-27","OX307087.1|2021-11-26","USA/FL-BPHL-1553/2020|MW056104.1|2020-09-09","England/PHEC-YY84T8F/2023|2023-01-07","Molecular_surveillance_of_SARS-CoV-2_in_Germany|OV196096.1|2021-10-18","England/DHSC-CYN6EGB/2022|2022-01-16",
-            "hCoV-19/England/MILK-9E05B3/2020|EPI_ISL_601443|2020-09-20","hCoV-19/Japan/IC-0564/2021|EPI_ISL_792683|2021-01-02","hCoV-19/USA/NY-MSHSPSP-PV24650/2020|EPI_ISL_1300881|2020-12-06","hCoV-19/India/MH-NCCS-P1162000182735/2021|EPI_ISL_1544014|2021-02-27","hCoV-19/Hong","hCoV-19/Australia/QLD2568/2021|EPI_ISL_7190366|2021-12-01","hCoV-19/England/MILK-2DF642C/2021|EPI_ISL_7718520|2021-12-09","hCoV-19/Denmark/DCGC-493190/2022|EPI_ISL_12248637|2022-04-17"
+            "hCoV-19/England/MILK-9E05B3/2020|EPI_ISL_601443|2020-09-20",
+            "hCoV-19/Japan/IC-0564/2021|EPI_ISL_792683|2021-01-02",
+            "hCoV-19/USA/NY-MSHSPSP-PV24650/2020|EPI_ISL_1300881|2020-12-06",
+            "hCoV-19/India/MH-NCCS-P1162000182735/2021|EPI_ISL_1544014|2021-02-27",
+            "hCoV-19/Hong",
+            "hCoV-19/Australia/QLD2568/2021|EPI_ISL_7190366|2021-12-01",
+            "hCoV-19/England/MILK-2DF642C/2021|EPI_ISL_7718520|2021-12-09",
+            "hCoV-19/Denmark/DCGC-493190/2022|EPI_ISL_12248637|2022-04-17"
         };
         std::vector<AuxNode*> peaks;
         for (size_t i = 0; i < arena.size(); ++i) {
@@ -1243,6 +1247,105 @@ class AuxManager
         }
 
         clear_neighbors(peaks);
+    }
+
+    void init_from_lineages(std::unordered_map<MAT::Node*, std::vector<MAT::Node*>>& condensed_node_mappings)
+    {
+        std::set<std::string> lineage_names = {
+            "BG.5","AY.30","BA.2","Q.1","B.1.526","BA.1.7","XAH","P.1.4","BA.2.23","BA.1","BA.1.17.2","B.1.1.529","BA.1.9","BA.2.33","B.1.617.2","BA.2.15","B.1.1.7","P.1.7","AY.50","BA.1.1.10","BA.2.27","BA.1.5","BA.2.9.4","BA.2.29","P.1.11","AY.17"
+        };
+        std::vector<AuxNode*> peaks;
+        for (size_t i = 0; i < arena.size(); ++i) {
+            for (auto node: condensed_node_mappings[arena[i].condensed_source]) {
+                auto lineage = node->clade_annotations[1];
+                if (lineage_names.find(lineage) != lineage_names.end()) {
+                    lineage_names.erase(lineage);
+                    peaks.emplace_back(&arena[i]);
+                }
+            }
+        }
+
+        std::cout << " Peaks Size " << peaks.size() << std::endl;
+        mark_as_peaks(peaks);
+    }
+
+    void init_from_indices()
+    {
+        std::vector<int> indices{3173879 ,2558943 ,1742551 ,1388539 ,2566532 ,3221605 ,3469427 ,2216187 ,1565422 ,1720997 ,1569271 ,3479779 ,3179800 ,3236899 ,1550036 ,1551669 ,2557539 ,3479749 ,3254747 ,3471804 ,1565423 ,1567175 ,3471805 ,1388478 ,3223973 ,2729994 ,1564004 ,3325633 ,1568871 ,1388594 ,2435135 ,1564054 ,3318665 ,1564293 ,1388524};
+        std::vector<AuxNode*> peaks;
+        for (size_t i = 0; i < indices.size(); ++i) {
+            peaks.emplace_back(&arena[indices[i]]);
+        };
+
+        mark_as_peaks(peaks);
+    }
+
+    // for freyja
+    void dump_barcode(std::vector<AuxNode*> inputs)
+    {
+        std::set<std::string> mutations;
+        std::vector<std::set<std::string>> node_muts;
+        for (AuxNode* n: inputs) {
+            std::set<std::string> my_muts;
+            for (MAT::Mutation mut: n->stack_muts) {
+                std::string build = mut.get_string();
+                mutations.insert(build);
+                my_muts.insert(std::move(build));
+            } 
+            node_muts.push_back(std::move(my_muts));
+        }
+        std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
+
+        std::ofstream outfile("Freyja/data/usher_barcodes.csv");
+        for (const std::string& mut: mutations) {
+            outfile << "," << mut;
+        }
+        outfile << std::endl;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            AuxNode* n = inputs[i];
+            outfile << 'N' << (n - &arena[0]);
+            for (const std::string &mut : mutations)
+            {
+                bool contains = node_muts[i].find(mut) != node_muts[i].end();
+                outfile << "," << (contains ? '1' : '0');
+            }
+            outfile << std::endl;
+        }
+    }
+
+    void freyja_postprocess() {
+        std::vector<AuxNode*> all_selected(this->selected_peaks.begin(), this->selected_peaks.end());
+        all_selected.insert(all_selected.end(), this->selected_neighbors.begin(), this->selected_neighbors.end());
+        dump_barcode(all_selected);
+
+        if (std::system("bash -c \"source ~/miniconda3/etc/profile.d/conda.sh && conda activate freyja-env && freyja demix Freyja/cwap_variants.tsv Freyja/cwap_depth.tsv --barcodes Freyja/data/usher_barcodes.csv --output Freyja/my_output_latest.txt\"") != 0) {
+            std::cerr << "Failed to run freyja" << std::endl;
+            return;
+        }
+
+        std::vector<AuxNode*> freyja_nodes;
+
+        std::ifstream fin("Freyja/my_output_latest.txt");
+        std::string tmp;
+        std::getline(fin, tmp);
+        std::getline(fin, tmp);
+        fin >> tmp;
+        // all of the selected ids
+        std::getline(fin, tmp);
+        std::stringstream ss{tmp};
+        std::string index;
+        while (ss >> index) {
+            // skip past the 'N'
+            int ind = atoi(index.c_str() + 1);
+            freyja_nodes.push_back(&arena[ind]);
+        }
+
+
+        this->selected_peaks = {};
+        this->selected_neighbors = {};
+        this->peaks = {};
+        this->neighbors = {};
+        this->mark_as_peaks(freyja_nodes);
     }
 
 public:
@@ -1261,37 +1364,28 @@ public:
         /* map entire set of reads onto tree */
         this->cartesian_map();
         // this->init_from_peaks(condensed_node_mappings);
+        // this->init_from_lineages(condensed_node_mappings);
+
+        // this->init_from_peaks(condensed_node_mappings);
+        // std::vector<AuxNode*> all_nodes(selected_peaks.begin(), selected_peaks.end());
+        // all_nodes.insert(all_nodes.end(), selected_neighbors.begin(), selected_neighbors.end());
+        // this->dump_barcode(all_nodes);
     }
     
     void analyze() {
         for (;!step();) {
             printf("\n");
         }
-        // this->kmeans_postprocess(0.5 / 100);
-        this->postprocess();
 
-        // without neighbors
-        // this->postprocess();
-        // this->em_postprocess(false);
-        // for (int i = 0; i < 5; ++i) {
-            // this->em_postprocess(true);
-        // }
+        int it = 1; 
+        for (int i = 0; i < it; ++i) {
+            this->freyja_postprocess();
 
-        for (AuxNode* n: this->selected_peaks) {
-            int min_dist = INT_MAX;
-            for (AuxNode* n2: this->selected_peaks) {
-                if (n != n2) {
-                    min_dist = std::min(min_dist, (int) n->mutation_distance(n2));
-                }
+            if (i < it - 1) {
+                std::vector<AuxNode*> selected(this->selected_peaks.begin(), this->selected_peaks.end());
+                this->clear_neighbors(selected);
             }
-            std::cout << " Distance " << min_dist << std::endl;
         }
-        // std::set<AuxNode*, MutationComparator> prev_iteration;
-        // do {
-        //     prev_iteration = this->selected_peaks;
-        //     // with neighbors
-        //     this->em_postprocess(true);
-        // } while (prev_iteration != this->selected_peaks);
     }
     
     std::vector<MAT::Node*> get_peaks(void) {
@@ -1334,6 +1428,7 @@ void analyzeReads(
     neighbor_nodes = am.get_neighbors();
 
     std::cout << "Finished fast placement in " << timer.Stop() / 1000 <<  " seconds " << std::endl;
+    std::cout << " Selected " << (peak_nodes.size() + neighbor_nodes.size()) << std::endl;
     
     //Verify Recovery of Input Samples
     printf("MUTATION DISTANCE ORIG:\n"); 
@@ -1389,13 +1484,9 @@ void analyzeReads(
     printf("Average Distance %f\n", average_distance);
     
     // //ADD neighbor_nodes to peak_nodes
-    /*
     peak_nodes.reserve(peak_nodes.size() + neighbor_nodes.size());
     peak_nodes.insert(peak_nodes.end(), neighbor_nodes.begin(), neighbor_nodes.end());
     neighbor_nodes.clear();
-    
-    generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
-    condensed_node_mappings.clear();
-    MAT::clear_tree(T_condensed);
-    */
+
+    // generateFilteringData(T, T_condensed, condensed_node_mappings, ref_seq, peak_nodes, read_map, barcode_file, read_mutation_depth_vcf, condensed_nodes_csv);
 }
