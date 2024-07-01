@@ -6,6 +6,10 @@
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
+constexpr int MIN_QUALITY = 20;
+
+int num_bad = 0;
+
 const std::string CHROM = "NC_045512v2";
 void sam2VCF(po::parsed_options parsed) {
     //main argument for the complex extract command
@@ -134,6 +138,11 @@ void SAM::add_read(const std::string& line) {
     /* skip if unmapped */
     if (tokens.empty() || tokens[0][0] == '@' || std::stoi(tokens[1]) & 4)
     {
+        return;
+    }
+
+    if (std::stoi(tokens[4]) < MIN_QUALITY) {
+        ++num_bad;
         return;
     }
 
