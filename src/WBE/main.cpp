@@ -1,5 +1,10 @@
-#include "wbe.hpp"
 #include <time.h>
+
+#include <array>
+#include <boost/program_options.hpp>
+
+#include "src/usher_graph.hpp"
+
 Timer timer;
 
 int main (int argc, char** argv) {
@@ -13,14 +18,11 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[] = {"COMMAND","filterLineages","detectPeaks","refinePeaks","selectHaplotypes","sam2VCF"};
+    std::string cnames[] = {"COMMAND","detectPeaks","sam2PB"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
-        "Gets a subset of lineages to work with\n\n",
         "Detects peaks on selected lineages\n\n",
-        "Refines the selected peaks to get closer to actual haplotypes\n\n",
-        "Select the haplotypes for running the experiments\n\n",
-        "Converts given sam to vcf for running the pipeline\n\n"
+        "Converts given sam to pb for running the pipeline\n\n"
     };
     try {
         po::store(parsed, vm);
@@ -33,16 +35,10 @@ int main (int argc, char** argv) {
         //0 when no command is selected because that's what passes tests.
         exit(0);
     }
-    if (cmd == "filterLineages") { 
-       filterLineages(parsed);
-    } else if (cmd == "detectPeaks") { 
+    if (cmd == "detectPeaks") { 
        detectPeaks(parsed);
-    } else if (cmd == "refinePeaks") {
-       refinePeaks(parsed);
-    } else if (cmd == "selectHaplotypes") {
-       selectHaplotypes(parsed);
-    } else if (cmd == "sam2VCF") {
-       sam2VCF(parsed);
+    } else if (cmd == "sam2PB") {
+       sam2PB(parsed);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

@@ -1,4 +1,12 @@
-#include "wbe.hpp"
+#include <algorithm>
+#include <regex>
+#include <vector>
+
+#include "dataset.hpp"
+#include "read.hpp"
+
+#include "sam2pb.hpp"
+#include "sam.pb.h"  
 
 // freyja - includes indels, litreally every single possible mutation of a chunk along with frequency
 // freyja-depth - how many reads/chunks were there starting at a given nucleotide
@@ -8,10 +16,8 @@ constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
 constexpr int MIN_QUALITY = 20;
 
-int num_bad = 0;
-
 const std::string CHROM = "NC_045512v2";
-void sam2VCF(po::parsed_options parsed) {
+void sam2PB(const dataset& d) {
     //main argument for the complex extract command
     po::variables_map vm = parseWBEcommand(parsed);
     std::string dir_prefix = vm["output-directory"].as<std::string>();
@@ -60,7 +66,7 @@ void sam2VCF(po::parsed_options parsed) {
     std::ostream freyja_vcf(&outbuf_freyja_vcf);
     std::ostream freyja_depth(&outbuf_freyja_depth);
 
-    SAM sam{ref_seq};
+    sam sam{ref_seq};
     boost::filesystem::ifstream fileHandler(sam_file);
     std::string s;
     while (getline(fileHandler, s))
@@ -71,16 +77,16 @@ void sam2VCF(po::parsed_options parsed) {
     fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
 }
 
-SAM::SAM(const std::string& ref) : reference_seq{ref} {
+sam::sam(const std::string& ref) : reference_seq{ref} {
     this->frequency_table.resize(ref.size());
     this->indel_frequency_table.resize(ref.size());
     this->collapsed_frequency_table.resize(ref.size());
 }
 
-void SAM::dump_proto(const std::string& filename) {
+void sam::dump_proto(const std::string& filename) {
     Sam::sam data;
 
-    for (const SAM_read& read: aligned_reads) {
+    for (const sam_read& read: aligned_reads) {
         auto dump = data.add_reads();
         dump->set_start_idx(read.start_idx + 1);
         dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
@@ -100,7 +106,7 @@ void SAM::dump_proto(const std::string& filename) {
     }
 
     for (const auto& kv: reverse_merge) {
-        Sam::column_info *col = data.add_reverse_columns();
+        aam::column_info *col = data.add_reverse_columns();
         col->set_column_name(kv.first);
         for (const auto& str: kv.second) {
             std::string* dump = col->add_input_columns();
@@ -131,7 +137,7 @@ void SAM::dump_proto(const std::string& filename) {
     }
 }
 
-void SAM::add_read(const std::string& line) {
+void sam::add_read(const std::string& line) {
     std::vector<std::string> tokens;
     MAT::string_split(line, tokens);
 
@@ -142,7 +148,6 @@ void SAM::add_read(const std::string& line) {
     }
 
     if (std::stoi(tokens[4]) < MIN_QUALITY) {
-        ++num_bad;
         return;
     }
 
@@ -256,11 +261,11 @@ void SAM::add_read(const std::string& line) {
     }
 
     /* add to column name list */
-    SAM_read read{tokens[0], start_idx - 1, 1, build};
+    sam_read read{tokens[0], start_idx - 1, 1, build};
     aligned_reads.push_back(std::move(read));
 }
 
-void SAM::read_correction() {
+void sam::read_correction() {
     std::vector<int> total_occurences(reference_seq.size());
     std::vector<char> majority(reference_seq.size());
     for (int i = 0; i < (int) reference_seq.size(); ++i) {
@@ -295,10 +300,10 @@ void SAM::read_correction() {
     }
 }
 
-void SAM::merge_duplicates() {
+void sam::merge_duplicates() {
     assert(!aligned_reads.empty());
 
-    std::vector<SAM_read> merged{aligned_reads[0]};
+    std::vector<sam_read> merged{aligned_reads[0]};
 
     for (int i = 1; i < (int) aligned_reads.size(); ++i) {
         if (aligned_reads[i] == merged.back()) {
@@ -323,7 +328,7 @@ void SAM::merge_duplicates() {
     this->aligned_reads = merged;
 }
 
-void SAM::build() {
+void sam::build() {
     /* create collapsed frequencies, treating indels as identity transformations */
     for (size_t i = 0; i < indel_frequency_table.size(); ++i) {
         collapsed_frequency_table[i] = frequency_table[i];
@@ -350,7 +355,7 @@ void SAM::build() {
     }
 }
 
-void SAM::dump_reverse_merge(std::ostream &out) {
+void sam::dump_reverse_merge(std::ostream &out) {
     for (const auto& field: reverse_merge) {
         out << field.first << '\t';
         for (const std::string& str: field.second) {
@@ -360,7 +365,7 @@ void SAM::dump_reverse_merge(std::ostream &out) {
     }
 }
 
-void SAM::dump_freyja(std::ostream& dout, std::ostream& vout) {
+void sam::dump_freyja(std::ostream& dout, std::ostream& vout) {
     vout << "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
     for (int i = 0; i < (int) reference_seq.size(); ++i) {
@@ -402,4 +407,57 @@ void SAM::dump_freyja(std::ostream& dout, std::ostream& vout) {
             }
         }
     }
+}
+
+void load_reads_from_proto(std::string const& filename, std::vector<read>& reads, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+    Timer timer;
+    timer.start();
+
+    Sam::sam data;
+
+    boost::iostreams::filtering_istream instream;
+    std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
+    if (!inpfile) {
+        fprintf(stderr, "ERROR: Could not load the read protobuf from file: %s!\n", filename.c_str());
+        exit(1);
+    }
+    instream.push(inpfile);
+    google::protobuf::io::IstreamInputStream stream(&instream);
+    google::protobuf::io::CodedInputStream input(&stream);
+    
+    //input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
+    data.ParseFromCodedStream(&input);
+
+    int read_count = data.reads_size();
+    for (int i = 0; i < read_count; ++i) {
+        struct read out{};
+        const auto& curr = data.reads()[i];
+        out.start = curr.start_idx();
+        out.end = curr.end_idx();
+        out.degree = curr.degree();
+        out.read = curr.read();
+        for (int j = 0; j < curr.mutations_size(); ++j) {
+            const auto& mut = curr.mutations()[j];
+            MAT::Mutation mutation;
+            mutation.is_missing = mut.is_missing();
+            mutation.chrom = mut.chrom();
+            mutation.mut_nuc = mut.mut_nuc();
+            mutation.ref_nuc = mut.ref_nuc();
+            mutation.par_nuc = mut.par_nuc();
+            mutation.position = mut.position();
+            out.mutations.push_back(std::move(mutation));
+        }
+
+        reads[i] = out;
+    }
+
+    /* finally, reverse merge table */
+    for (int i = 0; i < data.reverse_columns_size(); ++i) {
+        Sam::column_info const &inv = data.reverse_columns()[i];
+        for (int j = 0; j < inv.input_columns_size(); ++j) {
+            reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
+        }
+    }
+
+    fprintf(stderr,"%s parsed in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
 }
