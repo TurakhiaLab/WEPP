@@ -5,7 +5,7 @@
 
 #include "src/usher_graph.hpp"
 
-struct read {
+struct raw_read {
    std::string read;
    std::vector<MAT::Mutation> mutations;
    int start;

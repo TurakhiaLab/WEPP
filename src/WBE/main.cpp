@@ -5,9 +5,15 @@
 
 #include "src/usher_graph.hpp"
 
+#include "util.hpp"
+#include "pipeline.hpp"
+#include "sam2pb.hpp"
+
 Timer timer;
 
 int main (int argc, char** argv) {
+    namespace po = boost::program_options;
+
     po::options_description global("Command options");
     global.add_options()
     ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
@@ -36,9 +42,11 @@ int main (int argc, char** argv) {
         exit(0);
     }
     if (cmd == "detectPeaks") { 
-       detectPeaks(parsed);
+        dataset ds{parseWBEcommand(parsed)};
+        detect_peaks(ds);
     } else if (cmd == "sam2PB") {
-       sam2PB(parsed);
+        dataset ds{parseWBEcommand(parsed)};
+        sam2PB(ds);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

@@ -1,6 +1,11 @@
-#include <algorithm>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <regex>
 #include <vector>
+#include <numeric>
 
 #include "dataset.hpp"
 #include "read.hpp"
@@ -14,43 +19,21 @@
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.005;
-constexpr int MIN_QUALITY = 20;
 
 const std::string CHROM = "NC_045512v2";
-void sam2PB(const dataset& d) {
-    //main argument for the complex extract command
-    po::variables_map vm = parseWBEcommand(parsed);
-    std::string dir_prefix = vm["output-directory"].as<std::string>();
 
-    boost::filesystem::path path(dir_prefix);
-    if (!boost::filesystem::exists(path)) {
-        fprintf(stderr, "Creating output directory.\n\n");
-        boost::filesystem::create_directory(dir_prefix);
-    }
-    path = boost::filesystem::canonical(dir_prefix);
-    dir_prefix = path.generic_string();
-    dir_prefix += "/";
-    std::string proto_filename = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads.pb";
-    std::string freyja_vcf_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.vcf";
-    std::string freyja_depth_file = dir_prefix + vm["output-files-prefix"].as<std::string>() + "_reads_freyja.depth";
-    std::string ref_fasta = dir_prefix + vm["ref-fasta"].as<std::string>();
-    std::string sam_file = dir_prefix + vm["align-sam"].as<std::string>();
+void sam2PB(const dataset& d) {
+    std::string proto_filename = d.pb_path();
+    std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
+    std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
+    std::string ref_fasta = d.ref_path();
+    std::string sam_file = d.sam_path();
 
     //Reading reference genome
+    Timer timer;
     timer.Start();
-    std::ifstream fasta_f(ref_fasta);
-    if (!fasta_f.is_open()) {
-        std::cerr << "Error: Unable to open file " << ref_fasta << std::endl;
-        exit(1); 
-    }
-    std::string ref_header;
-    std::getline(fasta_f, ref_header);
-    std::string temp;
-    std::string ref_seq;
-    while (fasta_f) {
-        std::getline(fasta_f, temp);
-        ref_seq += temp;
-    }
+    
+    std::string ref_seq = d.reference();
 
     std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
     std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);
@@ -106,7 +89,7 @@ void sam::dump_proto(const std::string& filename) {
     }
 
     for (const auto& kv: reverse_merge) {
-        aam::column_info *col = data.add_reverse_columns();
+        Sam::column_info *col = data.add_reverse_columns();
         col->set_column_name(kv.first);
         for (const auto& str: kv.second) {
             std::string* dump = col->add_input_columns();
@@ -144,10 +127,6 @@ void sam::add_read(const std::string& line) {
     /* skip if unmapped */
     if (tokens.empty() || tokens[0][0] == '@' || std::stoi(tokens[1]) & 4)
     {
-        return;
-    }
-
-    if (std::stoi(tokens[4]) < MIN_QUALITY) {
         return;
     }
 
@@ -409,9 +388,9 @@ void sam::dump_freyja(std::ostream& dout, std::ostream& vout) {
     }
 }
 
-void load_reads_from_proto(std::string const& filename, std::vector<read>& reads, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
     Timer timer;
-    timer.start();
+    timer.Start();
 
     Sam::sam data;
 
@@ -428,9 +407,10 @@ void load_reads_from_proto(std::string const& filename, std::vector<read>& reads
     //input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
     data.ParseFromCodedStream(&input);
 
+    std::vector<raw_read> reads;
     int read_count = data.reads_size();
     for (int i = 0; i < read_count; ++i) {
-        struct read out{};
+        struct raw_read out{};
         const auto& curr = data.reads()[i];
         out.start = curr.start_idx();
         out.end = curr.end_idx();
@@ -448,7 +428,7 @@ void load_reads_from_proto(std::string const& filename, std::vector<read>& reads
             out.mutations.push_back(std::move(mutation));
         }
 
-        reads[i] = out;
+        reads.push_back(out);
     }
 
     /* finally, reverse merge table */
@@ -459,5 +439,6 @@ void load_reads_from_proto(std::string const& filename, std::vector<read>& reads
         }
     }
 
-    fprintf(stderr,"%s parsed in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
+    fprintf(stderr," --- parsed %s in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
+    return reads;
 }

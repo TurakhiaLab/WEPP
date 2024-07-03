@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <iostream>
 #include <memory>
 
 #include "dataset.hpp"
@@ -9,21 +10,18 @@
 #include "post_filter.hpp"
 
 class pipeline {
-    dataset ds;
-    arena arena;
+    const dataset& ds;
+    arena a;
     std::unique_ptr<initial_filter> main;
     std::unique_ptr<post_filter> post;
 
-    pipeline(po::parsed_options options, std::unique_ptr<initial_filter>&& main, std::unique_ptr<post_filter>&& post) 
-        ds{directory}
+public:
+    pipeline(const dataset& ds, std::unique_ptr<initial_filter>&& main, std::unique_ptr<post_filter>&& post) 
+        : ds{ds}, a{ds}, main{std::move(main)}, post{std::move(post)}
     {
-        this->main = std::move(main);
-        this->post = std::move(post);
     }
 
-    void run() {
-        std::vector<haplotype*> running = main_filter->filter();
-        running = post_filter.filter(running);
-    }
+    void run();
 };
 
+void detect_peaks(const dataset& d);
