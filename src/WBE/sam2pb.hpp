@@ -5,6 +5,8 @@
 #include <array>
 #include <map>
 
+#include "dataset.hpp"
+
 const std::string GENOME_STRING{"ACGTN"};
 typedef std::vector<std::array<int, 5>> sub_table;
 
@@ -84,6 +86,5 @@ struct sam {
        void dump_freyja(std::ostream& dout, std::ostream& vout);
 };
 
-void sam2PB(dataset d) {
-    
-}
+void sam2PB(const dataset& d);
+std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge);
