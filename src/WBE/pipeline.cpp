@@ -5,6 +5,7 @@
 void detect_peaks(const dataset& d) {
     auto main = std::make_unique<wepp_filter>();
     auto post = std::make_unique<likelihood_post_filter>();
+    post->num_filter_rounds = 2;
 
     pipeline p{d, std::move(main), std::move(post)};
     // p.run();
@@ -16,11 +17,12 @@ void pipeline::run() {
 
     std::vector<haplotype *> running = a.haplotype_pointers();
 
+    Timer timer;
     {
         std::cout << "----- [running main filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
-        Timer timer; timer.Start();
+        timer.Start();
         running = main->filter(a);
         a.print_mutation_distance(running);
         std::cout << "--- main filter took " << timer.Stop() / 1000 << " seconds " << std::endl << std::endl;
@@ -34,7 +36,7 @@ void pipeline::run() {
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         timer.Start();
-        running = post->filter(a, running);
+        running = post->iterative_filter(a, running);
         a.print_mutation_distance(running);
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
     }
@@ -45,14 +47,14 @@ void pipeline::run() {
 void pipeline::run_from_last_initial() {
     tbb::task_scheduler_init init(this->ds.num_threads());
 
-    std::vector<haplotype *> running = this->recover(ds.checkpoint_path()); 
+    std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path()); 
 
     {
         std::cout << "----- [running post filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         Timer timer; timer.Start();
-        running = post->filter(a, running);
+        running = post->iterative_filter(a, running);
         a.print_mutation_distance(running);
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
     }
