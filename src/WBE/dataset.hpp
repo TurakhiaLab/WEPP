@@ -32,6 +32,14 @@ public:
         return this->directory() + options["ref-fasta"].as<std::string>();
     }
 
+    std::string first_checkpoint_path() const {
+        return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
+    }
+
+    std::string last_checkpoint_path() const {
+        return this->directory() + this->file_prefix() + "_last_checkpoint.txt";
+    }
+
     std::string reference() const {
         static std::optional<std::string> saved;
         if (!saved) {

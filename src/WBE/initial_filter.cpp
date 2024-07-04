@@ -44,17 +44,17 @@ single_read_tree(arena& arena, multi_haplotype *curr, std::vector<int> const &pa
     /* map self */
     // this basically ensures semantics are the exact same
     // as the previous algorithm
-    int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
-    if (reductions)
-    {
-        parsimony = parent_locations.size() - reductions;
-    }
-    else
-    {
-        parsimony = my_locations.size();
-    }
+    // int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
+    // if (reductions)
+    // {
+    //     parsimony = parent_locations.size() - reductions;
+    // }
+    // else
+    // {
+    //     parsimony = my_locations.size();
+    // }
 
-    // if (!curr->root->is_leaf || reductions) {
+    int parsimony = my_locations.size();
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -99,6 +99,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 {
     tbb::queuing_mutex my_mutex;
 
+    int count = 0;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
                       {
@@ -126,6 +127,10 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                                   this->epp_positions_cache[r] = std::move(max_indices);
                               }
                           }
+
+                          tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                          count++;
+                          std::cout << "count " << count << std::endl;
                       });
 
     for (size_t i = 0; i < haps.size(); ++i)
@@ -180,17 +185,18 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                                   std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
                                   std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
 
-                                  int parsimony, reductions = mutation_reductions(parent, ours);
-                                  if (reductions)
-                                  {
-                                      parsimony = parent.size() - reductions;
-                                  }
-                                  else
-                                  {
-                                      parsimony = ours.size();
-                                  }
+                                  //   int parsimony, reductions = mutation_reductions(parent, ours);
+                                  //   if (reductions)
+                                  //   {
+                                  //       parsimony = parent.size() - reductions;
+                                  //   }
+                                  //   else
+                                  //   {
+                                  //       parsimony = ours.size();
+                                  //   }
 
-                                  if ((!hap->is_leaf || reductions) && parsimony == max_parismony[read])
+                                  int parsimony = ours.size();
+                                  if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
                                       correspondents.push_back(read);
