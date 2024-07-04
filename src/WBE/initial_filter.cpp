@@ -99,7 +99,6 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 {
     tbb::queuing_mutex my_mutex;
 
-    int count = 0;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
                       {
@@ -127,10 +126,6 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                                   this->epp_positions_cache[r] = std::move(max_indices);
                               }
                           }
-
-                          tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                          count++;
-                          std::cout << "count " << count << std::endl;
                       });
 
     for (size_t i = 0; i < haps.size(); ++i)
@@ -355,7 +350,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         {
             consideration.push_back(*it);
             (*it)->mapped = true;
-            printf("%.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
+            // printf("%.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
         }
     }
 
@@ -393,9 +388,7 @@ wepp_filter::filter(arena& arena)
 
     // iterative removal 
     std::set<haplotype*, mutation_comparator> peaks, nbrs;
-    while (!step(arena, initial, peaks, nbrs)) {
-        std::cout << " Peaks " << peaks.size() << " Initial " << initial.size() << std::endl;
-    }
+    while (!step(arena, initial, peaks, nbrs)) { }
 
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
     res.insert(res.end(), nbrs.begin(), nbrs.end());

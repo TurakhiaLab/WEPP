@@ -40,7 +40,7 @@ public:
         return this->directory() + this->file_prefix() + "_last_checkpoint.txt";
     }
 
-    std::string reference() const {
+    const std::string& reference() const {
         static std::optional<std::string> saved;
         if (!saved) {
             std::ifstream fasta_f(this->ref_path());
