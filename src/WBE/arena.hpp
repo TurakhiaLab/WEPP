@@ -364,26 +364,24 @@ public:
             int min_dist = INT_MAX;
             for (const auto &pn : selected)
             {
-                for (const auto &node : condensed_node_mappings.find(pn->condensed_source)->second)
-                {
-                    // Getting node_mutations from the Tree
-                    auto node_mutations = get_mutations(this->mat, node->identifier);
-                    // Remove mutations from node_mutations that are not present in site_read_map
-                    auto mut_itr = node_mutations.begin();
-                    while (mut_itr != node_mutations.end())
-                    {
-                        if (site_read_map.find(mut_itr->position) == site_read_map.end())
-                            mut_itr = node_mutations.erase(mut_itr);
-                        else
-                            mut_itr++;
-                    }
 
-                    int curr_dist = mutation_distance(sample_mutations, node_mutations);
-                    if (curr_dist < min_dist)
-                    {
-                        min_dist = curr_dist;
-                        best_node = pn->condensed_source;
-                    }
+                // Getting node_mutations from the Tree
+                auto node_mutations = get_mutations(this->mat, pn->condensed_source->identifier);
+                // Remove mutations from node_mutations that are not present in site_read_map
+                auto mut_itr = node_mutations.begin();
+                while (mut_itr != node_mutations.end())
+                {
+                    if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                        mut_itr = node_mutations.erase(mut_itr);
+                    else
+                        mut_itr++;
+                }
+
+                int curr_dist = mutation_distance(sample_mutations, node_mutations);
+                if (curr_dist < min_dist)
+                {
+                    min_dist = curr_dist;
+                    best_node = pn->condensed_source;
                 }
             }
 
