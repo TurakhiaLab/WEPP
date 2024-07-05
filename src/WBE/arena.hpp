@@ -335,7 +335,7 @@ public:
     }
 
     // precondition: true haplotypes of current dataset are known
-    void print_mutation_distance(const std::vector<haplotype*>& selected) const {
+    void print_mutation_distance(const std::vector<haplotype*>& selected) {
         std::unordered_set<int> site_read_map;
         for (size_t i = 0; i < this->raw_reads.size(); i++)
         {
@@ -364,9 +364,8 @@ public:
             int min_dist = INT_MAX;
             for (const auto &pn : selected)
             {
-
                 // Getting node_mutations from the Tree
-                auto node_mutations = get_mutations(this->mat, pn->condensed_source->identifier);
+                auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
                 // Remove mutations from node_mutations that are not present in site_read_map
                 auto mut_itr = node_mutations.begin();
                 while (mut_itr != node_mutations.end())
@@ -386,9 +385,50 @@ public:
             }
 
             average_dist += (double) min_dist / comp.size();
-            printf("mutation_distance: %02d node (true): %s, closest node (pred): %s, \n",  min_dist, reference.c_str(), best_node->identifier.c_str());
+            printf("dist: %02d true node: %s, pred node: %s, \n",  min_dist, reference.c_str(), best_node->identifier.c_str());
         }
 
         printf("average mutation_distance: %0.3f\n", average_dist);
+    }
+
+    void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance) {
+        std::cout << "----- [final report] -----" << std::endl << std::endl;
+
+        std::vector<haplotype *> haps;
+        std::transform(abundance.begin(), abundance.end(), std::back_inserter(haps),
+                       [](const auto &p)
+                       {
+                           return p.first;
+                       });
+        print_mutation_distance(haps);
+
+        std::unordered_map<std::string, double> a_map;
+        for (const auto& p: abundance) {
+            std::string lineage_name;
+            for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
+            {
+                const auto& clade = anc->clade_annotations[1];
+                if (clade != "") {
+                    lineage_name = clade;
+                    break;
+                }
+            }
+            a_map[lineage_name] += p.second;
+        }
+
+        std::cout << "--- lineage abundance " << std::endl;
+        std::vector<std::string> comp = this->ds.true_haplotypes();
+        for (const std::string& ref: comp) {
+            std::string lineage_name;
+            for (auto anc : mat.rsearch(ref, true))
+            {
+                const auto& clade = anc->clade_annotations[1];
+                if (clade != "") {
+                    lineage_name = clade;
+                    break;
+                }
+            }
+            printf("abundance: %.6f for %s (%s)\n", a_map[lineage_name], lineage_name.c_str(), ref.c_str());
+        }
     }
 };
