@@ -439,6 +439,6 @@ std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::un
         }
     }
 
-    fprintf(stderr," --- parsed %s in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
+    printf("--- parsed %s in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
     return reads;
 }

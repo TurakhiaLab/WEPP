@@ -3,7 +3,7 @@
 #include <numeric>
 #include <random>
 
-std::vector<haplotype*>
+std::vector<std::pair<haplotype*, double>>
 likelihood_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
     arena.reset_haplotype_state();
@@ -77,7 +77,14 @@ likelihood_post_filter::filter(arena& arena, std::vector<haplotype*> input)
             current_nodes.end());
     }
 
-    return consideration;
+    std::vector<std::pair<haplotype *, double>> abundance;
+    std::transform(consideration.begin(), consideration.end(), std::back_inserter(abundance), 
+        [&](haplotype* hap) {
+            return std::make_pair(hap, 1.0 / consideration.size());
+        }
+    );
+
+    return abundance;
 }
 
 void 
@@ -117,7 +124,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     }
 }
 
-std::vector<haplotype*>
+std::vector<std::pair<haplotype*, double>>
 freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
     dump_barcode(arena, input);
@@ -125,10 +132,10 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     if (std::system("bash -c \"source ~/miniconda3/etc/profile.d/conda.sh && conda activate freyja-env && freyja demix Freyja/cwap_variants.tsv Freyja/cwap_depth.tsv --barcodes Freyja/data/usher_barcodes.csv --output Freyja/my_output_latest.txt\"") != 0)
     {
         std::cerr << "Failed to run freyja" << std::endl;
-        return input;
+        return {};
     }
 
-    std::vector<haplotype *> freyja_nodes;
+    std::vector<std::pair<haplotype *, double>> freyja_nodes;
 
     std::ifstream fin("Freyja/my_output_latest.txt");
     std::string tmp;
@@ -143,13 +150,27 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     {
         // skip past the 'N'
         int ind = atoi(index.c_str() + 1);
-        freyja_nodes.push_back(&arena.haplotypes()[ind]);
+        freyja_nodes.emplace_back(&arena.haplotypes()[ind], 0);
+    }
+
+    fin >> tmp;
+    std::getline(fin, tmp);
+    ss = std::stringstream{tmp};
+    double sum = 0;
+    for (size_t i = 0; i < freyja_nodes.size(); ++i) {
+        double abundance; ss >> abundance;
+        freyja_nodes[i].second = abundance;
+        sum += abundance;
+    }
+
+    for (size_t i = 0; i < freyja_nodes.size(); ++i) {
+        freyja_nodes[i].second /= sum;
     }
 
     return freyja_nodes;
 }
 
-std::vector<haplotype*>
+std::vector<std::pair<haplotype*, double>>
 em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
     arena.reset_haplotype_state();
@@ -241,10 +262,17 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     }
     subset.erase(it, subset.end());
 
-    return subset;
+    std::vector<std::pair<haplotype *, double>> abundance;
+    std::transform(subset.begin(), subset.end(), std::back_inserter(abundance), 
+        [&](haplotype* hap) {
+            return std::make_pair(hap, hap->score / total);
+        }
+    );
+
+    return abundance;
 }
 
-std::vector<haplotype*>
+std::vector<std::pair<haplotype*, double>>
 kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
     using my_mutex_t = tbb::queuing_mutex;
@@ -397,5 +425,12 @@ kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         input = new_selection;
     }
 
-    return input;
+    std::vector<std::pair<haplotype *, double>> abundance;
+    std::transform(input.begin(), input.end(), std::back_inserter(abundance), 
+        [&](haplotype* hap) {
+            return std::make_pair(hap, 1.0 / input.size());
+        }
+    );
+
+    return abundance;
 }

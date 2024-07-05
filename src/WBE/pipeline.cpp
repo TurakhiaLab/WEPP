@@ -4,8 +4,8 @@
 
 void detect_peaks(const dataset& d) {
     auto main = std::make_unique<wepp_filter>();
-    auto post = std::make_unique<likelihood_post_filter>();
-    post->num_filter_rounds = 2;
+    auto post = std::make_unique<freyja_post_filter>();
+    post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
     // p.run();
@@ -36,12 +36,10 @@ void pipeline::run() {
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         timer.Start();
-        running = post->iterative_filter(a, running);
-        a.print_mutation_distance(running);
+        std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
+        a.print_full_report(full);
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
     }
-
-    save(running, ds.last_checkpoint_path());
 }
 
 void pipeline::run_from_last_initial() {
@@ -54,10 +52,9 @@ void pipeline::run_from_last_initial() {
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         Timer timer; timer.Start();
-        running = post->iterative_filter(a, running);
-        a.print_mutation_distance(running);
+        std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
+        
+        a.print_full_report(full);
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
     }
-
-    save(running, ds.last_checkpoint_path());
 }
