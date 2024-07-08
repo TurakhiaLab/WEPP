@@ -54,8 +54,7 @@ file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
 file(GLOB WBE_SRCS "src/WBE/*.cpp" "src/WBE/*.hpp")
 
-set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
-#set_source_files_properties(src/usher_mapper.cpp PROPERTIES COMPILE_FLAGS -O3)
+set_source_files_properties(src/usher_mapper.cpp PROPERTIES COMPILE_FLAGS -O3)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 
 #set_source_files_properties(src/matOptimize/detailed_mutations_store.cpp PROPERTIES COMPILE_FLAGS -O0)
