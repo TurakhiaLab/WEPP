@@ -18,7 +18,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
-constexpr double frequency_read_cutoff = 0.005;
+constexpr double frequency_read_cutoff = 0.02;
 
 const std::string CHROM = "NC_045512v2";
 
