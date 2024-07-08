@@ -36,10 +36,10 @@ mutation_reductions(std::vector<int> const &parent, std::vector<int> const &chil
 /* maps a single read to entire tree, caching aliveness */
 /* parent_locations is the positions where the parent has different mutations than the read */
 static void
-single_read_tree(arena& arena, multi_haplotype *curr, std::vector<int> const &parent_locations, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
+single_read_tree(arena& arena, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
 {
     // positions where this node differs from the read */
-    std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
+    // std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
 
     /* map self */
     // this basically ensures semantics are the exact same
@@ -54,7 +54,7 @@ single_read_tree(arena& arena, multi_haplotype *curr, std::vector<int> const &pa
     //     parsimony = my_locations.size();
     // }
 
-    int parsimony = my_locations.size();
+    int const parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -67,7 +67,7 @@ single_read_tree(arena& arena, multi_haplotype *curr, std::vector<int> const &pa
 
     for (int child : curr->children)
     {
-        single_read_tree(arena, &arena.ranged_haplotypes()[child], my_locations, read, max_nodes, max_val);
+        single_read_tree(arena, &arena.ranged_haplotypes()[child], read, max_nodes, max_val);
     }
 }
 
@@ -79,10 +79,9 @@ single_read_tree(arena& arena, multi_haplotype *curr, std::vector<int> const &pa
 static void 
 single_read_tree(arena& arena, const raw_read& read, std::set<haplotype*> &max_indices, int &max_val)
 {
-    std::vector<int> empty_mutation_list;
     std::vector<multi_haplotype *> max_nodes;
     multi_haplotype* root = arena.find_range_tree_for(read);
-    single_read_tree(arena, root, empty_mutation_list, read, max_nodes, max_val);
+    single_read_tree(arena, root, read, max_nodes, max_val);
 
     for (multi_haplotype *rnode : max_nodes)
     {
@@ -94,28 +93,49 @@ single_read_tree(arena& arena, const raw_read& read, std::set<haplotype*> &max_i
 }
 
 // calculate initial scores as well as divergences
+// haps assumed to be arena indices
 void 
 wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const std::vector<raw_read>& reads)
 {
-    tbb::queuing_mutex my_mutex;
+    std::vector<tbb::queuing_mutex> my_mutex(this->num_mutexes);
 
+    int bin_size = arena.genome_size() / NUM_RANGE_BINS;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
                       {
+                          std::vector<std::pair<double, std::array<int, NUM_RANGE_BINS>>> score;
+                          if (this->high_memory_cartesian_map) {
+                              score.resize(haps.size()); // otherwise, not used and buffered directly
+                          }
+
                           for (size_t r = k.begin(); r != k.end(); ++r)
                           {
-                              std::set<haplotype*> max_indices;
+                              std::set<haplotype *> max_indices;
                               int max_val = INT32_MAX; /* really want minimum value */
 
                               single_read_tree(arena, reads[r], max_indices, max_val);
 
                               double const delta = node_score(max_val, max_indices.size(), reads[r].degree);
                               {
-                                  tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                                  for (haplotype* hap: max_indices)
-                                  {
-                                      hap->score += delta;
-                                      hap->mapped_read_counts[reads[r].start / (arena.genome_size() / NUM_RANGE_BINS)] += reads[r].degree;
+                                  int bucket = reads[r].start / bin_size;
+                                  if (this->high_memory_cartesian_map) {
+                                      haplotype *arena_base = &arena.haplotypes()[0];
+                                      for (haplotype *hap : max_indices)
+                                      {
+                                          int index = (hap - arena_base);
+                                          score[index].first += delta;
+                                          score[index].second[bucket] += reads[r].degree;
+                                      }
+                                  }
+                                  else {
+                                      for (haplotype *hap : max_indices)
+                                      {
+                                          int index = (hap - arena_base);
+                                          int mutex_bucket = index % this->num_mutexes;
+                                          tbb::queuing_mutex::scoped_lock my_lock{my_mutex[mutex_bucket]};
+                                          hap->score += delta;
+                                          hap->mapped_read_counts[bucket] += reads[r].degree;
+                                      }
                                   }
                               }
 
@@ -124,6 +144,20 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                               if (max_indices.size() <= max_cached_epp_size)
                               {
                                   this->epp_positions_cache[r] = std::move(max_indices);
+                              }
+                          }
+
+                          if (this->high_memory_cartesian_map)
+                          {
+                              // only use a global mutex in this case
+                              tbb::queuing_mutex::scoped_lock my_lock{my_mutex[0]};
+                              for (size_t i = 0; i < score.size(); ++i)
+                              {
+                                  haps[i]->score += score[i].first;
+                                  for (size_t j = 0; j < NUM_RANGE_BINS; ++j)
+                                  {
+                                      haps[i]->mapped_read_counts[j] += score[i].second[j];
+                                  }
                               }
                           }
                       });
@@ -177,8 +211,8 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read& r = arena.reads()[read];
-                                  std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
-                                  std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
+                                  //   std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
+                                  //   std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
 
                                   //   int parsimony, reductions = mutation_reductions(parent, ours);
                                   //   if (reductions)
@@ -190,7 +224,7 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                                   //       parsimony = ours.size();
                                   //   }
 
-                                  int parsimony = ours.size();
+                                  int parsimony = hap->mutation_distance(r);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};

@@ -10,10 +10,10 @@
 
 class dataset {
     boost::program_options::variables_map options;
-
+    tbb::task_scheduler_init init;
 public:
     dataset(boost::program_options::variables_map options) :
-        options{options}
+        options{options}, init{(int) options["threads"].as<uint32_t>()}
     { }
 
     uint32_t num_threads() const {

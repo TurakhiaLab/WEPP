@@ -54,6 +54,7 @@ class arena {
     std::vector<raw_read> raw_reads;
 
     /* stats */
+    size_t read_distribution_bin_size;
     size_t num_reads; // (before merge)
     std::map<std::pair<int, int>, int> ranged_root_map;
     std::array<int, NUM_RANGE_BINS> true_read_counts;
@@ -175,9 +176,9 @@ class arena {
         this->num_reads = 0;
         std::fill(true_read_counts.begin(), true_read_counts.end(), 0);
         
-        const size_t denom = this->genome_size() / NUM_RANGE_BINS;
+        read_distribution_bin_size  = this->genome_size() / NUM_RANGE_BINS;
         for (const auto& r: raw_reads) {
-            true_read_counts[r.start / denom] += r.degree;
+            true_read_counts[r.start / read_distribution_bin_size] += r.degree;
             this->num_reads += r.degree;
         }
         for (size_t i = 0; i < NUM_RANGE_BINS; ++i) {
@@ -212,6 +213,10 @@ public:
 
     size_t genome_size() {
         return ds.reference().size();
+    }
+
+    size_t read_dist_bin_size() {
+        return read_distribution_bin_size;
     }
 
     std::vector<multi_haplotype>& ranged_haplotypes() {
