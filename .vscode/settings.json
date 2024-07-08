@@ -76,6 +76,8 @@
         "semaphore": "cpp",
         "shared_mutex": "cpp",
         "stop_token": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "cstdarg": "cpp",
+        "forward_list": "cpp"
     }
 }
