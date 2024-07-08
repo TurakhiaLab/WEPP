@@ -8,13 +8,11 @@ void detect_peaks(const dataset& d) {
     post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
-    // p.run();
-    p.run_from_last_initial();
+    p.run();
+    // p.run_from_last_initial();
 }
 
 void pipeline::run() {
-    tbb::task_scheduler_init init(this->ds.num_threads());
-
     std::vector<haplotype *> running = a.haplotype_pointers();
 
     Timer timer;
@@ -43,8 +41,6 @@ void pipeline::run() {
 }
 
 void pipeline::run_from_last_initial() {
-    tbb::task_scheduler_init init(this->ds.num_threads());
-
     std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path()); 
 
     {

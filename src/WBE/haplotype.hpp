@@ -106,8 +106,57 @@ struct haplotype {
         return muts;
     }
 
+    // called so much it's worth optimizing out the vector
     int mutation_distance(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) const {
-        return mutations(comp, min_pos, max_pos).size();
+        int muts = 0;
+
+        const int unknown_nuc = 0b1111;
+
+        MAT::Mutation search;
+        search.position = min_pos;
+        int i = std::lower_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
+        search.position = max_pos;
+        int last_i = std::upper_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
+        int j = 0;
+
+        while (i < last_i || j < (int) comp.size()) {
+            if (i == last_i) {                
+                if (comp[j].mut_nuc != unknown_nuc) {
+                    ++muts;
+                }
+                ++j;
+            }
+            else if (stack_muts[i].position < min_pos) {
+                ++i;
+            }
+            else if (stack_muts[i].position > max_pos) {
+                assert(0);
+                return muts;
+            }
+            else if (j == (int) comp.size()) {
+                ++muts;
+                ++i;
+            }
+            else if (stack_muts[i].position < comp[j].position) {
+                ++muts;
+                ++i;
+            }
+            else if (stack_muts[i].position > comp[j].position) {
+                if (comp[j].mut_nuc != unknown_nuc) {
+                    ++muts;
+                }
+                ++j;
+            }
+            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && stack_muts[i].mut_nuc != unknown_nuc) {
+                ++muts;
+                ++i; ++j;
+            }
+            else {
+                ++i; ++j;
+            }
+        }
+
+        return muts;
     }
 
     int mutation_distance(const raw_read& other) const {
@@ -134,5 +183,9 @@ struct multi_haplotype {
 
     std::vector<int> mutations(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
         return root->mutations(comp, min_pos, max_pos);
+    }
+
+    int mutation_distance(std::vector<MAT::Mutation> const& comp, int min_pos, int max_pos) {
+        return root->mutation_distance(comp, min_pos, max_pos);
     }
 };
