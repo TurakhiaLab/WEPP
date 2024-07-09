@@ -8,8 +8,8 @@ void detect_peaks(const dataset& d) {
     post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
-    p.run();
-    // p.run_from_last_initial();
+    // p.run();
+    p.run_from_last_initial();
 }
 
 void pipeline::run() {
