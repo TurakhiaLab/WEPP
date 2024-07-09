@@ -100,6 +100,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     std::vector<tbb::queuing_mutex> my_mutex(this->num_mutexes);
 
     int bin_size = arena.genome_size() / NUM_RANGE_BINS;
+    haplotype* arena_base = &arena.haplotypes()[0];
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
                       {
