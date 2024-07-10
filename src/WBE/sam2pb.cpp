@@ -19,6 +19,7 @@
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr double frequency_read_cutoff = 0.02;
+constexpr int phred_score_cutoff = 20;
 
 const std::string CHROM = "NC_045512v2";
 
@@ -56,7 +57,7 @@ void sam2PB(const dataset& d) {
         sam.add_read(s);
     sam.build();
     sam.dump_proto(proto_filename);
-    sam.dump_freyja(freyja_depth, freyja_vcf);
+    // sam.dump_freyja(freyja_depth, freyja_vcf);
     fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
 }
 
@@ -83,7 +84,7 @@ void sam::dump_proto(const std::string& filename) {
                 mut->set_par_nuc(MAT::get_nuc_id(reference_seq[read.start_idx + i]));
                 mut->set_mut_nuc(MAT::get_nuc_id(read.aligned_string[i]));
                 mut->set_is_missing(read.aligned_string[i] == 'N');
-                mut->set_chrom("NC_045512v2");
+                // mut->set_chrom("NC_045512v2");
             }
         }
     }
@@ -133,6 +134,7 @@ void sam::add_read(const std::string& line) {
     /* zero indexed */
     int start_idx = std::stoi(tokens[3]);
     const std::string& read_seq = tokens[9];
+    const std::string& phred_seq = tokens[10];
 
     /* process cigar string, updating frequency tables */
     std::regex cigar_pattern(R"(\d+[A-Za-z])"); // Matches one or more digits followed by a character
@@ -165,13 +167,30 @@ void sam::add_read(const std::string& line) {
                 if (nuc_pos == 1)
                 {
                     ref_nuc = reference_seq[0];
-                    alt_nuc = read_seq.substr(seq_idx, cig_len) + ref_nuc;
+                    for (int i = 0; i < cig_len; i++) {
+                        int idx = seq_idx + i;
+                        if ((static_cast<int>(phred_seq[idx]) - 33) < phred_score_cutoff)
+                            alt_nuc.push_back('N');
+                        else
+                            alt_nuc.push_back(read_seq[idx]);
+                    }
+                    alt_nuc.push_back(reference_seq[0]);
                 }
                 // Otherwise the ref_nuc needs to be from prev pos
                 else
                 {
-                    alt_nuc = ref_nuc + read_seq.substr(seq_idx, cig_len);
+                    alt_nuc = ref_nuc;
+                    for (int i = 0; i < cig_len; i++) {
+                        int idx = seq_idx + i;
+                        if ((static_cast<int>(phred_seq[idx]) - 33) < phred_score_cutoff)
+                            alt_nuc.push_back('N');
+                        else
+                            alt_nuc.push_back(read_seq[idx]);
+                    }
                     nuc_pos -= 1;
+                }
+                if (std::count(alt_nuc.begin(), alt_nuc.end(), 'N') == (int)(alt_nuc.size() - 1)) {
+                    update_table = false;
                 }
                 curr_sub_len += cig_len;
                 seq_idx += cig_len;
@@ -220,7 +239,12 @@ void sam::add_read(const std::string& line) {
 
             default:
                 ref_nuc = reference_seq[nuc_pos - 1];
-                alt_nuc = std::string(1, read_seq[seq_idx]);
+                if ((static_cast<int>(phred_seq[seq_idx]) - 33) < phred_score_cutoff) {
+                    alt_nuc = std::string(1, 'N');
+                    update_table = false;
+                }
+                else
+                    alt_nuc = std::string(1, read_seq[seq_idx]);
                 build += alt_nuc;
                 curr_sub_len++;
                 seq_idx++;
@@ -262,7 +286,8 @@ void sam::read_correction() {
             int indx = start + j;
 
             if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > 1e-9) {
-                align[j] = GENOME_STRING[majority[indx]];
+                align[j] = 'N';
+                // align[j] = GENOME_STRING[majority[indx]];
             }
         }
     }
@@ -420,7 +445,7 @@ std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::un
             const auto& mut = curr.mutations()[j];
             MAT::Mutation mutation;
             mutation.is_missing = mut.is_missing();
-            mutation.chrom = mut.chrom();
+            mutation.chrom = CHROM;
             mutation.mut_nuc = mut.mut_nuc();
             mutation.ref_nuc = mut.ref_nuc();
             mutation.par_nuc = mut.par_nuc();

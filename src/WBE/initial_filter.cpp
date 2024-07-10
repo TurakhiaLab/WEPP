@@ -97,10 +97,9 @@ single_read_tree(arena& arena, const raw_read& read, std::set<haplotype*> &max_i
 void 
 wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const std::vector<raw_read>& reads)
 {
-    std::vector<tbb::queuing_mutex> my_mutex(this->num_mutexes);
+    tbb::queuing_mutex my_mutex;
 
     int bin_size = arena.genome_size() / NUM_RANGE_BINS;
-    haplotype* arena_base = &arena.haplotypes()[0];
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
                       {
@@ -129,11 +128,9 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                                       }
                                   }
                                   else {
+                                      tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
                                       for (haplotype *hap : max_indices)
                                       {
-                                          int index = (hap - arena_base);
-                                          int mutex_bucket = index % this->num_mutexes;
-                                          tbb::queuing_mutex::scoped_lock my_lock{my_mutex[mutex_bucket]};
                                           hap->score += delta;
                                           hap->mapped_read_counts[bucket] += reads[r].degree;
                                       }
@@ -151,7 +148,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                           if (this->high_memory_cartesian_map)
                           {
                               // only use a global mutex in this case
-                              tbb::queuing_mutex::scoped_lock my_lock{my_mutex[0]};
+                              tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
                               for (size_t i = 0; i < score.size(); ++i)
                               {
                                   haps[i]->score += score[i].first;

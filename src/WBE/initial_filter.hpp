@@ -13,14 +13,12 @@ public:
 class wepp_filter: public initial_filter {
     // optimization settings (no effect on final outpiut)
     size_t max_cached_epp_size = 2048;
-    bool high_memory_cartesian_map = false;
-    // should be power of 2
-    int num_mutexes = 1024;
+    bool high_memory_cartesian_map = true;
 
 
     // effects final output
     double read_dist_factor_threshold = 0.5 / 100;
-    int max_peak_peak_mutation = 2;
+    int max_peak_peak_mutation = 4;
     int max_peak_nonpeak_mutation = 4;
     int top_n = 25;
     int max_peaks = 200;
