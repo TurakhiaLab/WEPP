@@ -289,7 +289,10 @@ public:
                 }
             }
 
-            q.push(curr->parent);
+            if (curr->parent) {
+                q.push(curr->parent);
+            }
+
             for (haplotype* hap: curr->children) {
                 q.push(hap);
             }
