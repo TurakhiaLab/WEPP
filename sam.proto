@@ -2,7 +2,6 @@ syntax = "proto3";
 package Sam;
 
 message mutation {
-    string chrom = 1;
     int32 position = 2;
     int32 ref_nuc = 3;
     int32 par_nuc = 4;
