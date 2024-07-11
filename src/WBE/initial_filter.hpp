@@ -15,13 +15,15 @@ class wepp_filter: public initial_filter {
     size_t max_cached_epp_size = 2048;
     bool high_memory_cartesian_map = true;
 
-
     // effects final output
     double read_dist_factor_threshold = 0.5 / 100;
     int max_peak_peak_mutation = 4;
     int max_peak_nonpeak_mutation = 4;
-    int top_n = 25;
-    int max_peaks = 200;
+
+    double top_n_threshold = 0.8;
+    double top_n_cutoff_rate = 0.007;
+
+    int max_peaks = 1500;
     // for a given peak
     int max_neighbors = 150;
 
@@ -62,7 +64,7 @@ class wepp_filter: public initial_filter {
     }
     void clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*, mutation_comparator>& peaks, std::set<haplotype*, mutation_comparator>& nbrs);
 
-    bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs);
+    bool step(arena& arena, size_t it, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs);
 
     double node_score(int parsimony, int epps, int degree)
     {
@@ -75,5 +77,18 @@ public:
 
 class lineage_root_filter: public initial_filter {
 public:
+    std::vector<haplotype*> filter(arena& arena);
+};
+
+class random_nodes_filter: public initial_filter {
+public:
+    int n = 2000;
+    std::vector<haplotype*> filter(arena& arena);
+};
+
+class uniform_nodes_filter: public initial_filter {
+    void dfs(haplotype* curr, haplotype* last_set, std::vector<haplotype*>& dump);
+public:
+    int dist = 30;
     std::vector<haplotype*> filter(arena& arena);
 };

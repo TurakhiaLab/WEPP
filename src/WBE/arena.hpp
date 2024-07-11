@@ -140,7 +140,33 @@ class arena {
         return ret;
     }
 
+public:
+    arena(const dataset& ds) : ds{ds} {
+        this->raw_reads = ds.reads();
+        this->mat = ds.mat();
+        
+        MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
+
+        // create vanilla nodes
+        this->nodes.reserve(mat_tree_size(condensed.root));
+        this->from_mat(nullptr, condensed.root);
+    }
+
+    void reset_haplotype_state() {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i != range.end(); i++) {
+                    nodes[i].reset_state();
+                }
+            }
+        );
+    }
+
     void build_range_trees() {
+        if (!ranged_nodes.empty()) {
+            return;
+        }
+
         // get ranges (heuristic based approach)
         using range = std::pair<int, int>;
         std::vector<range> read_ranges;
@@ -186,30 +212,6 @@ class arena {
         }
     }
 
-public:
-    arena(const dataset& ds) : ds{ds} {
-        this->raw_reads = ds.reads();
-        this->mat = ds.mat();
-        
-        MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
-
-        // create vanilla nodes
-        this->nodes.reserve(mat_tree_size(condensed.root));
-        this->from_mat(nullptr, condensed.root);
-
-        // create range trees
-        this->build_range_trees();
-    }
-
-    void reset_haplotype_state() {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes.size()),
-            [&](tbb::blocked_range<size_t> range) {
-                for (size_t i = range.begin(); i != range.end(); i++) {
-                    nodes[i].reset_state();
-                }
-            }
-        );
-    }
 
     size_t genome_size() {
         return ds.reference().size();

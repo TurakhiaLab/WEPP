@@ -8,12 +8,14 @@
 #include "arena.hpp"
 #include "initial_filter.hpp"
 #include "post_filter.hpp"
+#include "variant_finder.hpp"
 
 class pipeline {
     const dataset& ds;
     arena a;
     std::unique_ptr<initial_filter> main;
     std::unique_ptr<post_filter> post;
+    variant_finder vd;
 
 public:
     pipeline(const dataset& ds, std::unique_ptr<initial_filter>&& main, std::unique_ptr<post_filter>&& post) 
