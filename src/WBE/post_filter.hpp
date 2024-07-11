@@ -9,6 +9,7 @@
 class post_filter {
 public:
     int num_filter_rounds = 1;
+    int freeze_round = 5;
     int max_nbrs = 100;
     int max_rad = 4;
 
@@ -30,7 +31,6 @@ public:
                     return p.first;
                 }
             );
-            arena.print_mutation_distance(this_round);
 
             std::sort(this_round.begin(), this_round.end());
             if (i == num_filter_rounds - 1 || 
@@ -38,9 +38,13 @@ public:
                 return filtered;
             }
 
+            arena.print_mutation_distance(this_round);
+
             // common should go into frozen
+            if (i >= freeze_round) {
             std::set_intersection(this_round.begin(), this_round.end(), last_round.begin(), last_round.end(),
                                   std::inserter(frozen, frozen.end()));
+            }
             last_round = std::set<haplotype *>(this_round.begin(), this_round.end());
 
             // add neighbors
@@ -57,6 +61,21 @@ public:
         return {};
     }
 };
+
+class identity_post_filter: public post_filter {
+public:
+    std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override {
+        std::vector<std::pair<haplotype*, double>> ret;
+        std::transform(input.begin(), input.end(), std::back_inserter(ret), 
+            [&](haplotype* in)  {
+                return std::make_pair(in, 1.0 / input.size());
+            }
+        );
+
+        return ret;
+    }
+};
+
 
 class freyja_post_filter: public post_filter {
     void dump_barcode(arena& a, const std::vector<haplotype*>& inputs);

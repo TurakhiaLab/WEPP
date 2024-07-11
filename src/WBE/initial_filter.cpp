@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <chrono>
+#include <random>
 
 #include "initial_filter.hpp"
 
@@ -99,6 +101,8 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 {
     tbb::queuing_mutex my_mutex;
 
+    Timer timer; timer.Start();
+
     int bin_size = arena.genome_size() / NUM_RANGE_BINS;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
                       [&](tbb::blocked_range<size_t> k)
@@ -175,6 +179,8 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 
         haps[i]->dist_divergence = divergence;
     }
+
+    std::cout << " cartesian time " << timer.Stop() << std::endl;
 
     /* initial sort into scores */
     std::sort(haps.begin(), haps.end(), score_comparator());
@@ -301,29 +307,6 @@ wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consid
     peaks.insert(consideration.begin(), consideration.end());
 
     std::vector<haplotype*> added;
-    /* 2. find candidates within radius (taking only top n for each pivot) */
-    /* buffer the selected neighbors into added */
-    for (haplotype *pivot : consideration)
-    {
-        std::set<haplotype*, score_comparator> 
-            multisource_radius = arena.highest_scoring_neighbors(pivot, false, max_peak_nonpeak_mutation, INT_MAX);
-
-        int i = 0;
-        for (haplotype *node : multisource_radius)
-        {
-            bool const found = peaks.find(node) != peaks.end() || nbrs.find(node) != nbrs.end();
-            if (!found)
-            {
-                node->mapped = true;
-                added.emplace_back(node);
-                if (++i == max_neighbors)
-                {
-                    break;
-                }
-            }
-        }
-    }
-
     /* 3. for all nodes within small radius, forcefuly remove even if more than 100 */
     for (haplotype *pivot : consideration)
     {
@@ -335,12 +318,10 @@ wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consid
             node->mapped = true;
         }
     }
-
-    nbrs.insert(added.begin(), added.end());
 }
 
 bool
-wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs)
+wepp_filter::step(arena& arena, size_t j, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs)
 {
     assert(!current.empty() && !remaining_reads.empty());
 
@@ -357,6 +338,8 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         return true;
     }
 
+    double const curr_threshold = std::min(0.999, this->top_n_threshold * (std::exp(this->top_n_cutoff_rate * j)));
+
     /* while: */
     /* 1. we have current_nodes left */
     /* 2. the score is all the samae */
@@ -364,8 +347,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
     /* 4. we have not exceeded max peaks */
     for (int i = 0;
          it != current.end() &&
-         abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
-         consideration.size() < (size_t) top_n &&
+         (*it)->full_score() / min_score < curr_threshold &&
          consideration.size() + peaks.size() < (size_t) max_peaks;
          ++i, ++it)
     {
@@ -411,6 +393,7 @@ std::vector<haplotype*>
 wepp_filter::filter(arena& arena)
 {
     arena.reset_haplotype_state();
+    arena.build_range_trees();
     reset(arena.reads().size());
 
     std::vector<haplotype*> initial = arena.haplotype_pointers();
@@ -420,10 +403,15 @@ wepp_filter::filter(arena& arena)
 
     // iterative removal 
     std::set<haplotype*, mutation_comparator> peaks, nbrs;
-    while (!step(arena, initial, peaks, nbrs)) { }
+    for (size_t i = 0;;++i) {
+        if (step(arena, i, initial, peaks, nbrs)) {
+            break;
+        }
+    }
 
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
-    res.insert(res.end(), nbrs.begin(), nbrs.end());
+    // do not insert neighbors anymore
+    // res.insert(res.end(), nbrs.begin(), nbrs.end());
 
     return res;
 }
@@ -452,5 +440,92 @@ lineage_root_filter::filter(arena& arena)
         initial.end()
     );
 
+    std::set<haplotype*> found(initial.begin(), initial.end());
+    size_t mut_distance = 0;
+    size_t count = 0;
+    for (haplotype* hap: initial) {
+        haplotype* par = hap->parent;
+        while (par && found.find(par) == found.end()) {
+            par = par->parent;
+        }
+
+        if (par) {
+            mut_distance += hap->mutation_distance(par);
+            ++count;
+        }
+    }
+
+    std::cout << " Count " << ((double) mut_distance / count) << std::endl;
+
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine rng(seed);
+    std::vector<haplotype*> other = arena.haplotype_pointers();
+    std::shuffle(other.begin(), other.end(), rng);
+    other.erase(other.begin() + 10, other.end());
+
+    double average_dist = 0;
+    for (haplotype* hap: other) {
+        int min_dist = INT_MAX;
+        for (haplotype* hap2: initial) {
+            min_dist = std::min(min_dist, hap->mutation_distance(hap2));
+        }
+
+        average_dist += (double) min_dist / other.size();
+    }
+
+    std::cout << "Distance " << average_dist << std::endl;
+
+
     return initial;
+}
+
+std::vector<haplotype*> 
+random_nodes_filter::filter(arena& arena)
+{
+    std::vector<haplotype*> initial = arena.haplotype_pointers();
+    // ensure root is always selected
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine rng(seed);
+    std::shuffle(initial.begin() + 1, initial.end(), rng);
+    initial.erase(initial.begin() + n, initial.end());
+
+    std::vector<haplotype*> other = arena.haplotype_pointers();
+    std::shuffle(other.begin(), other.end(), rng);
+    other.erase(other.begin() + 10, other.end());
+
+    double average_dist = 0;
+    for (haplotype* hap: other) {
+        int min_dist = INT_MAX;
+        for (haplotype* hap2: initial) {
+            min_dist = std::min(min_dist, hap->mutation_distance(hap2));
+        }
+
+        average_dist += (double) min_dist / other.size();
+    }
+
+    std::cout << "distance " << average_dist << std::endl;
+
+    return initial;
+}
+
+
+void
+uniform_nodes_filter::dfs(haplotype* curr, haplotype* last_set, std::vector<haplotype*>& dump)
+{
+    if (curr->mutation_distance(last_set) >= this->dist) {
+        dump.push_back(curr);
+        last_set = curr;
+    }
+    for (haplotype* child: curr->children) {
+        dfs(child, last_set, dump);
+    }
+}
+std::vector<haplotype*> 
+uniform_nodes_filter::filter(arena& arena)
+{
+    std::vector<haplotype*> dump;
+    dump.push_back(&arena.haplotypes()[0]);
+    dfs(&arena.haplotypes()[0], &arena.haplotypes()[0], dump);
+
+    return dump;
 }
