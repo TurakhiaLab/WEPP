@@ -49,7 +49,7 @@ struct Mutation {
     int8_t mut_nuc;
     bool is_missing;
     inline bool operator< (const Mutation& m) const {
-        return ((*this).position < m.position);
+        return this->position < m.position;
     }
     inline Mutation copy() const {
         Mutation m;
