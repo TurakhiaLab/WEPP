@@ -3,9 +3,11 @@
 #include "pipeline.hpp"
 
 void detect_peaks(const dataset& d) {
-    auto main = std::make_unique<wepp_filter>();
+    auto main = std::make_unique<lineage_root_filter>();
+    // main->removed_id = "hCoV-19/Hong";
+
     auto post = std::make_unique<freyja_post_filter>();
-    post->num_filter_rounds = 10;
+    post->num_filter_rounds = 1;
 
     pipeline p{d, std::move(main), std::move(post)};
     p.run();
@@ -17,27 +19,19 @@ void pipeline::run() {
 
     Timer timer;
     {
-        std::cout << "----- [running main filter] -----" << std::endl;
+        std::cout << "----- [running initial filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         timer.Start();
         running = main->filter(a);
         a.print_mutation_distance(running);
-        std::cout << "--- main filter took " << timer.Stop() / 1000 << " seconds " << std::endl << std::endl;
+        std::cout << "--- initial filter took " << timer.Stop() / 1000 << " seconds " << std::endl << std::endl;
     }
 
     // save peaks
     save(running, ds.first_checkpoint_path());
 
-    {
-        std::cout << "----- [running post filter] -----" << std::endl;
-        std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
-
-        timer.Start();
-        std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
-        a.print_full_report(full);
-        std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
-    }
+    this->run_from_last_initial();
 }
 
 void pipeline::run_from_last_initial() {
@@ -52,5 +46,7 @@ void pipeline::run_from_last_initial() {
         
         a.print_full_report(full);
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
+
+        vf.find(a, full);
     }
 }

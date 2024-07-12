@@ -47,6 +47,8 @@ struct haplotype {
     bool has_mutations_in_range(int start, int end) {
         MAT::Mutation search;
         search.position = start;
+        search.mut_nuc = 0;
+
         auto it = std::lower_bound(condensed_source->mutations.begin(), condensed_source->mutations.end(), search);
         return it != condensed_source->mutations.end() && it->position <= end;
     }
@@ -60,6 +62,7 @@ struct haplotype {
         const int unknown_nuc = 0b1111;
 
         MAT::Mutation search;
+        search.mut_nuc = 0;
         search.position = min_pos;
         int i = std::lower_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
         search.position = max_pos;

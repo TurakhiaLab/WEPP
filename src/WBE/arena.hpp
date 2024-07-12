@@ -212,6 +212,9 @@ public:
         }
     }
 
+    const std::string& reference() {
+        return ds.reference();
+    }
 
     size_t genome_size() {
         return ds.reference().size();
@@ -344,6 +347,18 @@ public:
         return ret;
     }
 
+    haplotype* haplotype_with_id(const std::string& id) {
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            for (MAT::Node* source: this->condensed_node_mappings[nodes[i].condensed_source])
+            if (source->identifier == id) {
+                return &nodes[i];
+            }
+        }
+        
+        std::cerr << " Could not find " << id;
+        return nullptr;
+    }
+
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected) {
         std::unordered_set<int> site_read_map;
@@ -395,7 +410,27 @@ public:
             }
 
             average_dist += (double) min_dist / comp.size();
-            printf("dist: %02d true node: %s, pred node: %s, \n",  min_dist, reference.c_str(), best_node->identifier.c_str());
+            printf("    dist: %02d true node: %s, pred node: %s, \n",  min_dist, reference.c_str(), best_node->identifier.c_str());
+
+            // auto node_mutations = get_mutations(this->mat, best_node->identifier);
+            // // Remove mutations from node_mutations that are not present in site_read_map
+            // mut_itr = node_mutations.begin();
+            // while (mut_itr != node_mutations.end())
+            // {
+            //     if (site_read_map.find(mut_itr->position) == site_read_map.end())
+            //         mut_itr = node_mutations.erase(mut_itr);
+            //     else
+            //         mut_itr++;
+            // }
+            // std::vector<MAT::Mutation> diffs;
+            // std::sort(sample_mutations.begin(), sample_mutations.end());
+            // std::sort(node_mutations.begin(), node_mutations.end());
+            // std::set_symmetric_difference(sample_mutations.begin(), sample_mutations.end(), node_mutations.begin(), node_mutations.end(),
+            //     std::back_inserter(diffs)
+            // );
+            // for (size_t i = 0; i < diffs.size(); ++i) {
+            //     std::cerr << " Diff at " << diffs[i].get_string() << std::endl;
+            // }
         }
 
         printf("average mutation_distance: %0.3f\n", average_dist);

@@ -15,7 +15,7 @@ class pipeline {
     arena a;
     std::unique_ptr<initial_filter> main;
     std::unique_ptr<post_filter> post;
-    variant_finder vd;
+    variant_finder vf{};
 
 public:
     pipeline(const dataset& ds, std::unique_ptr<initial_filter>&& main, std::unique_ptr<post_filter>&& post) 

@@ -38,25 +38,24 @@ mutation_reductions(std::vector<int> const &parent, std::vector<int> const &chil
 /* maps a single read to entire tree, caching aliveness */
 /* parent_locations is the positions where the parent has different mutations than the read */
 static void
-single_read_tree(arena& arena, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
+single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
 {
     // positions where this node differs from the read */
-    // std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
+    std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
 
     /* map self */
     // this basically ensures semantics are the exact same
     // as the previous algorithm
-    // int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
-    // if (reductions)
-    // {
-    //     parsimony = parent_locations.size() - reductions;
-    // }
-    // else
-    // {
-    //     parsimony = my_locations.size();
-    // }
+    int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
+    if (reductions)
+    {
+        parsimony = parent_locations.size() - reductions;
+    }
+    else
+    {
+        parsimony = my_locations.size();
+    }
 
-    int const parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -69,7 +68,7 @@ single_read_tree(arena& arena, multi_haplotype *curr, const raw_read& read, std:
 
     for (int child : curr->children)
     {
-        single_read_tree(arena, &arena.ranged_haplotypes()[child], read, max_nodes, max_val);
+        single_read_tree(arena, my_locations, &arena.ranged_haplotypes()[child], read, max_nodes, max_val);
     }
 }
 
@@ -81,9 +80,10 @@ single_read_tree(arena& arena, multi_haplotype *curr, const raw_read& read, std:
 static void 
 single_read_tree(arena& arena, const raw_read& read, std::set<haplotype*> &max_indices, int &max_val)
 {
+    std::vector<int> empty_locations;
     std::vector<multi_haplotype *> max_nodes;
     multi_haplotype* root = arena.find_range_tree_for(read);
-    single_read_tree(arena, root, read, max_nodes, max_val);
+    single_read_tree(arena, empty_locations, root, read, max_nodes, max_val);
 
     for (multi_haplotype *rnode : max_nodes)
     {
@@ -180,7 +180,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
         haps[i]->dist_divergence = divergence;
     }
 
-    std::cout << " cartesian time " << timer.Stop() << std::endl;
+    std::cout << " cartesian took " << timer.Stop() / 1000 << " seconds " << std::endl;
 
     /* initial sort into scores */
     std::sort(haps.begin(), haps.end(), score_comparator());
@@ -215,20 +215,19 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read& r = arena.reads()[read];
-                                  //   std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
-                                  //   std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
+                                  std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
+                                  std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
 
-                                  //   int parsimony, reductions = mutation_reductions(parent, ours);
-                                  //   if (reductions)
-                                  //   {
-                                  //       parsimony = parent.size() - reductions;
-                                  //   }
-                                  //   else
-                                  //   {
-                                  //       parsimony = ours.size();
-                                  //   }
+                                  int parsimony, reductions = mutation_reductions(parent, ours);
+                                  if (reductions)
+                                  {
+                                      parsimony = parent.size() - reductions;
+                                  }
+                                  else
+                                  {
+                                      parsimony = ours.size();
+                                  }
 
-                                  int parsimony = hap->mutation_distance(r);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
@@ -330,10 +329,10 @@ wepp_filter::step(arena& arena, size_t j, std::vector<haplotype*>& current, std:
 
     /* get top_n (under some special constraints) */
     auto it = current.begin();
-    double const min_score = (*it)->full_score();
+    double const best_score = (*it)->full_score();
 
     /* no available peaks */
-    if (min_score < SCORE_EPSILON)
+    if (best_score < SCORE_EPSILON)
     {
         return true;
     }
@@ -347,7 +346,7 @@ wepp_filter::step(arena& arena, size_t j, std::vector<haplotype*>& current, std:
     /* 4. we have not exceeded max peaks */
     for (int i = 0;
          it != current.end() &&
-         (*it)->full_score() / min_score < curr_threshold &&
+         (*it)->full_score() / best_score > curr_threshold &&
          consideration.size() + peaks.size() < (size_t) max_peaks;
          ++i, ++it)
     {
@@ -364,7 +363,7 @@ wepp_filter::step(arena& arena, size_t j, std::vector<haplotype*>& current, std:
         {
             consideration.push_back(*it);
             (*it)->mapped = true;
-            // printf("%.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
+            printf("    %.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
         }
     }
 
@@ -440,6 +439,7 @@ lineage_root_filter::filter(arena& arena)
         initial.end()
     );
 
+    /*
     std::set<haplotype*> found(initial.begin(), initial.end());
     size_t mut_distance = 0;
     size_t count = 0;
@@ -474,9 +474,29 @@ lineage_root_filter::filter(arena& arena)
     }
 
     std::cout << "Distance " << average_dist << std::endl;
-
+    */
 
     return initial;
+}
+
+std::vector<haplotype*> 
+lineage_root_except_filter::filter(arena& arena) {
+    lineage_root_filter filter;
+    std::vector<haplotype*> all_lineages = filter.filter(arena);
+
+    haplotype* ref = arena.haplotype_with_id(this->removed_id);
+
+    all_lineages.erase(
+        std::remove_if(
+            all_lineages.begin(), all_lineages.end(),
+            [&](haplotype* hap) {
+                return ref->mutation_distance(hap) <= this->clearance;
+            }
+        ),
+        all_lineages.end()
+    );
+
+    return all_lineages;
 }
 
 std::vector<haplotype*> 
