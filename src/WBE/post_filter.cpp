@@ -92,6 +92,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 {
     std::set<std::string> mutations;
     std::vector<std::set<std::string>> node_muts;
+
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
@@ -145,7 +146,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
             "bash -c \""
                 "source ~/miniconda3/etc/profile.d/conda.sh && "
                 "conda activate freyja-env && "
-                "freyja demix Freyja/cwap_variants.tsv Freyja/cwap_depth.tsv --barcodes Freyja/data/usher_barcodes.csv --output Freyja/my_output_latest.txt --eps 0.001"
+                "freyja demix Freyja/cwap_variants.tsv Freyja/cwap_depth.tsv --barcodes Freyja/data/usher_barcodes.csv --output Freyja/my_output_latest.txt --eps 0.005"
             "\""
         ) != 0)
     {

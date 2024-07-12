@@ -80,6 +80,13 @@ public:
     std::vector<haplotype*> filter(arena& arena);
 };
 
+class lineage_root_except_filter: public initial_filter {
+public:
+    std::string removed_id;
+    int clearance = 4;
+    std::vector<haplotype*> filter(arena& arena);
+};
+
 class random_nodes_filter: public initial_filter {
 public:
     int n = 2000;
