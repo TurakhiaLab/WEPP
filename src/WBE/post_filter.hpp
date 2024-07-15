@@ -9,7 +9,7 @@
 class post_filter {
 public:
     int num_filter_rounds = 1;
-    int freeze_round = 5;
+    int freeze_round = 1;
     int max_nbrs = 100;
     int max_rad = 4;
 

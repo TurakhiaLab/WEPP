@@ -3,15 +3,15 @@
 #include "pipeline.hpp"
 
 void detect_peaks(const dataset& d) {
-    auto main = std::make_unique<lineage_root_filter>();
+    auto main = std::make_unique<wepp_filter>();
     // main->removed_id = "hCoV-19/Hong";
 
     auto post = std::make_unique<freyja_post_filter>();
-    post->num_filter_rounds = 1;
+    post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
-    p.run();
-    // p.run_from_last_initial();
+    // p.run();
+    p.run_from_last_initial();
 }
 
 void pipeline::run() {
