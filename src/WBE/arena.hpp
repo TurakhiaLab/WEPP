@@ -476,4 +476,58 @@ public:
             printf("abundance: %.6f for %s (%s)\n", a_map[lineage_name], lineage_name.c_str(), ref.c_str());
         }
     }
+
+    void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance)  {
+        std::ofstream csv(this->ds.haplotype_read_path());
+        std::string csv_print;
+
+        const std::vector<raw_read>& reads = this->reads();
+        std::unordered_map<std::string, std::vector<std::string>> reverse_merge = ds.read_reverse_merge();
+
+        tbb::concurrent_hash_map<std::string, std::vector<std::string>> node_reads_map;
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    //Find EPPs for every read
+                    std::vector<haplotype*> epps;
+                    int min_dist = std::numeric_limits<int>::max();
+                    for (const auto& curr_node: abundance) {
+                        int curr_dist = curr_node.first->mutation_distance(reads[i]);
+                        if (curr_dist <= min_dist) {
+                            if (curr_dist < min_dist) {
+                                min_dist = curr_dist;
+                                epps.clear();
+                            }
+                            epps.emplace_back(curr_node.first);
+                        }
+                    }
+                    
+                    //Account for all the reads while assigning to EPPs
+                    const auto& read_names = reverse_merge[reads[i].read];
+                    for (const auto& curr_node: epps) {
+                        tbb::concurrent_hash_map<std::string, std::vector<std::string>>::accessor ac;
+                        auto created = node_reads_map.insert(ac, std::make_pair(curr_node->id, read_names));
+                        if (!created)
+                            ac->second.insert(ac->second.end(), read_names.begin(), read_names.end());
+                        ac.release();
+                    }
+                }
+            },
+        ap);
+
+        for (const auto& n_r: node_reads_map) {
+            csv_print = n_r.first;
+            for (const auto& r_name: n_r.second)
+                csv_print += "," + r_name;
+            csv_print += "\n";
+            csv << csv_print;
+        }
+
+        //Run Python script to generate sam files
+        std::string command = "python src/WBE/sam_generation.py " + std::string(dir_prefix) + " " + vm["output-files-prefix"].as<std::string>();
+        int result = std::system(command.c_str());
+        if (result)
+            fprintf(stderr, "\nCannot run sam_generation.py\n");
+    }
 };

@@ -10,8 +10,8 @@ void detect_peaks(const dataset& d) {
     post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
-    // p.run();
-    p.run_from_last_initial();
+    p.run();
+    // p.run_from_last_initial();
 }
 
 void pipeline::run() {
@@ -45,8 +45,10 @@ void pipeline::run_from_last_initial() {
         std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
         
         a.print_full_report(full);
+
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
 
+        a.dump_read2node_mapping(full);
         vf.find(a, full);
     }
 }
