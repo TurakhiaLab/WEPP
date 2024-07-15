@@ -18,6 +18,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
+constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = true;
 constexpr double frequency_read_cutoff = 0.02;
 constexpr int phred_score_cutoff = 20;
 
@@ -286,8 +287,12 @@ void sam::read_correction() {
             int indx = start + j;
 
             if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > 1e-9) {
-                align[j] = 'N';
-                // align[j] = GENOME_STRING[majority[indx]];
+                if (MAP_TO_MAJORITY_INSTEAD_OF_N) {
+                    align[j] = GENOME_STRING[majority[indx]];
+                }
+                else {
+                    align[j] = 'N';
+                }
             }
         }
     }
