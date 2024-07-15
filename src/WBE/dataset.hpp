@@ -40,6 +40,10 @@ public:
         return this->directory() + this->file_prefix() + "_last_checkpoint.txt";
     }
 
+    std::string haplotype_read_path() const {
+        return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
+    }
+
     const std::string& reference() const {
         static std::optional<std::string> saved;
         if (!saved) {
@@ -73,6 +77,7 @@ public:
     }
 
     std::vector<raw_read> reads() const;
+    std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
     MAT::Tree mat() const {
         std::string input_mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
