@@ -9,13 +9,13 @@ make -j
 cd ../
 
 #Variables
-file_prefix="my_vcf"
+file_prefix="PL_2023_03_01"
 # ont (15)
 # MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
 # file_path="golden_mixture1_v41_control"
 # ont (8)
 MAT="updated_public-2023-04-10.all.masked.pb.gz"
-file_path="golden_mixture6_v41_control"
+file_path="point_loma"
 # illumina
 # MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
 # file_path="output_files"
@@ -35,6 +35,7 @@ REF="test/NC_045512v2.fa"
 ##SWAMPy + ALIGNMENT
 #conda activate SWAMPy
 #source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 149
+source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${REF} ${file_prefix} ${file_path}
 #conda deactivate
 # wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 
@@ -56,7 +57,7 @@ REF="test/NC_045512v2.fa"
 
 #DETECTING PEAKS
 #wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path} -p BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2
-wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+#wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 # gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 #CALCULATING MUTATION DISTANCE
