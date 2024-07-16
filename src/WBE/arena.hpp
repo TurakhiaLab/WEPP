@@ -525,7 +525,7 @@ public:
         }
 
         //Run Python script to generate sam files
-        std::string command = "python src/WBE/sam_generation.py " + std::string(dir_prefix) + " " + vm["output-files-prefix"].as<std::string>();
+        std::string command = "python src/WBE/sam_generation.py " + ds.directory() + " " + ds.file_prefix();
         int result = std::system(command.c_str());
         if (result)
             fprintf(stderr, "\nCannot run sam_generation.py\n");
