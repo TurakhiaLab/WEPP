@@ -29,7 +29,7 @@ struct sam_read {
             "_" + std::to_string(start_idx + 1 + aligned_string.size() - 1); 
     }
 
-    bool operator <(const sam_read& rhs) {
+    bool operator <(const sam_read& rhs) const {
         if (start_idx != rhs.start_idx) {
             return start_idx < rhs.start_idx;
         }
@@ -41,7 +41,7 @@ struct sam_read {
         return aligned_string < rhs.aligned_string;
     }
 
-    bool operator ==(const sam_read& rhs) {
+    bool operator ==(const sam_read& rhs) const {
         return start_idx == rhs.start_idx && aligned_string == rhs.aligned_string;
     }
 };
@@ -87,4 +87,4 @@ struct sam {
 };
 
 void sam2PB(const dataset& d);
-std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge);
+std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge);
