@@ -11,13 +11,13 @@
 #include "variant_finder.hpp"
 
 class pipeline {
+public:
     const dataset& ds;
     arena a;
     std::unique_ptr<initial_filter> main;
     std::unique_ptr<post_filter> post;
     variant_finder vf{};
 
-public:
     pipeline(const dataset& ds, std::unique_ptr<initial_filter>&& main, std::unique_ptr<post_filter>&& post) 
         : ds{ds}, a{ds}, main{std::move(main)}, post{std::move(post)}
     {

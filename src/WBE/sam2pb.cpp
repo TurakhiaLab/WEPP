@@ -75,20 +75,9 @@ void sam::dump_proto(const std::string& filename) {
     for (const sam_read& read: aligned_reads) {
         auto dump = data.add_reads();
         dump->set_start_idx(read.start_idx + 1);
-        dump->set_end_idx(read.start_idx + 1 + read.aligned_string.size() - 1);
+        dump->set_content(read.aligned_string);
         dump->set_degree(read.degree);
         dump->set_read(read.degree_name());
-        for (size_t i = 0; i < read.aligned_string.size(); ++i) {
-            if (read.aligned_string[i] != reference_seq[read.start_idx + i] && read.aligned_string[i] != '_') {
-                auto mut = dump->add_mutations();
-                mut->set_position(i + read.start_idx + 1);
-                mut->set_ref_nuc(MAT::get_nuc_id(reference_seq[read.start_idx + i]));
-                mut->set_par_nuc(MAT::get_nuc_id(reference_seq[read.start_idx + i]));
-                mut->set_mut_nuc(MAT::get_nuc_id(read.aligned_string[i]));
-                mut->set_is_missing(read.aligned_string[i] == 'N');
-                // mut->set_chrom("NC_045512v2");
-            }
-        }
     }
 
     for (const auto& kv: reverse_merge) {
@@ -363,6 +352,67 @@ void sam::build() {
             reverse_merge[col_name] = std::vector<std::string>{col.raw_name};
         }
     }
+
+    // find all 
+    constexpr double min_freq = 0.05;
+    constexpr size_t search_size = 700;
+    std::map<std::pair<MAT::Mutation, MAT::Mutation>, size_t> coccuring;
+    for (const auto& col: aligned_reads) {
+        std::vector<size_t> muts;
+        for (size_t i = 0; i < col.aligned_string.size(); ++i) {
+            if (col.aligned_string[i] != reference_seq[i + col.start_idx]) {
+                if (collapsed_frequency_table[i + col.start_idx][GENOME_STRING.find(col.aligned_string[i])] > min_freq) {
+                    muts.push_back(i);
+                }
+            }
+        }
+
+        auto to_mut = [&](size_t i) {
+            MAT::Mutation mut;
+            mut.position = i + col.start_idx;
+            mut.ref_nuc = MAT::get_nuc_id(this->reference_seq[mut.position]);
+            mut.mut_nuc = col.aligned_string[i];
+            return mut;
+        };
+
+        for (size_t j = 0; j < muts.size(); ++j) {
+            for (size_t k = j + 1; k < muts.size(); ++k) {
+                coccuring[std::make_pair(to_mut(muts[j]), to_mut(muts[k]))] += col.degree;
+            }
+        }
+    }
+
+    std::cout << " Candidates " << coccuring.size() << std::endl;
+
+    std::vector<std::tuple<double, MAT::Mutation, MAT::Mutation>> ordered;
+    for (const auto& freq: coccuring) {
+        sam_read query{};
+        query.start_idx = freq.first.second.position - search_size;
+        auto f = std::lower_bound(aligned_reads.begin(), aligned_reads.end(), query);
+
+        query.start_idx = freq.first.first.position + 1;
+        auto l = std::upper_bound(aligned_reads.begin(), aligned_reads.end(), query);
+
+        size_t depth = 0;
+        for (auto it = f; it != l; it++) {
+            if (it->start_idx <= freq.first.first.position && it->start_idx + it->aligned_string.size() <= freq.first.second.position) {
+                depth += it->degree; 
+            }
+        }
+
+        if ((double) freq.second / depth > min_freq) {
+            ordered.push_back(std::make_tuple((double) freq.second / depth, freq.first.first, freq.first.second));
+        }
+    }
+
+    std::sort(ordered.begin(), ordered.end());
+    std::cout << " Selected " << ordered.size() << std::endl;
+
+    for (const auto& tup: ordered) {
+        std::cout << "freq " << std::get<0>(tup);
+        std::cout << " first " << std::get<1>(tup).get_string();
+        std::cout << " second " << std::get<2>(tup).get_string() << std::endl;
+    }
 }
 
 void sam::dump_reverse_merge(std::ostream &out) {
@@ -419,7 +469,7 @@ void sam::dump_freyja(std::ostream& dout, std::ostream& vout) {
     }
 }
 
-std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
+std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
     Timer timer;
     timer.Start();
 
@@ -438,29 +488,33 @@ std::vector<raw_read> load_reads_from_proto(std::string const& filename, std::un
     //input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
     data.ParseFromCodedStream(&input);
 
-    std::vector<raw_read> reads;
     int read_count = data.reads_size();
-    for (int i = 0; i < read_count; ++i) {
-        struct raw_read out{};
-        const auto& curr = data.reads()[i];
-        out.start = curr.start_idx();
-        out.end = curr.end_idx();
-        out.degree = curr.degree();
-        out.read = curr.read();
-        for (int j = 0; j < curr.mutations_size(); ++j) {
-            const auto& mut = curr.mutations()[j];
-            MAT::Mutation mutation;
-            mutation.is_missing = mut.is_missing();
-            mutation.chrom = CHROM;
-            mutation.mut_nuc = mut.mut_nuc();
-            mutation.ref_nuc = mut.ref_nuc();
-            mutation.par_nuc = mut.par_nuc();
-            mutation.position = mut.position();
-            out.mutations.push_back(std::move(mutation));
-        }
-
-        reads.push_back(out);
-    }
+    std::vector<raw_read> reads(read_count);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, read_count),
+                      [&](tbb::blocked_range<size_t> range)
+                      {
+                          for (int i = range.begin(); i < range.end(); ++i)
+                          {
+                              raw_read &out = reads[i];
+                              const auto &curr = data.reads()[i];
+                              out.start = curr.start_idx() + 1;
+                              out.end = curr.start_idx() + curr.content().size();
+                              out.degree = curr.degree();
+                              out.read = curr.read();
+                              for (size_t i = 0; i < curr.content().size(); ++i)
+                              {
+                                  if (curr.content()[i] != reference[curr.start_idx() + i] && curr.content()[i] != '_')
+                                  {
+                                      MAT::Mutation mutation;
+                                      mutation.is_missing = curr.content()[i] == 'N';
+                                      mutation.chrom = CHROM;
+                                      mutation.ref_nuc = mutation.par_nuc = MAT::get_nuc_id(reference[out.start + i]);
+                                      mutation.mut_nuc = MAT::get_nuc_id(curr.content()[i]);
+                                      mutation.position = out.start + i + 1;
+                                  }
+                              }
+                          }
+                      });
 
     /* finally, reverse merge table */
     for (int i = 0; i < data.reverse_columns_size(); ++i) {
