@@ -1,19 +1,10 @@
 syntax = "proto3";
 package Sam;
 
-message mutation {
-    int32 position = 2;
-    int32 ref_nuc = 3;
-    int32 par_nuc = 4;
-    int32 mut_nuc = 5;
-    bool is_missing = 6;
-}
-
 message read_info {
     string read = 1;
-    repeated mutation mutations = 2;
     int32 start_idx = 3;
-    int32 end_idx = 4;
+    string content = 6; // ACGTN or _
     int32 degree = 5; // how many repeats
 }
 
