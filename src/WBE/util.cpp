@@ -188,8 +188,10 @@ std::vector<MAT::Mutation> get_mutations(const MAT::Tree& T, const std::string s
     while (sm_itr != sample_mutations.end()) {
         if (sm_itr->ref_nuc == sm_itr->mut_nuc)
             sm_itr = sample_mutations.erase(sm_itr);
-        else
+        else {
+            sm_itr->par_nuc = sm_itr->ref_nuc; 
             sm_itr++;
+        }
     }
     return sample_mutations;
 }

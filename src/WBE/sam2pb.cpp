@@ -108,7 +108,6 @@ void sam::dump_proto(const std::string& filename) {
     } else {
         data.SerializeToOstream(&outfile);
         outfile.close();
-        std::cout << " Written " << outfile.fail() << std::endl;
     }
 }
 
@@ -369,9 +368,10 @@ void sam::build() {
 
         auto to_mut = [&](size_t i) {
             MAT::Mutation mut;
-            mut.position = i + col.start_idx;
+            mut.position = i + col.start_idx + 1;
             mut.ref_nuc = MAT::get_nuc_id(this->reference_seq[mut.position]);
-            mut.mut_nuc = col.aligned_string[i];
+            mut.par_nuc = MAT::get_nuc_id(this->reference_seq[mut.position]);
+            mut.mut_nuc = MAT::get_nuc_id(col.aligned_string[i]);
             return mut;
         };
 
@@ -395,8 +395,12 @@ void sam::build() {
 
         size_t depth = 0;
         for (auto it = f; it != l; it++) {
-            if (it->start_idx <= freq.first.first.position && it->start_idx + it->aligned_string.size() <= freq.first.second.position) {
-                depth += it->degree; 
+            if (it->start_idx <= freq.first.first.position && it->start_idx + (int) it->aligned_string.size() >= freq.first.second.position) {
+                auto good_str = [](char c) { return c != '_' && c != 'N'; };
+                if (good_str(it->aligned_string[freq.first.first.position - it->start_idx]) &&
+                    good_str(it->aligned_string[freq.first.second.position - it->start_idx])) {
+                    depth += it->degree; 
+                }
             }
         }
 
@@ -493,11 +497,11 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
     tbb::parallel_for(tbb::blocked_range<size_t>(0, read_count),
                       [&](tbb::blocked_range<size_t> range)
                       {
-                          for (int i = range.begin(); i < range.end(); ++i)
+                          for (size_t i = range.begin(); i < range.end(); ++i)
                           {
                               raw_read &out = reads[i];
                               const auto &curr = data.reads()[i];
-                              out.start = curr.start_idx() + 1;
+                              out.start = curr.start_idx();
                               out.end = curr.start_idx() + curr.content().size();
                               out.degree = curr.degree();
                               out.read = curr.read();
