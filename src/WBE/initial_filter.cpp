@@ -4,6 +4,7 @@
 
 #include "initial_filter.hpp"
 
+static constexpr uint8_t N = 0b1111;
 /* For a fixed read, we are given the positions where the parent node */
 /* differs from the read, and the positions where the current node */
 /* differs from the read. This function counts how many difference the parent has */
@@ -41,21 +42,55 @@ static void
 single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
 {
     // positions where this node differs from the read */
-    std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
+    std::vector<int> my_locations;
+    my_locations.reserve(parent_locations.size());
+
+    // go through all of this haplotypes mutations
+    // and see if it increases or decreases overall mutations
+    std::vector<MAT::Mutation>& curr_muts = curr->root->muts;
+
+    size_t i = 0; // index of parent location
+    MAT::Mutation search;
+    search.position = read.start;
+    auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
+
+    // keeping track of read mutation position may actually be the dominating factor with so many N
+    // so we bin search whenever necessary
+    while (i < parent_locations.size() || (j != curr_muts.end() && j->position <= read.end)) {
+        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->position > read.end || parent_locations[i] < j->position);
+        bool us_first = (j != curr_muts.end() && j->position <= read.end) && (i == parent_locations.size() || j->position < parent_locations[i]);
+
+        if (us_first) {
+            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+            if (it == read.mutations.end() || it->position != j->position || it->mut_nuc != N) {
+                my_locations.push_back(j->position);
+            }
+            
+            ++j;
+        }
+        else if (parent_first) {
+            my_locations.push_back(parent_locations[i]);
+
+            ++i;
+        }
+        else {
+            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+            // no need to check for N since it was a mutation for the parent
+            bool const right_pos = it != read.mutations.end() && it->position != j->position;
+            if ((!right_pos && j->ref_nuc != j->mut_nuc) || 
+                (right_pos && it->mut_nuc != j->mut_nuc)) {
+                my_locations.push_back(j->position);
+            }
+            
+            ++j;
+            ++i;
+        }
+    }
 
     /* map self */
+    int parsimony = my_locations.size();
     // this basically ensures semantics are the exact same
     // as the previous algorithm
-    int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
-    if (reductions)
-    {
-        parsimony = parent_locations.size() - reductions;
-    }
-    else
-    {
-        parsimony = my_locations.size();
-    }
-
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -78,17 +113,24 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 /* max_val corresponds to max parismony */
 /* max indices correspond to the indices of the epp nodes */
 static void 
-single_read_tree(arena& arena, const raw_read& read, std::set<haplotype*> &max_indices, int &max_val)
+single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &max_indices, int &max_val)
 {
     std::vector<multi_haplotype *> max_nodes;
     multi_haplotype* root = arena.find_range_tree_for(read);
-    single_read_tree(arena, {}, root, read, max_nodes, max_val);
+    
+    std::vector<int> root_mutations;
+    for (const MAT::Mutation& mut: read.mutations) {
+        if (mut.mut_nuc != N) {
+            root_mutations.push_back(mut.position);
+        }
+    }
+    single_read_tree(arena, root_mutations, root, read, max_nodes, max_val);
 
     for (multi_haplotype *rnode : max_nodes)
     {
         for (haplotype *src : rnode->sources)
         {
-            max_indices.emplace(src);
+            max_indices.push_back(src);
         }
     }
 }
@@ -113,7 +155,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 
                           for (size_t r = k.begin(); r != k.end(); ++r)
                           {
-                              std::set<haplotype *> max_indices;
+                              std::vector<haplotype *> max_indices;
                               int max_val = INT32_MAX; /* really want minimum value */
 
                               single_read_tree(arena, reads[r], max_indices, max_val);
@@ -144,6 +186,8 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                               this->parsimony_multiplicity[r] = max_indices.size();
                               if (max_indices.size() <= max_cached_epp_size)
                               {
+                                  // ensure it is sorted
+                                  std::sort(max_indices.begin(), max_indices.end());
                                   this->epp_positions_cache[r] = std::move(max_indices);
                               }
                           }
@@ -182,7 +226,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     /* initial sort into scores */
     std::sort(haps.begin(), haps.end(), score_comparator());
 
-    std::cout << " cartesian mapping took " << (timer.Stop() / 1000) << " seconds " << std::endl;
+    std::cout << "--- cartesian mapping took " << (timer.Stop() / 1000) << " seconds " << std::endl;
 }
 
 std::vector<int>
@@ -200,7 +244,8 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                           {
                               size_t const read = remaining[i];
                               /* if cached correspond, use that */
-                              if (epp_positions_cache[read].find(hap) != epp_positions_cache[read].end())
+                              auto it = std::lower_bound(epp_positions_cache[read].begin(), epp_positions_cache[read].end(), hap);
+                              if (it != epp_positions_cache[read].end() && *it == hap)
                               {
                                   tbb::queuing_mutex::scoped_lock lock{my_mutex};
                                   correspondents.push_back(read);
@@ -214,19 +259,8 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read &r = arena.reads()[read];
-                                  std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
-                                  std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
-
-                                  int parsimony, reductions = mutation_reductions(parent, ours);
-                                  if (reductions)
-                                  {
-                                      parsimony = parent.size() - reductions;
-                                  }
-                                  else
-                                  {
-                                      parsimony = ours.size();
-                                  }
-
+                                  
+                                  int parsimony = hap->mutation_distance(r);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
@@ -245,8 +279,8 @@ wepp_filter::remove_read(arena& arena, int read_index, tbb::queuing_mutex* mutex
 {
     using mutex_t = tbb::queuing_mutex;
 
-    std::set<haplotype*> recalcuated;
-    std::set<haplotype *> *epps;
+    std::vector<haplotype*> recalcuated;
+    std::vector<haplotype *> *epps;
     /* if cached, just take that */
     if (this->epp_positions_cache[read_index].size() == (size_t)parsimony_multiplicity[read_index])
     {
@@ -386,7 +420,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         {
             consideration.push_back(*it);
             (*it)->mapped = true;
-            printf("%.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
+            printf("--- %.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
         }
     }
 

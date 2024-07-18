@@ -16,7 +16,7 @@ class wepp_filter: public initial_filter {
     bool high_memory_cartesian_map = true;
 
     // affects final output
-    double read_dist_factor_threshold = (double) 5.0 / 100;
+    double read_dist_factor_threshold = (double) 2.0 / 100;
     int max_peak_peak_mutation = 2;
     int max_peak_nonpeak_mutation = 4;
     int top_n = 25;
@@ -35,7 +35,7 @@ class wepp_filter: public initial_filter {
     
     /* if epp_positions_cache[i].size() != multiplicity[i], that means not cached */
     /* since there's too many. */
-    std::vector<std::set<haplotype*>> epp_positions_cache;
+    std::vector<std::vector<haplotype*>> epp_positions_cache;
 
     std::set<int> remaining_reads;
 

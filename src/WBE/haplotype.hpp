@@ -15,6 +15,7 @@ struct haplotype {
     /* children and mutations  */
     haplotype* parent;
     /* muts from root to here */
+    std::vector<MAT::Mutation> muts;
     std::vector<MAT::Mutation> stack_muts;
 
     // original tree

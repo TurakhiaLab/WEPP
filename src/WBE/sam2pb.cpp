@@ -18,7 +18,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
-constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
+constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = true;
 // also for pairs of mutation frequencies
 constexpr double frequency_read_cutoff = 0.02;
 constexpr int phred_score_cutoff = 20;
@@ -351,72 +351,6 @@ void sam::build() {
             reverse_merge[col_name] = std::vector<std::string>{col.raw_name};
         }
     }
-
-    // find all 
-    constexpr double min_freq = 0.05;
-    constexpr size_t search_size = 700;
-    std::map<std::pair<MAT::Mutation, MAT::Mutation>, size_t> coccuring;
-    for (const auto& col: aligned_reads) {
-        std::vector<size_t> muts;
-        for (size_t i = 0; i < col.aligned_string.size(); ++i) {
-            if (col.aligned_string[i] != reference_seq[i + col.start_idx]) {
-                if (collapsed_frequency_table[i + col.start_idx][GENOME_STRING.find(col.aligned_string[i])] > min_freq) {
-                    muts.push_back(i);
-                }
-            }
-        }
-
-        auto to_mut = [&](size_t i) {
-            MAT::Mutation mut;
-            mut.position = i + col.start_idx + 1;
-            mut.ref_nuc = MAT::get_nuc_id(this->reference_seq[mut.position]);
-            mut.par_nuc = MAT::get_nuc_id(this->reference_seq[mut.position]);
-            mut.mut_nuc = MAT::get_nuc_id(col.aligned_string[i]);
-            return mut;
-        };
-
-        for (size_t j = 0; j < muts.size(); ++j) {
-            for (size_t k = j + 1; k < muts.size(); ++k) {
-                coccuring[std::make_pair(to_mut(muts[j]), to_mut(muts[k]))] += col.degree;
-            }
-        }
-    }
-
-    std::cout << " Candidates " << coccuring.size() << std::endl;
-
-    std::vector<std::tuple<double, MAT::Mutation, MAT::Mutation>> ordered;
-    for (const auto& freq: coccuring) {
-        sam_read query{};
-        query.start_idx = freq.first.second.position - search_size;
-        auto f = std::lower_bound(aligned_reads.begin(), aligned_reads.end(), query);
-
-        query.start_idx = freq.first.first.position + 1;
-        auto l = std::upper_bound(aligned_reads.begin(), aligned_reads.end(), query);
-
-        size_t depth = 0;
-        for (auto it = f; it != l; it++) {
-            if (it->start_idx <= freq.first.first.position && it->start_idx + (int) it->aligned_string.size() >= freq.first.second.position) {
-                auto good_str = [](char c) { return c != '_' && c != 'N'; };
-                if (good_str(it->aligned_string[freq.first.first.position - it->start_idx]) &&
-                    good_str(it->aligned_string[freq.first.second.position - it->start_idx])) {
-                    depth += it->degree; 
-                }
-            }
-        }
-
-        if ((double) freq.second / depth > min_freq) {
-            ordered.push_back(std::make_tuple((double) freq.second / depth, freq.first.first, freq.first.second));
-        }
-    }
-
-    std::sort(ordered.begin(), ordered.end());
-    std::cout << " Selected " << ordered.size() << std::endl;
-
-    for (const auto& tup: ordered) {
-        std::cout << "freq " << std::get<0>(tup);
-        std::cout << " first " << std::get<1>(tup).get_string();
-        std::cout << " second " << std::get<2>(tup).get_string() << std::endl;
-    }
 }
 
 void sam::dump_reverse_merge(std::ostream &out) {
@@ -528,6 +462,6 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
         }
     }
 
-    printf("--- parsed %s in %ld sec\n\n", filename.c_str(), (timer.Stop() / 1000));   
+    printf("--- parsed %s containing %d merged reads in %ld sec\n\n", filename.c_str(), read_count, (timer.Stop() / 1000));   
     return reads;
 }
