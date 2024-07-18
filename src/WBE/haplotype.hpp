@@ -171,7 +171,7 @@ struct haplotype {
     }
 
     double full_score() const {
-        return score * sqrt(dist_divergence);
+        return score * dist_divergence;
     }
 };
 

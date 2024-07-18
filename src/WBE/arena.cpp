@@ -258,13 +258,13 @@ void arena::print_cooccuring_mutations(int window_size)
         auto sample_mutations = get_mutations(this->mat, reference);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
-        while (mut_itr != sample_mutations.end())
-        {
-            if (site_read_map.find(mut_itr->position) == site_read_map.end())
-                mut_itr = sample_mutations.erase(mut_itr);
-            else
-                mut_itr++;
-        }
+        // while (mut_itr != sample_mutations.end())
+        // {
+        //     if (site_read_map.find(mut_itr->position) == site_read_map.end())
+        //         mut_itr = sample_mutations.erase(mut_itr);
+        //     else
+        //         mut_itr++;
+        // }
 
         std::sort(sample_mutations.begin(), sample_mutations.end());
 
