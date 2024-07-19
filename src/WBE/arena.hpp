@@ -92,6 +92,10 @@ public:
 
     void build_range_trees();
 
+    const ::dataset& owned_dataset() {
+        return this->ds;
+    }
+
     const std::string& reference() {
         return ds.reference();
     }

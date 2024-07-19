@@ -130,7 +130,9 @@ single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &ma
     {
         for (haplotype *src : rnode->sources)
         {
-            max_indices.push_back(src);
+            if (!src->mapped) {
+                max_indices.push_back(src);
+            }
         }
     }
 }
@@ -145,7 +147,11 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     Timer timer; timer.Start();
 
     int bin_size = arena.genome_size() / NUM_RANGE_BINS;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
+    int num_threads = arena.owned_dataset().num_threads();
+    // avoid many flushes of score and reallocations of the score vector
+    // this does come at the cost of some threads missing out on work at the end
+    int grain_size = reads.size() / num_threads / this->grain_size_factor;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size(), grain_size),
                       [&](tbb::blocked_range<size_t> k)
                       {
                           std::vector<std::pair<double, std::array<int, NUM_RANGE_BINS>>> score;
@@ -269,13 +275,13 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               }
                           }
                       });
-    std::sort(correspondents.begin(), correspondents.end());
+    tbb::parallel_sort(correspondents.begin(), correspondents.end());
 
     return correspondents;
 }
 
 void
-wepp_filter::remove_read(arena& arena, int read_index, tbb::queuing_mutex* mutex)
+wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_mutex>& mutex)
 {
     using mutex_t = tbb::queuing_mutex;
 
@@ -291,20 +297,48 @@ wepp_filter::remove_read(arena& arena, int read_index, tbb::queuing_mutex* mutex
         /* recalculate on (almost) entire tree, generally the most optimal */
         int max_val = INT32_MAX;
         single_read_tree(arena, arena.reads()[read_index], recalcuated, max_val);
+        std::sort(recalcuated.begin(), recalcuated.end());
         epps = &recalcuated;
     }
 
-    /* use ORIGINAL size */
-    mutex_t::scoped_lock lock{*mutex};
-    double const delta = node_score(max_parismony[read_index], parsimony_multiplicity[read_index], arena.reads()[read_index].degree);
-    for (haplotype* hap: (*epps))
-    {
-        if (hap->mapped)
-        {
-            continue;
-        }
+    if (epps->empty()) {
+        return;
+    }
 
-        hap->score -= delta;
+    /* use ORIGINAL size */
+    double const delta = node_score(max_parismony[read_index], parsimony_multiplicity[read_index], arena.reads()[read_index].degree);
+
+    // randomly break epps into separate chunks; one mutex for any given chunk
+    std::vector<std::pair<size_t, size_t>> chunks;
+    size_t i = 0; 
+    size_t c = 0;
+    size_t first = (*epps)[0] - &arena.haplotypes()[0];
+    for (size_t q = 0; q < epps->size(); ++q) {
+        size_t const j = (*epps)[q] - &arena.haplotypes()[0];
+        if (first / this->mutex_bin_size != j / this->mutex_bin_size) {
+            chunks.emplace_back(i, c); 
+            i = q;
+            first = j;
+            c = 0;
+        }
+        ++c;
+    }
+    chunks.emplace_back(i, c);
+
+    // rotate "randomly" so threads all dont go exactly small to large
+    int random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % epps->size();
+    std::rotate(epps->begin(), epps->begin() + random_val, epps->end());
+
+    for (const auto& [i, c] : chunks) {
+        size_t j = ((*epps)[i] - &arena.haplotypes()[0]) / this->mutex_bin_size;
+        mutex_t::scoped_lock lock{mutex[j]};
+        
+        for (size_t k = i; k < i + c; ++k) {
+            haplotype* hap = (*epps)[k];
+            if (hap->mapped) {
+                hap->score -= delta;
+            }
+        }
     }
 }
 
@@ -314,14 +348,14 @@ wepp_filter::singular_step(arena& arena, haplotype* hap)
     std::vector<int> correspondents = find_correspondents(arena, hap);
 
     /* 2. map all said reads onto entire remaining set, adjusting deltas */
-    tbb::queuing_mutex my_mutex;
+    std::vector<tbb::queuing_mutex> mutexes((arena.haplotypes().size() + this->mutex_bin_size - 1) / this->mutex_bin_size);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, correspondents.size()),
                       [&](tbb::blocked_range<size_t> range)
                       {
                           for (size_t i = range.begin(); i < range.end(); ++i)
                           {
-                              remove_read(arena, correspondents[i], &my_mutex);
+                              remove_read(arena, correspondents[i], mutexes);
                           }
                       });
 
