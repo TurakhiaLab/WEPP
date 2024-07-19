@@ -14,9 +14,13 @@ class wepp_filter: public initial_filter {
     // optimization settings (no effect on final outpiut)
     size_t max_cached_epp_size = 2048;
     bool high_memory_cartesian_map = true;
+    // a mutex corresponds to how many haplotypes?
+    int mutex_bin_size = 4096;
+    // a thread will process about xx total chunks in its lifespan
+    int grain_size_factor = 4;
 
     // affects final output
-    double read_dist_factor_threshold = (double) 2.0 / 100;
+    double read_dist_factor_threshold = (double) 0.5 / 100;
     int max_peak_peak_mutation = 2;
     int max_peak_nonpeak_mutation = 4;
     int top_n = 25;
@@ -53,8 +57,8 @@ class wepp_filter: public initial_filter {
 
     void cartesian_map(arena& arena, std::vector<haplotype*>& haps, const std::vector<raw_read>& read);
     std::vector<int> find_correspondents(arena& arena, haplotype* hap);
-    void remove_read(arena & arena, int read_index, tbb::queuing_mutex* mutex);
-    void singular_step(arena& arena, haplotype* hap);
+    void remove_read(arena &arena, int read_index, std::vector<tbb::queuing_mutex> &mutex);
+    void singular_step(arena &arena, haplotype *hap);
 
     bool valid_two_tops(haplotype *a, haplotype *b) {
          return a->mutation_distance(b) > max_peak_peak_mutation;
