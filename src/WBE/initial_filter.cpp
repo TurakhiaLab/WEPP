@@ -87,14 +87,7 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
     }
 
     /* map self */
-    // int parsimony = my_locations.size();
-
-    int parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
-    // if (parsimony != curr->mutation_distance(read.mutations, read.start, read.end)) {
-    //     std::cerr << " MIS MATCH " << std::endl;
-    // }
-    // this basically ensures semantics are the exact same
-    // as the previous algorithm
+    int parsimony = my_locations.size();
     if (parsimony < max_val)
     {
         max_val = parsimony;
