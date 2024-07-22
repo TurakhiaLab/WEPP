@@ -441,7 +441,7 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                               out.read = curr.read();
                               for (size_t i = 0; i < curr.content().size(); ++i)
                               {
-                                  if (curr.content()[i] != reference[curr.start_idx() + i] && curr.content()[i] != '_')
+                                  if (curr.content()[i] != reference[curr.start_idx() + i - 1] && curr.content()[i] != '_')
                                   {
                                       MAT::Mutation mutation;
                                       mutation.is_missing = curr.content()[i] == 'N';
