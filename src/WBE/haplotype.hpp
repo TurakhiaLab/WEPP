@@ -98,7 +98,7 @@ struct haplotype {
                 }
                 ++j;
             }
-            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && stack_muts[i].mut_nuc != unknown_nuc) {
+            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && comp[j].mut_nuc != unknown_nuc) {
                 muts.push_back(comp[j].position);
                 ++i; ++j;
             }
@@ -172,7 +172,7 @@ struct haplotype {
     }
 
     double full_score() const {
-        return score * dist_divergence;
+        return score * sqrt(dist_divergence);
     }
 };
 
