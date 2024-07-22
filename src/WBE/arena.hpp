@@ -113,7 +113,7 @@ public:
     }
 
     std::vector<haplotype>& haplotypes() {
-        return this->nodes;    
+        return this->nodes;   
     }
 
     std::vector<haplotype*> haplotype_pointers() {
