@@ -42,53 +42,72 @@ static void
 single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
 {
     // positions where this node differs from the read */
-    std::vector<int> my_locations;
-    my_locations.reserve(parent_locations.size());
+    // std::vector<int> my_locations;
+    // my_locations.reserve(parent_locations.size());
 
-    // go through all of this haplotypes mutations
-    // and see if it increases or decreases overall mutations
-    std::vector<MAT::Mutation>& curr_muts = curr->root->muts;
+    // // go through all of this haplotypes mutations
+    // // and see if it increases or decreases overall mutations
+    // std::vector<MAT::Mutation>& curr_muts = curr->root->muts;
 
-    size_t i = 0; // index of parent location
-    MAT::Mutation search;
-    search.position = read.start;
-    auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
+    // size_t i = 0; // index of parent location
+    // MAT::Mutation search;
+    // search.position = read.start;
+    // auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
 
-    // keeping track of read mutation position may actually be the dominating factor with so many N
-    // so we bin search whenever necessary
-    while (i < parent_locations.size() || (j != curr_muts.end() && j->position <= read.end)) {
-        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->position > read.end || parent_locations[i] < j->position);
-        bool us_first = (j != curr_muts.end() && j->position <= read.end) && (i == parent_locations.size() || j->position < parent_locations[i]);
+    // // keeping track of read mutation position may actually be the dominating factor with so many N
+    // // so we bin search whenever necessary
+    // while (i < parent_locations.size() || (j != curr_muts.end() && j->position <= read.end)) {
+    //     bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->position > read.end || parent_locations[i] < j->position);
+    //     bool us_first = (j != curr_muts.end() && j->position <= read.end) && (i == parent_locations.size() || j->position < parent_locations[i]);
 
-        if (us_first) {
-            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
-            if (it == read.mutations.end() || it->position != j->position || it->mut_nuc != N) {
-                my_locations.push_back(j->position);
-            }
+    //     if (us_first) {
+    //         auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+    //         uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
+    //         if (read_nuc != N && read_nuc != j->mut_nuc) {
+    //             my_locations.push_back(j->position);
+    //         }
             
-            ++j;
-        }
-        else if (parent_first) {
-            my_locations.push_back(parent_locations[i]);
+    //         ++j;
+    //     }
+    //     else if (parent_first) {
+    //         my_locations.push_back(parent_locations[i]);
 
-            ++i;
-        }
-        else {
-            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
-            // no need to check for N since it was a mutation for the parent
-            bool const right_pos = it != read.mutations.end() && it->position != j->position;
-            if ((!right_pos && j->ref_nuc != j->mut_nuc) || 
-                (right_pos && it->mut_nuc != j->mut_nuc)) {
-                my_locations.push_back(j->position);
-            }
+    //         ++i;
+    //     }
+    //     else {
+    //         auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+    //         uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
+    //         if (read_nuc != N && read_nuc != j->mut_nuc) {
+    //             my_locations.push_back(j->position);
+    //         }
             
-            ++j;
-            ++i;
-        }
-    }
+    //         ++j;
+    //         ++i;
+    //     }
+    // }
 
     /* map self */
-    int parsimony = my_locations.size();
+    // int parsimony = my_locations.size();
+    // int parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
+
+    std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
+
+    /* map self */
+    // this basically ensures semantics are the exact same
+    // as the previous algorithm
+    int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
+    if (reductions)
+    {
+        parsimony = parent_locations.size() - reductions;
+    }
+    else
+    {
+        parsimony = my_locations.size();
+    }
+
+    // if (parsimony != curr->mutation_distance(read.mutations, read.start, read.end)) {
+    //     std::cerr << " MIS MATCH " << std::endl;
+    // }
     // this basically ensures semantics are the exact same
     // as the previous algorithm
     if (parsimony < max_val)
@@ -151,6 +170,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     // avoid many flushes of score and reallocations of the score vector
     // this does come at the cost of some threads missing out on work at the end
     int grain_size = reads.size() / num_threads / this->grain_size_factor;
+
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size(), grain_size),
                       [&](tbb::blocked_range<size_t> k)
                       {
@@ -219,7 +239,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
         double divergence = 0;
         for (size_t j = 0; j < NUM_RANGE_BINS; ++j)
         {
-            double const proportion = (double) haps[i]->mapped_read_counts[j] / arena.read_distribution()[j];
+            double const proportion = (double) haps[i]->mapped_read_counts[j] / arena.read_counts()[j];
             if (proportion > read_dist_factor_threshold)
             {
                 divergence += 1.0 / NUM_RANGE_BINS;
@@ -230,7 +250,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     }
 
     /* initial sort into scores */
-    std::sort(haps.begin(), haps.end(), score_comparator());
+    tbb::parallel_sort(haps.begin(), haps.end(), score_comparator());
 
     std::cout << "--- cartesian mapping took " << (timer.Stop() / 1000) << " seconds " << std::endl;
 }
@@ -265,8 +285,19 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read &r = arena.reads()[read];
-                                  
-                                  int parsimony = hap->mutation_distance(r);
+                                  std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
+                                  std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
+
+                                  int parsimony, reductions = mutation_reductions(parent, ours);
+                                  if (reductions)
+                                  {
+                                      parsimony = parent.size() - reductions;
+                                  }
+                                  else
+                                  {
+                                      parsimony = ours.size();
+                                  }
+
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
@@ -276,7 +307,6 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                           }
                       });
     tbb::parallel_sort(correspondents.begin(), correspondents.end());
-
     return correspondents;
 }
 
@@ -326,7 +356,7 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     chunks.emplace_back(i, c);
 
     // rotate "randomly" so threads all dont go exactly small to large
-    int random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % epps->size();
+    int const random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % epps->size();
     std::rotate(epps->begin(), epps->begin() + random_val, epps->end());
 
     for (const auto& [i, c] : chunks) {
@@ -454,7 +484,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         {
             consideration.push_back(*it);
             (*it)->mapped = true;
-            printf("--- %.9f raw %.9f divergence id: %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
+            printf("* raw %.9f divergence %.9f id %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
         }
     }
 
@@ -474,7 +504,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
                            return curr->mapped || curr->score <= SCORE_EPSILON;
                        }),
         current.end());
-    std::sort(current.begin(), current.end(), score_comparator());
+    tbb::parallel_sort(current.begin(), current.end(), score_comparator());
 
     return peaks.size() >= (size_t) max_peaks || remaining_reads.empty() || current.empty();
 }

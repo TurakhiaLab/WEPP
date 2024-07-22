@@ -18,7 +18,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
-constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
+constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = true;
 // also for pairs of mutation frequencies
 constexpr double frequency_read_cutoff = 0.005;
 constexpr int phred_score_cutoff = 20;
@@ -436,7 +436,7 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                               raw_read &out = reads[i];
                               const auto &curr = data.reads()[i];
                               out.start = curr.start_idx();
-                              out.end = curr.start_idx() + curr.content().size();
+                              out.end = curr.start_idx() + curr.content().size() - 1;
                               out.degree = curr.degree();
                               out.read = curr.read();
                               for (size_t i = 0; i < curr.content().size(); ++i)
@@ -446,9 +446,12 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                                       MAT::Mutation mutation;
                                       mutation.is_missing = curr.content()[i] == 'N';
                                       mutation.chrom = CHROM;
-                                      mutation.ref_nuc = mutation.par_nuc = MAT::get_nuc_id(reference[out.start + i]);
+                                      mutation.ref_nuc = mutation.par_nuc = MAT::get_nuc_id(reference[out.start + i - 1]);
+                                      mutation.par_nuc = mutation.ref_nuc;
                                       mutation.mut_nuc = MAT::get_nuc_id(curr.content()[i]);
-                                      mutation.position = out.start + i + 1;
+                                      mutation.position = out.start + i;
+
+                                      out.mutations.push_back(std::move(mutation));
                                   }
                               }
                           }

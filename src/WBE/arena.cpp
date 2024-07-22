@@ -299,7 +299,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
-    printf("ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
+    printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
 
     for (const std::string &reference : comp)
     {
@@ -339,7 +339,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
         }
 
         average_dist += (double)min_dist / comp.size();
-        printf("    dist: %02d true node: %s, pred node: %s, \n", min_dist, reference.c_str(), best_node->identifier.c_str());
+        printf("* dist: %02d true node: %s, pred node: %s, \n", min_dist, reference.c_str(), best_node->identifier.c_str());
 
         // auto node_mutations = get_mutations(this->mat, best_node->identifier);
         // // Remove mutations from node_mutations that are not present in site_read_map
@@ -395,20 +395,9 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     }
 
     std::cout << "--- lineage abundance " << std::endl;
-    std::vector<std::string> comp = this->ds.true_haplotypes();
-    for (const std::string &ref : comp)
+    for (const auto &[name, val] : a_map)
     {
-        std::string lineage_name;
-        for (auto anc : mat.rsearch(ref, true))
-        {
-            const auto &clade = anc->clade_annotations[1];
-            if (clade != "")
-            {
-                lineage_name = clade;
-                break;
-            }
-        }
-        printf("abundance: %.6f for %s (%s)\n", a_map[lineage_name], lineage_name.c_str(), ref.c_str());
+        printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
     }
 }
 

@@ -7,7 +7,7 @@ void detect_peaks(const dataset& d) {
     // main->removed_id = "hCoV-19/Hong";
 
     auto post = std::make_unique<freyja_post_filter>();
-    post->num_filter_rounds = 10;
+    post->num_filter_rounds = 1;
 
     pipeline p{d, std::move(main), std::move(post)};
     // p.a.print_cooccuring_mutations(600);
@@ -50,6 +50,5 @@ void pipeline::run_from_last_initial() {
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
 
         a.dump_read2node_mapping(full);
-        vf.find(a, full);
     }
 }

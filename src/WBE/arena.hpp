@@ -134,6 +134,10 @@ public:
         return this->num_reads;
     }
 
+    const std::array<int, NUM_RANGE_BINS>& read_counts() const {
+        return this->true_read_counts;
+    }
+
     const std::array<double, NUM_RANGE_BINS>& read_distribution() const {
         return this->true_read_distribution;
     }
