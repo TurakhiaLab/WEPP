@@ -42,69 +42,54 @@ static void
 single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
 {
     // positions where this node differs from the read */
-    // std::vector<int> my_locations;
-    // my_locations.reserve(parent_locations.size());
+    std::vector<int> my_locations;
+    my_locations.reserve(parent_locations.size());
 
-    // // go through all of this haplotypes mutations
-    // // and see if it increases or decreases overall mutations
-    // std::vector<MAT::Mutation>& curr_muts = curr->root->muts;
+    // go through all of this haplotypes mutations
+    // and see if it increases or decreases overall mutations
+    std::vector<MAT::Mutation>& curr_muts = curr->root->muts;
 
-    // size_t i = 0; // index of parent location
-    // MAT::Mutation search;
-    // search.position = read.start;
-    // auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
+    size_t i = 0; // index of parent location
+    MAT::Mutation search;
+    search.position = read.start;
+    auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
 
-    // // keeping track of read mutation position may actually be the dominating factor with so many N
-    // // so we bin search whenever necessary
-    // while (i < parent_locations.size() || (j != curr_muts.end() && j->position <= read.end)) {
-    //     bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->position > read.end || parent_locations[i] < j->position);
-    //     bool us_first = (j != curr_muts.end() && j->position <= read.end) && (i == parent_locations.size() || j->position < parent_locations[i]);
+    // keeping track of read mutation position may actually be the dominating factor with so many N
+    // so we bin search whenever necessary
+    while (i < parent_locations.size() || (j != curr_muts.end() && j->position <= read.end)) {
+        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->position > read.end || parent_locations[i] < j->position);
+        bool us_first = (j != curr_muts.end() && j->position <= read.end) && (i == parent_locations.size() || j->position < parent_locations[i]);
 
-    //     if (us_first) {
-    //         auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
-    //         uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
-    //         if (read_nuc != N && read_nuc != j->mut_nuc) {
-    //             my_locations.push_back(j->position);
-    //         }
+        if (us_first) {
+            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+            uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
+            if (read_nuc != N && read_nuc != j->mut_nuc) {
+                my_locations.push_back(j->position);
+            }
             
-    //         ++j;
-    //     }
-    //     else if (parent_first) {
-    //         my_locations.push_back(parent_locations[i]);
+            ++j;
+        }
+        else if (parent_first) {
+            my_locations.push_back(parent_locations[i]);
 
-    //         ++i;
-    //     }
-    //     else {
-    //         auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
-    //         uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
-    //         if (read_nuc != N && read_nuc != j->mut_nuc) {
-    //             my_locations.push_back(j->position);
-    //         }
+            ++i;
+        }
+        else {
+            auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
+            uint8_t const read_nuc = it == read.mutations.end() || it->position != j->position ? j->ref_nuc : it->mut_nuc;
+            if (read_nuc != N && read_nuc != j->mut_nuc) {
+                my_locations.push_back(j->position);
+            }
             
-    //         ++j;
-    //         ++i;
-    //     }
-    // }
+            ++j;
+            ++i;
+        }
+    }
 
     /* map self */
     // int parsimony = my_locations.size();
-    // int parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
 
-    std::vector<int> const my_locations = curr->mutations(read.mutations, read.start, read.end);
-
-    /* map self */
-    // this basically ensures semantics are the exact same
-    // as the previous algorithm
-    int parsimony, reductions = mutation_reductions(parent_locations, my_locations);
-    if (reductions)
-    {
-        parsimony = parent_locations.size() - reductions;
-    }
-    else
-    {
-        parsimony = my_locations.size();
-    }
-
+    int parsimony = curr->mutation_distance(read.mutations, read.start, read.end);
     // if (parsimony != curr->mutation_distance(read.mutations, read.start, read.end)) {
     //     std::cerr << " MIS MATCH " << std::endl;
     // }
@@ -285,19 +270,7 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read &r = arena.reads()[read];
-                                  std::vector<int> parent = hap->parent ? hap->parent->mutations(r.mutations, r.start, r.end) : std::vector<int>();
-                                  std::vector<int> ours = hap->mutations(r.mutations, r.start, r.end);
-
-                                  int parsimony, reductions = mutation_reductions(parent, ours);
-                                  if (reductions)
-                                  {
-                                      parsimony = parent.size() - reductions;
-                                  }
-                                  else
-                                  {
-                                      parsimony = ours.size();
-                                  }
-
+                                  int parsimony = hap->mutation_distance(r.mutations, r.start, r.end);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
