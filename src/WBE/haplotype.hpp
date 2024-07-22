@@ -36,7 +36,7 @@ struct haplotype {
     // note: does not handle overlapping ranges
     // instead, the i'th bucket corresponds to the interval
     // i * max_genome_size / buckets to (i + 1) * max_genome_size / buckets
-    std::array<int, NUM_RANGE_BINS> mapped_read_counts;
+    std::array<int, NUM_RANGE_BINS> mapped_read_counts{};
 
     void reset_state() {
         this->score = 0;
@@ -151,7 +151,7 @@ struct haplotype {
                 }
                 ++j;
             }
-            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && stack_muts[i].mut_nuc != unknown_nuc) {
+            else if (stack_muts[i].position == comp[j].position && stack_muts[i].mut_nuc != comp[j].mut_nuc && comp[j].mut_nuc != unknown_nuc) {
                 ++muts;
                 ++i; ++j;
             }
