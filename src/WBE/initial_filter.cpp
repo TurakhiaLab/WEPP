@@ -338,9 +338,7 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
         
         for (size_t k = i; k < i + c; ++k) {
             haplotype* hap = (*epps)[k];
-            if (hap->mapped) {
-                hap->score -= delta;
-            }
+            hap->score -= delta;
         }
     }
 }
