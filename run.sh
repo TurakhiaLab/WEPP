@@ -17,16 +17,16 @@ file_prefix="my_vcf"
 # file_path="golden_mixture1_v41_control"
 
 # ont (8)/6
-MAT="updated_public-2023-04-10.all.masked.pb.gz"
-file_path="golden_mixture6_v41_control"
+# MAT="updated_public-2023-04-10.all.masked.pb.gz"
+# file_path="golden_mixture6_v41_control"
 
 # ont (8)/5
 # MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
 # file_path="mixture-05"
 
 # illumina
-# MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
-# file_path="output_files"
+MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
+file_path="output_files"
 
 # point loma
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
@@ -46,7 +46,7 @@ REF="test/NC_045512v2.fa"
 # source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${REF} ${file_prefix} ${file_path}
 #conda deactivate
 
-# wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
+wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 # gdb --args wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 
 #FREYJA
