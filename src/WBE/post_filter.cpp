@@ -105,16 +105,16 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
         node_muts.push_back(std::move(my_muts));
     }
 
-    // for (const raw_read& read: a.reads()) {
-    //     for (MAT::Mutation mut : read.mutations)
-    //     {
-    //         uint8_t const N = 0b1111;
-    //         if (mut.mut_nuc != N) {
-    //             std::string build = mut.get_string();
-    //             mutations.insert(build);
-    //         }
-    //     }
-    // }
+    for (const raw_read& read: a.reads()) {
+        for (MAT::Mutation mut : read.mutations)
+        {
+            uint8_t const N = 0b1111;
+            if (mut.mut_nuc != N) {
+                std::string build = mut.get_string();
+                mutations.insert(build);
+            }
+        }
+    }
 
     std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
 
