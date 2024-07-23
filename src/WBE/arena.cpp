@@ -339,7 +339,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
         }
 
         average_dist += (double)min_dist / comp.size();
-        printf("* dist: %02d true node: %s, pred node: %s, \n", min_dist, reference.c_str(), best_node->identifier.c_str());
+        printf("* dist: %02d true node: %s pred node: %s \n", min_dist, reference.c_str(), best_node->identifier.c_str());
 
         // auto node_mutations = get_mutations(this->mat, best_node->identifier);
         // // Remove mutations from node_mutations that are not present in site_read_map
@@ -365,6 +365,65 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     printf("average mutation_distance: %0.3f\n", average_dist);
 }
 
+void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &selected)
+{
+    std::unordered_set<int> site_read_map;
+    for (size_t i = 0; i < this->raw_reads.size(); i++)
+    {
+        const auto &rp = raw_reads[i];
+        for (int j = rp.start; j <= rp.end; j++)
+            site_read_map.insert(j);
+    }
+
+    double average_dist = 0.0;
+    std::vector<std::string> comp = this->ds.true_haplotypes();
+    printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
+
+    for (const auto &pn : selected)
+    {
+        // Getting node_mutations from the Tree
+        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
+        // Remove mutations from node_mutations that are not present in site_read_map
+        auto mut_itr = node_mutations.begin();
+        while (mut_itr != node_mutations.end())
+        {
+            if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                mut_itr = node_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+
+        std::string best_node = "";
+        int min_dist = INT_MAX;
+        for (const std::string &reference : comp)
+        {
+            auto sample_mutations = get_mutations(this->mat, reference);
+            // Remove mutations from sample_mutations that are not present in site_read_map
+            auto mut_itr = sample_mutations.begin();
+            while (mut_itr != sample_mutations.end())
+            {
+                if (site_read_map.find(mut_itr->position) == site_read_map.end())
+                    mut_itr = sample_mutations.erase(mut_itr);
+                else
+                    mut_itr++;
+            }
+
+            int curr_dist = mutation_distance(sample_mutations, node_mutations);
+            if (curr_dist < min_dist)
+            {
+                min_dist = curr_dist;
+                best_node = reference;
+            }
+        }
+
+        average_dist += (double)min_dist / comp.size();
+        printf("* dist: %02d (to) %s \n", min_dist, best_node.c_str()); 
+    }
+
+    printf("average (flipped) mutation_distance: %0.3f\n", average_dist);
+}
+
+
 void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
     std::cout << "----- [final report] -----" << std::endl
@@ -376,7 +435,8 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
                    {
                        return p.first;
                    });
-    print_mutation_distance(haps);
+    
+    print_flipped_mutation_distance(haps);
 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)

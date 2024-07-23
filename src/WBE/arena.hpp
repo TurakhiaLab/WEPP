@@ -170,7 +170,7 @@ public:
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
-
+    void print_flipped_mutation_distance(const std::vector<haplotype *> &selected);
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
