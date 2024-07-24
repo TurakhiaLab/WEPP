@@ -11,8 +11,8 @@ void detect_peaks(const dataset& d) {
 
     pipeline p{d, std::move(main), std::move(post)};
     // p.a.print_cooccuring_mutations(600);
-    // p.run();
-    p.run_from_last_initial();
+    p.run();
+    // p.run_from_last_initial();
 }
 
 void pipeline::run() {
