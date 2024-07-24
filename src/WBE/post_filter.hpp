@@ -32,13 +32,14 @@ public:
                 }
             );
 
+            arena.print_mutation_distance(this_round);
+
             std::sort(this_round.begin(), this_round.end());
             if (i == num_filter_rounds - 1 || 
                 std::includes(last_round.begin(), last_round.end(), this_round.begin(), this_round.end())) {
                 return filtered;
             }
 
-            arena.print_mutation_distance(this_round);
 
             // common should go into frozen
             if (i >= freeze_round) {
