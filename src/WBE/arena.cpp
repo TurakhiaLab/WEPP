@@ -416,7 +416,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
             }
         }
 
-        average_dist += (double)min_dist / comp.size();
+        average_dist += (double)min_dist / selected.size();
         printf("* dist: %02d (to) %s \n", min_dist, best_node.c_str()); 
     }
 
