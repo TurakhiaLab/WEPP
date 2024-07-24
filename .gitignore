@@ -10,5 +10,7 @@ alignment_pipeline/intermediate_files/*
 *.bt2
 *.sam
 *.bam
-output_files
+results
+experiments
 build
+Freyja

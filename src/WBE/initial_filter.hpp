@@ -22,7 +22,7 @@ class wepp_filter: public initial_filter {
     // affects final output
     double read_dist_factor_threshold = (double) 0.5 / 100;
     int max_peak_peak_mutation = 4;
-    int max_peak_nonpeak_mutation = 4;
+    int max_peak_nonpeak_mutation = 2;
     int top_n = 25;
     int max_peaks = 200;
     // for a given peak
