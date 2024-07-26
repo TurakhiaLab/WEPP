@@ -4,15 +4,16 @@
 
 void detect_peaks(const dataset& d) {
     auto main = std::make_unique<wepp_filter>();
-    // main->removed_id = "hCoV-19/Hong";
+    //auto main = std::make_unique<lineage_root_filter>();
 
     auto post = std::make_unique<freyja_post_filter>();
+    //post->num_filter_rounds = 1;
     post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
     // p.a.print_cooccuring_mutations(600);
-    p.run();
-    // p.run_from_last_initial();
+    //p.run();
+    p.run_from_last_initial();
 }
 
 void pipeline::run() {
@@ -25,7 +26,7 @@ void pipeline::run() {
 
         timer.Start();
         running = main->filter(a);
-        a.print_mutation_distance(running);
+        //a.print_mutation_distance(running);
         std::cout << "--- initial filter took " << timer.Stop() / 1000 << " seconds " << std::endl << std::endl;
     }
 
