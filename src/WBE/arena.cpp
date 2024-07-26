@@ -396,8 +396,13 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
         std::string best_node = "";
         int min_dist = INT_MAX;
         for (const std::string &reference : comp)
-        {
-            auto sample_mutations = get_mutations(this->mat, reference);
+        {   
+            std::vector<MAT::Mutation>sample_mutations;
+            // Use reference tree for sample nodes if given as an input
+            if (this->ref_mat.root != NULL)
+                sample_mutations = get_mutations(this->ref_mat, reference);
+            else
+                sample_mutations = get_mutations(this->mat, reference);
             // Remove mutations from sample_mutations that are not present in site_read_map
             auto mut_itr = sample_mutations.begin();
             while (mut_itr != sample_mutations.end())
@@ -458,6 +463,22 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     for (const auto &[name, val] : a_map)
     {
         printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
+    }
+
+    std::cout << "\n--- peak abundance " << std::endl;
+    for (const auto &p : abundance)
+    {
+        std::string lineage_name;
+        for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
+        {
+            const auto &clade = anc->clade_annotations[1];
+            if (clade != "")
+            {
+                lineage_name = clade;
+                break;
+            }
+        }
+        printf("* peak: %s abundance: %.6f lineage: %s\n", p.first->id.c_str(), p.second, lineage_name.c_str());
     }
 }
 

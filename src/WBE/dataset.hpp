@@ -79,10 +79,23 @@ public:
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
-    MAT::Tree mat() const {
-        std::string input_mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
-        MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-        T.uncondense_leaves();
+    MAT::Tree mat(bool is_ref) const {
+        MAT::Tree T;
+        T.root = NULL;
+        if (is_ref) {
+            if (!this->options["ref-mat"].as<std::string>().empty()) 
+            {
+                std::string mat_filename = this->directory() + this->options["ref-mat"].as<std::string>();
+                T = MAT::load_mutation_annotated_tree(mat_filename);
+                T.uncondense_leaves();
+            }
+        }
+        else 
+        {
+            std::string mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
+            T = MAT::load_mutation_annotated_tree(mat_filename);
+            T.uncondense_leaves();
+        }
         return T;
     }
 

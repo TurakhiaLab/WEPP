@@ -9,45 +9,27 @@ make -j
 cd ../
 
 #Variables
-file_prefix="my_vcf"
-# file_prefix="PL_2023_03_01"
-
-# ont (15)
-# MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-# file_path="golden_mixture1_v41_control"
-
-# ont (8)/6
-# MAT="updated_public-2023-04-10.all.masked.pb.gz"
-# file_path="golden_mixture6_v41_control"
-
-# ont (8)/5
-# MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-# file_path="mixture-05"
-
-# illumina
-MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
-file_path="output_files"
-
-# point loma
-# MAT="updated_public-2023-04-10.all.masked.pb.gz"
-# file_path="point_loma"
-
-REF="test/NC_045512v2.fa"
+file_prefix="PL_Feb_07_2022"
+MAT="gisaidAndPublic.2022-02-08.masked.pb.gz"
+REF_MAT="gisaidAndPublic.2022-05-01.masked.pb.gz"
+file_path="debug"
 
 ##Setting up directory
 #rm -r ${file_path}
 #mkdir -p ${file_path}
 #cp ${MAT} ${file_path}
 #cp ${REF} ${file_path}
-
+#
+##HAPLOTYPE SELECTION
+#wbe selectHaplotypes -i ${MAT} -f NC_045512v2.fa -l BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2 -d 0.03,0.2,0.12,0.05,0.02,0.3,0.25,0.03 -v ${file_prefix} -w 100 -o ${file_path}
+#python src/WBE/haplotype_abundance.py ${file_prefix} ${file_path}
+#
 ##SWAMPy + ALIGNMENT
 #conda activate SWAMPy
 #source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 149
-# source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${REF} ${file_prefix} ${file_path}
+#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path}
 #conda deactivate
-
-wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
-# gdb --args wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
+#wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 
 #FREYJA
 # rm ../Freyja/my_output_latest.txt ../Freyja/${file_prefix}_reads_freyja.*
@@ -63,7 +45,8 @@ wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -
 # python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
 
 #DETECTING PEAKS
-wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+#wbe detectPeaks -T 48 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path} -p BA.2.10,EG.5.1,HV.1,XBB.1,XBB.1.5.1,XBB.1.9.1,XBB.1.16.1,XBB.2.3.2
+wbe detectPeaks -T 48 -i ${MAT} -r ${REF_MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 # gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 #CALCULATING MUTATION DISTANCE
