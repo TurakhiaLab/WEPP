@@ -10,33 +10,32 @@ cd ../
 
 #Variables
 file_prefix="my_vcf"
-# file_prefix="PL_2023_03_01"
 
 # ont (15)
 # MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-# file_path="golden_mixture1_v41_control"
+# file_path="ont15-01"
 
 # ont (8)/6
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
-# file_path="golden_mixture6_v41_control"
+# file_path="data/ont8-06"
 
 # ont (8)/5
 MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-file_path="mixture-05"
+file_path="data/ont8-05"
 
 # illumina
 # MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
-# file_path="output_files"
+# file_path="data/illumina"
 
 # dec 2023
 # MAT="public-2023-12-31.all.masked.pb.gz"
-# file_path="simulated_dec2023"
+# file_path="data/ilummina-2023-dec"
 
 # point loma
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
 # file_path="point_loma"
 
-REF="test/NC_045512v2.fa"
+REF="data/NC_045512v2.fa"
 
 ##Setting up directory
 #rm -r ${file_path}

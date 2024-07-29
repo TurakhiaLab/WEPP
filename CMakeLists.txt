@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -ggdb3 -Wn
 set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address -O0 -ggdb3 -fno-eliminate-unused-debug-symbols")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
+set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 include(${TBB_DIR}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
@@ -23,44 +24,44 @@ else()
 endif()
 
 include_directories(${Protobuf_INCLUDE_DIRS})
-file(GLOB WBE_SRCS "src/WBE/*.cpp" "src/WBE/*.hpp")
+file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
     
 # Include JSONCPP
 include(${CMAKE_TOOLCHAIN_FILE})
 find_package(jsoncpp CONFIG REQUIRED)
 
-file(GLOB PANMAT_SRCS "panman/panmanUtils.cpp" "panman/panman.cpp" "panman/panmanUtils.hpp" "panman/panman.hpp")
+file(GLOB PANMAT_SRCS "src/panman/panmanUtils.cpp" "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panman.hpp")
 
 if(DEFINED Protobuf_PATH)
 	protobuf_generate(
 		LANGUAGE cpp
-		TARGET panmanUtils 
-		PROTOS protobuf/panman.proto)
+		TARGET wbe
+		PROTOS protobuf/panman.proto
+    )
 
     protobuf_generate(
         LANGUAGE cpp
         TARGET wbe
-        PROTOS protobuf/sam.proto)
+        PROTOS protobuf/sam.proto
+    )
     
     add_executable(wbe
-	    ${WBE_SRCS}
-        ${PROTO_SRCS} 
-        ${PROTO_HDRS}
-        )
+	    ${WBE_SRCS} ${PANMAT_SRCS}
+    )
 else()
 	protobuf_generate_cpp(
 		PROTO_SRCS PROTO_HDRS
-		panman.proto)
+		protobuf/panman.proto)
 	
     protobuf_generate_cpp(
-        PROTO_SRCS PROTO_HDRS 
-        sam.proto)
-    
+        SAM_SRCS SAM_HDRS 
+        protobuf/sam.proto)
+   
     add_executable(wbe
-	    ${WBE_SRCS}
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
+	    ${WBE_SRCS} ${PANMAT_SRCS}
+        ${SAM_SRCS} ${PROTO_SRCS}
+        ${SAM_HDRS} ${PROTO_HDRS}
+    )
 endif()
 
-TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
