@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "panman/panman.hpp"
+#include "panman/panmanUtils.hpp"
 
 #include "config.hpp"
 #include "read.hpp"

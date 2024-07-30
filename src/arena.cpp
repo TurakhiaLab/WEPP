@@ -1,12 +1,29 @@
 #include "arena.hpp"
 
-#include <tbb/blocked_range.h>
-#include <tbb/queuing_mutex.h>
-#include <tbb/parallel_for.h>
-#include <tbb/concurrent_hash_map.h>
-
-haplotype *arena::from_pan(haplotype *parent, panmanUtils::Node *node)
+haplotype* 
+arena::from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping)
 {
+    // if no mutations in site read map, condense and continue
+    std::vector<mutation> muts = this->get_single_mutations(node);
+    bool has_any = parent == nullptr; // root always gets added
+    for (const mutation& mut: muts) {
+        if (site_read_map.find(mut.pos) != site_read_map.end()) {
+            has_any = true;
+            break;
+        }
+    }    
+
+    if (!has_any) {
+        parent_mapping.push_back(node);
+
+        for (panmanUtils::Node *child : node->children)
+        {
+            haplotype *curr = this->from_pan(parent, child, site_read_map, parent_mapping);
+            parent->children.emplace_back(curr);
+        }
+        return nullptr;
+    }
+
     this->nodes.emplace_back();
     haplotype *ret = &this->nodes.back();
     ret->parent = parent;
@@ -17,8 +34,7 @@ haplotype *arena::from_pan(haplotype *parent, panmanUtils::Node *node)
     ret->id = node->identifier;
     ret->condensed_source = node;
 
-    // TODO
-    ret->muts = node->mutations;
+    ret->muts = std::move(muts);
 
     /* flatten mutation list */
     if (parent)
@@ -48,14 +64,18 @@ haplotype *arena::from_pan(haplotype *parent, panmanUtils::Node *node)
         {
             ret->stack_muts.push_back(mut);
         }
-    } 
+    }
     std::sort(ret->stack_muts.begin(), ret->stack_muts.end());
     std::sort(ret->muts.begin(), ret->muts.end());
 
+    condensed_node_mappings[node] = {node};
+    std::vector<panmanUtils::Node*> &condensed_map = condensed_node_mappings[node];
     for (panmanUtils::Node *child : node->children)
     {
-        haplotype *curr = this->from_pan(ret, child);
-        ret->children.emplace_back(curr);
+        haplotype *curr = this->from_pan(ret, child, site_read_map, condensed_map);
+        if (curr) {
+            ret->children.emplace_back(curr);
+        }
     }
 
     return ret;
@@ -68,6 +88,91 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     {
         ret += pan_tree_size(child);
     }
+    return ret;
+}
+
+int arena::mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations) {
+    auto compareMutations = [](const mutation &a, const mutation &b)
+    {
+        if (a.pos != b.pos)
+            return a.pos < b.pos;
+        else
+            return a.mut < b.mut;
+    };
+
+    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
+    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
+    auto n1_iterator = node1_mutations.begin();
+    auto n2_iterator = node2_mutations.begin();
+    int distance = 0;
+    while (n1_iterator != node1_mutations.end() && n2_iterator != node2_mutations.end()) {
+        if (n1_iterator->pos == n2_iterator->pos) {
+            if (n1_iterator->mut != n2_iterator->mut) {
+                distance++;
+            }
+            n1_iterator++;
+            n2_iterator++;
+        } else if (n1_iterator->pos < n2_iterator->pos) {
+            distance++;
+            n1_iterator++;
+        } else {
+            distance++;
+            n2_iterator++;
+        }
+    }
+
+    distance += std::distance(n1_iterator, node1_mutations.end());
+    distance += std::distance(n2_iterator, node2_mutations.end());
+
+    return distance;
+}
+
+std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
+    std::vector<mutation> sample_mutations;
+    for (const panmanUtils::Node* curr = node; curr; curr = curr->parent) { //Checking all ancestors of a node
+        for (const auto& mut: get_single_mutations(curr)) {
+            auto sm_itr = sample_mutations.begin();
+            while (sm_itr != sample_mutations.end()) {
+                if (sm_itr->pos == mut.pos)
+                    break;
+                sm_itr++;
+            }
+            if (sm_itr == sample_mutations.end()) {
+                sample_mutations.emplace_back(mut);
+            }
+        }
+    }
+    //Remove Back-Mutations
+    auto sm_itr = sample_mutations.begin();
+    while (sm_itr != sample_mutations.end()) {
+        if (sm_itr->ref == sm_itr->mut)
+            sm_itr = sample_mutations.erase(sm_itr);
+        else {
+            sm_itr++;
+        }
+    }
+    return sample_mutations;
+}
+
+std::vector<mutation> arena::get_single_mutations(const panmanUtils::Node* node) {
+    std::vector<mutation> ret;
+    const std::string& ref = this->reference();
+    for (const panmanUtils::NucMut& mut: node->nucMutation) {
+        size_t const count = (size_t) (mut.mutInfo >> 4);
+        int const start_pos = coord.query(mut.primaryBlockId, mut.nucPosition, mut.nucGapPosition);
+        bool const is_deletion = (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::ND || 
+            (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::NSNPD;
+
+        for (size_t i = 0; i < count; ++i) {
+            mutation m;
+            m.pos = start_pos + i;
+            m.ref = nuc_from_char(ref[m.pos - 1]);
+            int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
+            m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
+            ret.push_back(m);
+        }
+    }
+
     return ret;
 }
 
@@ -155,6 +260,7 @@ void arena::build_range_trees()
         true_read_distribution[i] = (double)true_read_counts[i] / this->num_reads;
     }
 }
+
 
 multi_haplotype *arena::find_range_tree_for(const raw_read &read)
 {
@@ -254,18 +360,12 @@ std::set<haplotype *, score_comparator> arena::highest_scoring_neighbors(haploty
 
 void arena::print_cooccuring_mutations(int window_size)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
-    {
-        const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
-    }
+    std::unordered_set<int> site_read_map = this->site_read_map();
 
     std::vector<std::string> comp = this->ds.true_haplotypes();
     for (const std::string &reference : comp)
     {
-        auto sample_mutations = get_mutations(this->mat, reference);
+        auto sample_mutations = this->get_mutations(this->mat.allNodes[reference]);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -297,13 +397,7 @@ void arena::print_cooccuring_mutations(int window_size)
 
 void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
-    {
-        const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
-    }
+    std::unordered_set<int> site_read_map = this->site_read_map();
 
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
@@ -311,7 +405,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
     for (const std::string &reference : comp)
     {
-        auto sample_mutations = get_mutations(this->mat, reference);
+        auto sample_mutations = get_mutations(this->mat.allNodes[reference]);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -326,9 +420,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
         int min_dist = INT_MAX;
         for (const auto &pn : selected)
         {
-            // Getting node_mutations from the Tree
-            auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
-            // Remove mutations from node_mutations that are not present in site_read_map
+            auto node_mutations = get_mutations(condensed_node_mappings[pn->condensed_source].front());
             auto mut_itr = node_mutations.begin();
             while (mut_itr != node_mutations.end())
             {
@@ -375,13 +467,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
 void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &selected)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
-    {
-        const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
-    }
+    std::unordered_set<int> site_read_map = this->site_read_map();
 
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
@@ -390,7 +476,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
+        auto node_mutations = get_mutations(condensed_node_mappings[pn->condensed_source].front());
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -405,7 +491,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
         int min_dist = INT_MAX;
         for (const std::string &reference : comp)
         {
-            auto sample_mutations = get_mutations(this->mat, reference);
+            auto sample_mutations = get_mutations(this->mat.allNodes[reference]);
             // Remove mutations from sample_mutations that are not present in site_read_map
             auto mut_itr = sample_mutations.begin();
             while (mut_itr != sample_mutations.end())

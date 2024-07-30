@@ -452,7 +452,7 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                                   if (curr.content()[i] != reference[curr.start_idx() + i - 1])
                                   {
                                       mutation mut; 
-                                      mut.ref = mut.par = nuc_from_char(curr.content()[i]);
+                                      mut.ref = nuc_from_char(reference[curr.start_idx() + i - 1]);
                                       mut.mut = nuc_from_char(curr.content()[i]);
                                       mut.pos = out.start + i;
 
