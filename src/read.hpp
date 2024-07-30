@@ -8,7 +8,7 @@
 struct raw_read {
    std::string read;
    std::vector<mutation> mutations;
-   size_t start;
-   size_t end;
+   int start;
+   int end;
    int degree;
 };

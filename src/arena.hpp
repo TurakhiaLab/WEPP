@@ -1,15 +1,24 @@
 #pragma once
 
 #include <vector>
+#include <unordered_set>
 #include <cmath>
 
-#include "panman/panman.hpp"
+#include <tbb/blocked_range.h>
+#include <tbb/queuing_mutex.h>
+#include <tbb/parallel_for.h>
+#include <tbb/parallel_sort.h>
+#include <tbb/concurrent_hash_map.h>
+
+#include "panman/panmanUtils.hpp"
 
 #include "config.hpp"
 #include "haplotype.hpp"
 #include "dataset.hpp"
 #include "read.hpp"
+#include "panman_bridge.hpp"
 #include "util.hpp"
+
 
 /* used to sort nodes by their score */
 struct score_comparator {
@@ -20,11 +29,8 @@ struct score_comparator {
         if (abs(effective_left - effective_right) > SCORE_EPSILON) {
             return effective_left > effective_right;
         }
-        else if (left->leaf_count != right->leaf_count) {
-            return left->leaf_count > right->leaf_count;
-        }
         else {
-            return left->id > right->id;
+            return left > right;
         }
     }
 };
@@ -36,11 +42,11 @@ struct mutation_comparator {
             return left->stack_muts.size() < right->stack_muts.size();
         }  
         for (size_t i = 0; i < left->stack_muts.size(); ++i) {
-            if (left->stack_muts[i].position != right->stack_muts[i].position) {
-                return left->stack_muts[i].position < right->stack_muts[i].position;
+            if (left->stack_muts[i].pos!= right->stack_muts[i].pos) {
+                return left->stack_muts[i].pos< right->stack_muts[i].pos;
             }
-            else if (left->stack_muts[i].mut_nuc != right->stack_muts[i].mut_nuc) {
-                return left->stack_muts[i].mut_nuc < right->stack_muts[i].mut_nuc;
+            else if (left->stack_muts[i].mut != right->stack_muts[i].mut) {
+                return left->stack_muts[i].mut < right->stack_muts[i].mut;
             }
         }
 
@@ -60,24 +66,37 @@ class arena {
     std::array<int, NUM_RANGE_BINS> true_read_counts;
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
-    panmanUtils::Tree mat;
-    std::unordered_map<panmanUtils::Node *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
-
     const dataset& ds;
 
-    haplotype* from_pan(haplotype* parent, panmanUtils::Node* node);
+    // note: this is the uncondensed tree
+    panmanUtils::Tree mat;
+    coord_converter coord;
+    std::unordered_map<panmanUtils::Node *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
+
+
+    haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping);
     int pan_tree_size(panmanUtils::Node *node); 
     int build_range_tree(int parent, haplotype* curr, int start, int end);
-public:
-    arena(const dataset& ds) : ds{ds} {
-        this->raw_reads = ds.reads();
-        this->mat = ds.mat();
-        
-        panmanUtils::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
 
-        // create vanilla nodes
-        this->nodes.reserve(pan_tree_size(condensed.root));
-        this->from_pan(nullptr, condensed.root);
+    // just here mutations
+    std::vector<mutation> get_single_mutations(const panmanUtils::Node* n);
+
+    // mutations from root to here
+    std::vector<mutation> get_mutations(const panmanUtils::Node* n);
+
+    int mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations);
+
+public:
+    arena(const dataset& ds) : 
+        ds{ds}, mat{ds.mat()}, coord{this->mat} 
+    {
+        this->raw_reads = ds.reads();
+        
+        // (note that there is typically overallocation by condensation factor)
+        // but shrink to fit may lead to pointer invalidation
+        this->nodes.reserve(pan_tree_size(this->mat.root));
+        std::vector<panmanUtils::Node*> empty;
+        this->from_pan(nullptr, this->mat.root, this->site_read_map(), empty);
     }
 
     void reset_haplotype_state() {
@@ -134,6 +153,17 @@ public:
         return this->num_reads;
     }
 
+    std::unordered_set<int> site_read_map() const {
+        std::unordered_set<int> ret;
+        for (size_t i = 0; i < this->raw_reads.size(); i++)
+        {
+            const auto &rp = raw_reads[i];
+            for (int j = rp.start; j <= rp.end; j++)
+                ret.insert(j);
+        }
+        return ret;
+    }
+
     const std::array<int, NUM_RANGE_BINS>& read_counts() const {
         return this->true_read_counts;
     }
@@ -174,4 +204,5 @@ public:
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
+
 };

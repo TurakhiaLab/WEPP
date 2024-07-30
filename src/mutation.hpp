@@ -12,6 +12,23 @@ enum nuc {
     NUC_N   = 0b11111,
 };
 
+// does not handle gap case
+static nuc nuc_from_pannuc(int pan_nuc) {
+    switch (pan_nuc) {
+    case 1:
+        return NUC_A;
+    case 2:
+        return NUC_C;
+    case 4:
+        return NUC_G;
+    case 8:
+        return NUC_T;
+    default:
+        printf("Unknown nucleotide conversion");
+        return NUC_N;
+    }
+}
+
 static nuc nuc_from_char(char c) {
     switch (tolower(c)) {
     case 'a':
@@ -25,6 +42,7 @@ static nuc nuc_from_char(char c) {
     case '_':
         return NUC_GAP;
     case 'n':
+    default:
         return NUC_N;
     }
 }
@@ -42,20 +60,23 @@ static char char_from_nuc(nuc n) {
     case NUC_GAP:
         return '_';
     case NUC_N:
+    default:
         return 'N';
     }
 }
 
 struct mutation {
-    size_t pos;
-    nuc ref, par, mut;
+    int pos;
+    nuc ref, mut;
 
+    // note that it says if it's an indel relative to reference
+    // not relative to parent
     bool is_indel() const {
-        return this->par == NUC_GAP || this->mut == NUC_GAP;
+        return this->ref == NUC_GAP || this->mut == NUC_GAP;
     }
 
     std::string get_string() const {
-        return char_from_nuc(par) + std::to_string(pos) + char_from_nuc(mut);
+        return char_from_nuc(ref) + std::to_string(pos) + char_from_nuc(mut);
     }
 
     bool operator< (const mutation& other) const {

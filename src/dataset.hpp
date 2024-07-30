@@ -4,7 +4,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
-#include "panman/panman.hpp"
+#include "panman/panmanUtils.hpp"
 #include "read.hpp"
 #include "util.hpp"
 

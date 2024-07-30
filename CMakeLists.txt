@@ -30,7 +30,7 @@ file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
 include(${CMAKE_TOOLCHAIN_FILE})
 find_package(jsoncpp CONFIG REQUIRED)
 
-file(GLOB PANMAT_SRCS "src/panman/panmanUtils.cpp" "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panman.hpp")
+file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panmanUtils.hpp")
 
 if(DEFINED Protobuf_PATH)
 	protobuf_generate(
