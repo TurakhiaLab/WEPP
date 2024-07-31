@@ -78,6 +78,7 @@
         "stop_token": "cpp",
         "typeindex": "cpp",
         "cstdarg": "cpp",
-        "forward_list": "cpp"
+        "forward_list": "cpp",
+        "future": "cpp"
     }
 }

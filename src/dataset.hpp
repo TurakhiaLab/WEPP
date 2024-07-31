@@ -2,15 +2,18 @@
 
 #include <optional>
 #include <boost/filesystem.hpp>
+#include <boost/iostreams/filter/lzma.hpp>
 #include <boost/program_options.hpp>
 
 #include "panman/panmanUtils.hpp"
+#include "panman_bridge.hpp"
 #include "read.hpp"
 #include "util.hpp"
 
 class dataset {
     boost::program_options::variables_map options;
     tbb::task_scheduler_init init;
+
 public:
     dataset(boost::program_options::variables_map options) :
         options{options}, init{(int) options["threads"].as<uint32_t>()}
@@ -28,10 +31,6 @@ public:
         return options["output-files-prefix"].as<std::string>();
     }
 
-    std::string ref_path() const {
-        return this->directory() + options["ref-fasta"].as<std::string>();
-    }
-
     std::string first_checkpoint_path() const {
         return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
     }
@@ -44,25 +43,30 @@ public:
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
+    const panmanUtils::Tree& mat() const {
+        static std::optional<panmanUtils::Tree> tree;
+        if (!tree.has_value()) {
+            std::string input_mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
+            std::ifstream fin(input_mat_filename);
+            boost::iostreams::filtering_streambuf< boost::iostreams::input> inPMATBuffer;
+            inPMATBuffer.push(boost::iostreams::lzma_decompressor());
+            inPMATBuffer.push(fin);
+            std::istream inputStream(&inPMATBuffer);
+            tree.emplace(panmanUtils::Tree(inputStream));
+        }
+        return tree.value();
+    }
+
     const std::string& reference() const {
         static std::optional<std::string> saved;
         if (!saved) {
-            std::ifstream fasta_f(this->ref_path());
-            if (!fasta_f.is_open())
-            {
-                std::cerr << "Error: Unable to open file " << ref_path() << std::endl;
-                exit(1);
-            }
-            std::string ref_header;
-            std::getline(fasta_f, ref_header);
-            std::string temp;
-            std::string ref_seq;
-            while (fasta_f)
-            {
-                std::getline(fasta_f, temp);
-                ref_seq += temp;
-            }
-            saved.emplace(ref_seq);
+            const panmanUtils::Tree& mat = this->mat();
+            coord_converter converter{mat};
+            std::string ref = converter.reference;
+
+            std::cout << " Reference Size " << ref.size() << std::endl;
+
+            saved.emplace(std::move(ref));
         }
         
         return saved.value();
@@ -78,12 +82,6 @@ public:
 
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
-
-    panmanUtils::Tree mat() const {
-        std::string input_mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
-        std::ifstream fin(input_mat_filename);
-        return panmanUtils::Tree(fin);
-    }
 
     std::vector<std::string> true_haplotypes() const {
         return read_sample_vcf(this->directory() + this->file_prefix() + "_samples.vcf");
