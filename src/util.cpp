@@ -6,6 +6,7 @@
 #include <tbb/parallel_sort.h>
 
 #include "util.hpp"
+#include "panman_bridge.hpp"
 
 //Get the names of samples prsent in samples.vcf
 std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples) {
@@ -48,8 +49,6 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
      "Write output files to the target directory. Default is current directory.")
     ("output-files-prefix,v", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
-    ("ref-fasta,f", po::value<std::string>()->default_value(""),
-     "Input fasta file representing reference sequence")
     ("align-sam,s", po::value<std::string>()->default_value(""),
      "Input sam file representing reference sequence")
     ("distribution,d", po::value<std::string>()->default_value(""),
@@ -82,4 +81,25 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
             exit(1);
     }
     return vm;
+}
+
+std::vector<mutation> get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord) {
+    std::vector<mutation> ret;
+    for (const panmanUtils::NucMut& mut: node->nucMutation) {
+        size_t const count = (size_t) (mut.mutInfo >> 4);
+        int const start_pos = coord.query(mut.primaryBlockId, mut.nucPosition, mut.nucGapPosition);
+        bool const is_deletion = (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::ND || 
+            (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::NSNPD;
+
+        for (size_t i = 0; i < count; ++i) {
+            mutation m;
+            m.pos = start_pos + i;
+            m.ref = nuc_from_char(ref[m.pos - 1]);
+            int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
+            m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
+            ret.push_back(m);
+        }
+    }
+
+    return ret;
 }

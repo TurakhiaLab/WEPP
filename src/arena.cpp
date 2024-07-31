@@ -34,7 +34,7 @@ arena::from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered
     ret->id = node->identifier;
     ret->condensed_source = node;
 
-    ret->muts = std::move(muts);
+    ret->muts = parent ? std::move(muts) : std::vector<mutation>{};
 
     /* flatten mutation list */
     if (parent)
@@ -155,25 +155,7 @@ std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
 }
 
 std::vector<mutation> arena::get_single_mutations(const panmanUtils::Node* node) {
-    std::vector<mutation> ret;
-    const std::string& ref = this->reference();
-    for (const panmanUtils::NucMut& mut: node->nucMutation) {
-        size_t const count = (size_t) (mut.mutInfo >> 4);
-        int const start_pos = coord.query(mut.primaryBlockId, mut.nucPosition, mut.nucGapPosition);
-        bool const is_deletion = (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::ND || 
-            (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::NSNPD;
-
-        for (size_t i = 0; i < count; ++i) {
-            mutation m;
-            m.pos = start_pos + i;
-            m.ref = nuc_from_char(ref[m.pos - 1]);
-            int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
-            m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
-            ret.push_back(m);
-        }
-    }
-
-    return ret;
+    return ::get_single_mutations(this->reference(), node, coord);
 }
 
 int arena::build_range_tree(int parent, haplotype *curr, int start, int end)
@@ -365,7 +347,7 @@ void arena::print_cooccuring_mutations(int window_size)
     std::vector<std::string> comp = this->ds.true_haplotypes();
     for (const std::string &reference : comp)
     {
-        auto sample_mutations = this->get_mutations(this->mat.allNodes[reference]);
+        auto sample_mutations = this->get_mutations(this->mat.allNodes.at(reference));
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -405,7 +387,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
     for (const std::string &reference : comp)
     {
-        auto sample_mutations = get_mutations(this->mat.allNodes[reference]);
+        auto sample_mutations = get_mutations(this->mat.allNodes.at(reference));
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -491,7 +473,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
         int min_dist = INT_MAX;
         for (const std::string &reference : comp)
         {
-            auto sample_mutations = get_mutations(this->mat.allNodes[reference]);
+            auto sample_mutations = get_mutations(this->mat.allNodes.at(reference));
             // Remove mutations from sample_mutations that are not present in site_read_map
             auto mut_itr = sample_mutations.begin();
             while (mut_itr != sample_mutations.end())

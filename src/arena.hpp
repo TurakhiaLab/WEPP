@@ -69,10 +69,9 @@ class arena {
     const dataset& ds;
 
     // note: this is the uncondensed tree
-    panmanUtils::Tree mat;
+    const panmanUtils::Tree &mat;
     coord_converter coord;
     std::unordered_map<panmanUtils::Node *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
-
 
     haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping);
     int pan_tree_size(panmanUtils::Node *node); 
@@ -88,15 +87,16 @@ class arena {
 
 public:
     arena(const dataset& ds) : 
-        ds{ds}, mat{ds.mat()}, coord{this->mat} 
+        ds{ds}, mat{ds.mat()}, coord{ds.mat()} 
     {
         this->raw_reads = ds.reads();
         
         // (note that there is typically overallocation by condensation factor)
         // but shrink to fit may lead to pointer invalidation
-        this->nodes.reserve(pan_tree_size(this->mat.root));
+        panmanUtils::Node* real_root = this->mat.root;
+        this->nodes.reserve(pan_tree_size(real_root));
         std::vector<panmanUtils::Node*> empty;
-        this->from_pan(nullptr, this->mat.root, this->site_read_map(), empty);
+        this->from_pan(nullptr, real_root, this->site_read_map(), empty);
     }
 
     void reset_haplotype_state() {
@@ -120,7 +120,7 @@ public:
     }
 
     size_t genome_size() {
-        return ds.reference().size();
+        return this->reference().size();
     }
 
     size_t read_dist_bin_size() {

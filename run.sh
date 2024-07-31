@@ -35,7 +35,9 @@ file_path="data/ont8-05"
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
 # file_path="point_loma"
 
-REF="data/NC_045512v2.fa"
+# indel sim
+MAT="sars_20000.pmat.xz"
+file_path="data/indel-sim"
 
 ##Setting up directory
 #rm -r ${file_path}
@@ -66,8 +68,8 @@ REF="data/NC_045512v2.fa"
 # python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
 
 #DETECTING PEAKS
-wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
-# gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
+# gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
 
 #CALCULATING MUTATION DISTANCE
 # wbe refinePeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
