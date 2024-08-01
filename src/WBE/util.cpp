@@ -33,8 +33,16 @@ MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::vector<raw_read>
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < read_map.size(); i++) {
         auto rp = read_map[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
+        std::unordered_set<int> unknown_sites;
+        for (const auto& mut: rp.mutations) {
+            if (mut.mut_nuc == 0b1111)
+                unknown_sites.insert(mut.position);
+        }
+        for (int j = rp.start; j <= rp.end; j++) {
+            if (unknown_sites.find(j) == unknown_sites.end())
+                site_read_map.insert(j);
+        }
+        unknown_sites.clear();
     }
 
     //REMOVE sites not covered by reads
