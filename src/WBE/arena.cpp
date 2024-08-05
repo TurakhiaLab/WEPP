@@ -365,7 +365,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     printf("average mutation_distance: %0.3f\n", average_dist);
 }
 
-void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &selected)
+void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected)
 {
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < this->raw_reads.size(); i++)
@@ -382,7 +382,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
+        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn.first->condensed_source].front()->identifier);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -421,8 +421,19 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
             }
         }
 
-        average_dist += (double)min_dist / selected.size();
-        printf("* dist: %02d (to) %s \n", min_dist, best_node.c_str()); 
+        std::string lineage_name = "";
+        for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
+        {
+            const auto &clade = anc->clade_annotations[1];
+            if (clade != "")
+            {
+                lineage_name = clade;
+                break;
+            }
+        }
+
+        printf("PEAK: %s Lineage: %s weighted_dist: %.2f raw_dist: %02d proportion: %.2f (to) %s \n", pn.first->id.c_str(), lineage_name.c_str(), (min_dist * pn.second), min_dist, pn.second, best_node.c_str()); 
+        average_dist += (min_dist * pn.second);
     }
 
     printf("average (flipped) mutation_distance: %0.3f\n", average_dist);
@@ -434,14 +445,7 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     std::cout << "----- [final report] -----" << std::endl
               << std::endl;
 
-    std::vector<haplotype *> haps;
-    std::transform(abundance.begin(), abundance.end(), std::back_inserter(haps),
-                   [](const auto &p)
-                   {
-                       return p.first;
-                   });
-    
-    print_flipped_mutation_distance(haps);
+    print_flipped_mutation_distance(abundance);
 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)
@@ -463,22 +467,6 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     for (const auto &[name, val] : a_map)
     {
         printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
-    }
-
-    std::cout << "\n--- peak abundance " << std::endl;
-    for (const auto &p : abundance)
-    {
-        std::string lineage_name;
-        for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
-        {
-            const auto &clade = anc->clade_annotations[1];
-            if (clade != "")
-            {
-                lineage_name = clade;
-                break;
-            }
-        }
-        printf("* peak: %s abundance: %.6f lineage: %s\n", p.first->id.c_str(), p.second, lineage_name.c_str());
     }
 }
 
