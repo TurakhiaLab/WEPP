@@ -110,7 +110,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
         {
             uint8_t const N = 0b1111;
             if (mut.mut_nuc != N) {
-                std::string build = mut.get_string();
+                std::string build = MAT::get_nuc(mut.ref_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
                 mutations.insert(build);
             }
         }
