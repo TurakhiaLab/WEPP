@@ -84,7 +84,13 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
 }
 
 std::vector<mutation> get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord) {
+    // if is root, then we treat it slightly different
+    // because in panmat it's with respect to a blank sequence
+    // but we do it with respect to a consensus sequence
+
     std::vector<mutation> ret;
+    std::unordered_set<size_t> covered;
+
     for (const panmanUtils::NucMut& mut: node->nucMutation) {
         size_t const count = (size_t) (mut.mutInfo >> 4);
         int const start_pos = coord.query(mut.primaryBlockId, mut.nucPosition, mut.nucGapPosition);
@@ -98,8 +104,117 @@ std::vector<mutation> get_single_mutations(const std::string& ref, const panmanU
             int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
             m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
             ret.push_back(m);
+
+            covered.insert(m.pos);
+        }
+    }
+
+    for (const panmanUtils::BlockMut& block_mut : node->blockMutation) {
+        assert(!block_mut.inversion);
+        
+        const auto [start, end] = coord.block_range(block_mut.primaryBlockId);
+        if (block_mut.blockMutInfo) {
+            // insertion
+            for (size_t i = start; i <= end; ++i) {
+                if (covered.find(i) != covered.end()) {
+                    continue;
+                }
+
+                mutation mut;
+                mut.pos = i;
+                mut.ref = mut.mut = nuc_from_char(ref[i - 1]);
+                ret.push_back(mut);
+
+                covered.insert(i);
+            }
+        }
+        else {
+            // deletion
+            for (size_t i = start; i <= end; ++i) {
+                if (covered.find(i) != covered.end()) {
+                    continue;
+                }
+
+                mutation mut;
+                mut.pos = i;
+                mut.ref = nuc_from_char(ref[i - 1]);
+                mut.mut = NUC_GAP;
+                ret.push_back(mut);
+
+                covered.insert(i);
+            }
+        }
+    }
+
+    // if it's the root, whatever is not mentioned originally should be treated as gap
+    // (if consensus is not gap)
+    if (node->parent == nullptr) {
+        for (size_t i = 1; i <= ref.size(); ++i) {
+            if (covered.find(i) == covered.end() && ref[i - 1] != '_') {
+                mutation mut;
+                mut.pos = i;
+                mut.ref = nuc_from_char(ref[i - 1]);
+                mut.mut = NUC_GAP;
+                ret.push_back(mut);
+            }
         }
     }
 
     return ret;
+}
+
+// we duplicate this logic a bunch...
+int mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations) {
+    auto compareMutations = [](const mutation &a, const mutation &b)
+    {
+        if (a.pos != b.pos)
+            return a.pos < b.pos;
+        else
+            return a.mut < b.mut;
+    };
+
+    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
+    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
+
+    int muts = 0;
+
+    int i = 0;
+    int last_i = node1_mutations.size();
+    int j = 0;
+
+    while (i < last_i || j < (int) node2_mutations.size()) {
+        if (i == last_i) {                
+            if (node2_mutations[j].mut != NUC_N) {
+                ++muts;
+            }
+            ++j;
+        }
+        else if (j == (int) node2_mutations.size()) {
+            if (node1_mutations[i].mut != NUC_N) {
+                ++muts;
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos < node2_mutations[j].pos) {
+            if (node1_mutations[i].mut != NUC_N) {
+                ++muts;
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos > node2_mutations[j].pos) {
+            if (node2_mutations[j].mut != NUC_N) {
+                ++muts;
+            }
+            ++j;
+        }
+        else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
+            ++muts;
+            ++i; ++j;
+        }
+        else {
+            ++i; ++j;
+        }
+    }
+
+    return muts;
 }

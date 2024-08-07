@@ -72,6 +72,13 @@ sam::sam(const std::string& ref) : reference_seq{ref} {
     this->collapsed_frequency_table.resize(ref.size());
 }
 
+// for quick prototyping
+sam::sam(const std::string&ref, const std::vector<sam_read>& raw_reads) : reference_seq{ref}
+{
+    this->aligned_reads = raw_reads;
+    this->merge_duplicates();
+}
+
 void sam::dump_proto(const std::string& filename) {
     Sam::sam data;
 
@@ -279,7 +286,7 @@ void sam::read_correction() {
         std::string& align = aligned_reads[i].aligned_string;
         int start = aligned_reads[i].start_idx;
         for (int j = 0; j < (int) align.size(); ++j) {
-            char effective = align[j] == '_' ? reference_seq[j] : align[j];
+            char effective = align[j];
             int curr = GENOME_STRING.find(effective);
             int indx = start + j;
 

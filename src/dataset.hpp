@@ -64,8 +64,6 @@ public:
             coord_converter converter{mat};
             std::string ref = converter.reference;
 
-            std::cout << " Reference Size " << ref.size() << std::endl;
-
             saved.emplace(std::move(ref));
         }
         

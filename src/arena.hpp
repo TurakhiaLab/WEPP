@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_set>
 #include <cmath>
+#include <random>
 
 #include <tbb/blocked_range.h>
 #include <tbb/queuing_mutex.h>
@@ -16,6 +17,7 @@
 #include "haplotype.hpp"
 #include "dataset.hpp"
 #include "read.hpp"
+#include "sam2pb.hpp"
 #include "panman_bridge.hpp"
 #include "util.hpp"
 
@@ -83,7 +85,6 @@ class arena {
     // mutations from root to here
     std::vector<mutation> get_mutations(const panmanUtils::Node* n);
 
-    int mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations);
 
 public:
     arena(const dataset& ds) : 
@@ -96,6 +97,7 @@ public:
         panmanUtils::Node* real_root = this->mat.root;
         this->nodes.reserve(pan_tree_size(real_root));
         std::vector<panmanUtils::Node*> empty;
+
         this->from_pan(nullptr, real_root, this->site_read_map(), empty);
     }
 

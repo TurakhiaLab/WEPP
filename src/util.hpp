@@ -19,3 +19,6 @@ parseWBEcommand(boost::program_options::parsed_options parsed);
 
 std::vector<mutation> 
 get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord);
+
+
+int mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations);
