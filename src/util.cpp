@@ -83,10 +83,14 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     return vm;
 }
 
-std::vector<mutation> get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord) {
+std::vector<mutation> 
+get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord, bool ignore_root) {
     // if is root, then we treat it slightly different
     // because in panmat it's with respect to a blank sequence
-    // but we do it with respect to a consensus sequence
+    // but we do it with respect to a root sequence in the most case
+    if (!node->parent && ignore_root) {
+        return {};
+    }
 
     std::vector<mutation> ret;
     std::unordered_set<size_t> covered;
