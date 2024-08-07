@@ -98,7 +98,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
         std::set<std::string> my_muts;
         for (MAT::Mutation mut : n->stack_muts)
         {
-            std::string build = mut.get_string();
+            std::string build = MAT::get_nuc(mut.ref_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
             mutations.insert(build);
             my_muts.insert(std::move(build));
         }
