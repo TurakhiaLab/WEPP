@@ -77,11 +77,15 @@ struct haplotype {
                 return muts;
             }
             else if (j == (int) comp.size()) {
-                muts.push_back(stack_muts[i].pos);
+                if (stack_muts[i].mut != NUC_N) {
+                    muts.push_back(stack_muts[i].pos);
+                }
                 ++i;
             }
             else if (stack_muts[i].pos < comp[j].pos) {
-                muts.push_back(stack_muts[i].pos);
+                if (stack_muts[i].mut != NUC_N) {
+                    muts.push_back(stack_muts[i].pos);
+                }
                 ++i;
             }
             else if (stack_muts[i].pos > comp[j].pos) {
@@ -90,7 +94,7 @@ struct haplotype {
                 }
                 ++j;
             }
-            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && comp[j].mut != NUC_N) {
+            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && stack_muts[i].mut != NUC_N && comp[j].mut != NUC_N) {
                 muts.push_back(comp[j].pos);
                 ++i; ++j;
             }
@@ -128,11 +132,15 @@ struct haplotype {
                 return muts;
             }
             else if (j == (int) comp.size()) {
-                ++muts;
+                if (stack_muts[i].mut != NUC_N) {
+                    ++muts;
+                }
                 ++i;
             }
             else if (stack_muts[i].pos < comp[j].pos) {
-                ++muts;
+                if (stack_muts[i].mut != NUC_N) {
+                    ++muts;
+                }
                 ++i;
             }
             else if (stack_muts[i].pos > comp[j].pos) {
@@ -141,7 +149,7 @@ struct haplotype {
                 }
                 ++j;
             }
-            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && comp[j].mut != NUC_N) {
+            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && stack_muts[i].mut != NUC_N && comp[j].mut != NUC_N) {
                 ++muts;
                 ++i; ++j;
             }

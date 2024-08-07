@@ -15,6 +15,14 @@ public:
 
     coord_converter(const panmanUtils::Tree& t);
 
+    std::pair<size_t, size_t> block_range(int blockId) const {
+        const auto& block = map[blockId];
+
+        size_t start = static_cast<size_t> (block.first.front().second.empty() ? block.first.front().first : block.first.front().second.front());
+        size_t end = static_cast<size_t>(map[blockId].first.back().first);
+        return std::make_pair(start, end);
+    }
+    
     size_t query(const int blockId, const int nucPosition, const int nucGapPosition) const {
         if(nucGapPosition == -1){
             return map[blockId].first[nucPosition].first;

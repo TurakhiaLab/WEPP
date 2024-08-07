@@ -23,8 +23,9 @@ static nuc nuc_from_pannuc(int pan_nuc) {
         return NUC_G;
     case 8:
         return NUC_T;
+    case 15:
+        return NUC_N;
     default:
-        printf("Unknown nucleotide conversion pan_nuc %d\n", pan_nuc);
         return NUC_N;
     }
 }

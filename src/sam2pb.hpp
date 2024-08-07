@@ -7,8 +7,8 @@
 
 #include "dataset.hpp"
 
-const std::string GENOME_STRING{"ACGTN"};
-typedef std::vector<std::array<int, 5>> sub_table;
+const std::string GENOME_STRING{"ACGTN_"};
+typedef std::vector<std::array<int, 6>> sub_table;
 
 struct sam_read {
     std::string raw_name;
@@ -77,6 +77,7 @@ struct sam {
    
    public:
        sam(const std::string& ref);
+       sam(const std::string& ref, const std::vector<sam_read>& raw_reads);
    
        void add_read(const std::string& line);
        void build();

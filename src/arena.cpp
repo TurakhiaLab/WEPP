@@ -19,7 +19,9 @@ arena::from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered
         for (panmanUtils::Node *child : node->children)
         {
             haplotype *curr = this->from_pan(parent, child, site_read_map, parent_mapping);
-            parent->children.emplace_back(curr);
+            if (curr) {
+                parent->children.emplace_back(curr);
+            }
         }
         return nullptr;
     }
@@ -89,42 +91,6 @@ int arena::pan_tree_size(panmanUtils::Node *node)
         ret += pan_tree_size(child);
     }
     return ret;
-}
-
-int arena::mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations) {
-    auto compareMutations = [](const mutation &a, const mutation &b)
-    {
-        if (a.pos != b.pos)
-            return a.pos < b.pos;
-        else
-            return a.mut < b.mut;
-    };
-
-    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
-    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-    auto n1_iterator = node1_mutations.begin();
-    auto n2_iterator = node2_mutations.begin();
-    int distance = 0;
-    while (n1_iterator != node1_mutations.end() && n2_iterator != node2_mutations.end()) {
-        if (n1_iterator->pos == n2_iterator->pos) {
-            if (n1_iterator->mut != n2_iterator->mut) {
-                distance++;
-            }
-            n1_iterator++;
-            n2_iterator++;
-        } else if (n1_iterator->pos < n2_iterator->pos) {
-            distance++;
-            n1_iterator++;
-        } else {
-            distance++;
-            n2_iterator++;
-        }
-    }
-
-    distance += std::distance(n1_iterator, node1_mutations.end());
-    distance += std::distance(n2_iterator, node2_mutations.end());
-
-    return distance;
 }
 
 std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
