@@ -87,19 +87,7 @@ class arena {
 
 
 public:
-    arena(const dataset& ds) : 
-        ds{ds}, mat{ds.mat()}, coord{ds.mat()} 
-    {
-        this->raw_reads = ds.reads();
-        
-        // (note that there is typically overallocation by condensation factor)
-        // but shrink to fit may lead to pointer invalidation
-        panmanUtils::Node* real_root = this->mat.root;
-        this->nodes.reserve(pan_tree_size(real_root));
-        std::vector<panmanUtils::Node*> empty;
-
-        this->from_pan(nullptr, real_root, this->site_read_map(), empty);
-    }
+    arena(const dataset& ds);
 
     void reset_haplotype_state() {
         tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes.size()),

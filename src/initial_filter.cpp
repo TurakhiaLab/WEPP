@@ -490,25 +490,6 @@ wepp_filter::filter(arena& arena)
     // cartesian map
     cartesian_map(arena, initial, arena.reads());
 
-
-    double average_epp = 0;
-    for (size_t i = 0; i < max_parismony.size(); ++i) {
-        average_epp += (double) parsimony_multiplicity[i] / max_parismony.size();
-        if (parsimony_multiplicity[i] > 1000) {
-            size_t num_gaps = 0;
-            raw_read const& read = arena.reads()[i];
-            for (size_t j = arena.reads()[i].start; j < arena.reads()[i].end; ++j) {
-                mutation search; search.pos = j;
-                auto find = std::lower_bound(read.mutations.begin(), read.mutations.end(), search);
-                char c = arena.reference()[j];
-                if (find != read.mutations.end() && find->pos == j) c = char_from_nuc(find->mut);
-                num_gaps += c == '_';
-            }
-        }
-    }
-    std::cout << " Reference Size " << arena.reference().size() << std::endl;
-    std::cout << " Average EPP " << average_epp << std::endl;
-
     // iterative removal 
     std::set<haplotype*, mutation_comparator> peaks, nbrs;
     while (!step(arena, initial, peaks, nbrs)) { }

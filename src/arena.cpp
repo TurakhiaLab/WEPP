@@ -1,7 +1,54 @@
 #include "arena.hpp"
 
-haplotype* 
-arena::from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping)
+arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
+{
+    this->raw_reads = ds.reads();
+    
+    // (note that there is typically overallocation by condensation factor)
+    // but shrink to fit may lead to pointer invalidation
+    panmanUtils::Node* real_root = this->mat.root;
+    this->nodes.reserve(pan_tree_size(real_root));
+    std::vector<panmanUtils::Node*> empty;
+
+
+    // std::unordered_set<int> m;
+    // for (int i = 0; i <= reference().size(); ++i) m.insert(i);
+    // this->from_pan(nullptr, real_root, m, empty);
+    // std::vector<sam_read> reads;
+    // haplotype *hap = &nodes[200];
+    // std::random_device dev;
+    // std::mt19937 rng(dev());
+    // int read_size = 150;
+    // std::uniform_int_distribution<std::mt19937::result_type> dist(1, reference().size() - read_size);
+    // for (int i = 0; i < 100000; ++i) {
+    //     sam_read r;
+    //     r.raw_name = std::string("read") + std::to_string(i);
+    //     r.start_idx = dist(rng);
+    //     r.aligned_string = "";
+    //     for (size_t i = r.start_idx; i < r.start_idx + read_size; ++i) {
+    //         char ref = reference()[i - 1];
+    //         mutation search;
+    //         search.pos = i;
+    //         auto find = lower_bound(hap->stack_muts.begin(), hap->stack_muts.end(), search);
+    //         if (find != hap->stack_muts.end() && find->pos == i && std::rand() % 20 < 19) {
+    //             ref = char_from_nuc(find->mut);
+    //         }
+    //         r.aligned_string += ref;
+    //     }
+    //     r.degree = 1;
+    //     r.start_idx--;
+    //     reads.push_back(std::move(r));
+    // }
+    // sam s(this->reference(), reads);
+    // s.dump_proto(ds.pb_path());
+    // s.dump_fake_sam("Freyja/test_sam.sam");
+
+    this->from_pan(nullptr, real_root, this->site_read_map(), empty);
+}
+
+
+haplotype *
+arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping)
 {
     // if no mutations in site read map, condense and continue
     std::vector<mutation> muts = this->get_single_mutations(node);
@@ -478,7 +525,8 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
                        return p.first;
                    });
     
-    print_flipped_mutation_distance(haps);
+    std::cout << haps.front()->id << std::endl;
+    print_mutation_distance(haps);
 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)

@@ -378,6 +378,99 @@ void sam::dump_reverse_merge(std::ostream &out) {
     }
 }
 
+void sam::dump_fake_sam(const std::string& out_name) {
+    std::map<size_t, size_t> ungapped_pos;
+    size_t non_gap_reference_size = 0;
+    for (size_t i = 0; i < reference_seq.size(); ++i) {
+        if (reference_seq[i] != '_')
+        {
+            ungapped_pos[i] = ++non_gap_reference_size;
+        }
+    }
+    std::ofstream out(out_name);
+    // dump headers
+    out << "@HD	VN:1.0\tSO:unsorted" << '\n';
+    out << "@SQ\tSN:" << CHROM << "\tLN:" << non_gap_reference_size << '\n';
+    out << "@PG\tID:bowtie2\tPN:bowtie2\tVN:2.4.4\tCL:\"wepp\"" << '\n';
+
+    // dump line
+    for (const sam_read& read : this->aligned_reads) {
+        for (const std::string& name : this->reverse_merge[read.degree_name()]) {
+            std::string cigar;
+            std::string nucs;
+            std::string quality;
+            size_t match_start_index = 0;
+            size_t reference_start_index = 0;
+            
+            for (size_t i = 0; i < read.aligned_string.size(); ++i) {
+                if (!match_start_index && read.aligned_string[i] != '_') {
+                    auto it = ungapped_pos.lower_bound(read.start_idx + i);
+                    if (it == ungapped_pos.end()) {
+                        it = std::prev(it);
+                    }
+                    match_start_index = it->second;
+                    reference_start_index = read.start_idx + i;
+                }
+
+                if (read.aligned_string[i] != '_') {
+                    nucs.push_back(read.aligned_string[i]);
+                    quality.push_back('?');
+                }
+            }
+
+            if (match_start_index == 0) {
+                continue;
+            }
+
+            size_t read_index = reference_start_index - read.start_idx;
+            // progress reference and/or progress read
+            std::vector<std::pair<bool, bool>> uncompressed;
+            for (size_t i = read_index; i < read.aligned_string.size(); ++i) {
+                bool const ref = reference_seq[read.start_idx + i] != '_';
+                bool const our = read.aligned_string[i] != '_';
+                if (ref || our) {
+                    uncompressed.emplace_back(ref, our);
+                }
+            }
+            // sentinel
+            uncompressed.emplace_back(false, false);
+
+            int run_count = 0;
+            std::pair<bool, bool> last = uncompressed.front(); 
+            for (auto p : uncompressed) {
+                if (p != last) {
+                    char type;
+                    if (last.first && last.second) type = 'M';
+                    else if (last.first) type = 'D';
+                    else type = 'I';
+                    cigar += std::to_string(run_count);
+                    cigar += type;
+                    
+                    run_count = 1;
+                    last = p;
+                }
+                else {
+                    ++run_count;
+                }
+            }
+
+            out << name << '\t';
+            out << 0 << '\t';
+            out << CHROM << '\t';
+
+            out << match_start_index << '\t';
+            out << 42 << '\t';
+            out << cigar << '\t';
+            out << '*' << '\t';
+            out << '0' << '\t';
+            out << '0' << '\t';
+            out << nucs << '\t';
+            out << quality << '\t';
+            out << std::endl;
+        }
+    }
+}
+
 void sam::dump_freyja(std::ostream& dout, std::ostream& vout) {
     vout << "##fileformat=VCFv4.2\n##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
 
