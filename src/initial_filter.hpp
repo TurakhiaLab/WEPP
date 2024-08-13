@@ -8,6 +8,7 @@
 class initial_filter {
 public:
     virtual std::vector<haplotype*> filter(arena& arena) = 0;
+    virtual ~initial_filter() { };
 };
 
 class wepp_filter: public initial_filter {

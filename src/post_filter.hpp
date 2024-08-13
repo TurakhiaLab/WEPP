@@ -43,8 +43,8 @@ public:
 
             // common should go into frozen
             if (i >= freeze_round) {
-            std::set_intersection(this_round.begin(), this_round.end(), last_round.begin(), last_round.end(),
-                                  std::inserter(frozen, frozen.end()));
+                std::set_intersection(this_round.begin(), this_round.end(), last_round.begin(), last_round.end(),
+                                      std::inserter(frozen, frozen.end()));
             }
             last_round = std::set<haplotype *>(this_round.begin(), this_round.end());
 
@@ -61,6 +61,8 @@ public:
 
         return {};
     }
+
+    virtual ~post_filter() { };
 };
 
 class identity_post_filter: public post_filter {

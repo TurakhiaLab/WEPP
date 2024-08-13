@@ -82,6 +82,7 @@ struct sam {
        void add_read(const std::string& line);
        void build();
    
+       void dump_fake_sam(std::string const& filename);
        void dump_proto(std::string const& filename);
        void dump_reverse_merge(std::ostream& out);
        void dump_freyja(std::ostream& dout, std::ostream& vout);
