@@ -13,7 +13,7 @@ void detect_peaks(const dataset& d) {
     pipeline p{d, std::move(main), std::move(post)};
     // p.a.print_cooccuring_mutations(600);
     p.run();
-    //p.run_from_last_initial();
+    //p.run_from_last_initial(false);
 }
 
 void pipeline::run() {
@@ -33,10 +33,10 @@ void pipeline::run() {
     // save peaks
     save(running, ds.first_checkpoint_path());
 
-    this->run_from_last_initial();
+    this->run_from_last_initial(true);
 }
 
-void pipeline::run_from_last_initial() {
+void pipeline::run_from_last_initial(bool is_full_run) {
     std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path()); 
 
     {
@@ -44,6 +44,12 @@ void pipeline::run_from_last_initial() {
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
 
         Timer timer; timer.Start();
+        
+        if (is_full_run)
+            a.recover_haplotype_state();
+        else 
+            a.reset_haplotype_state();
+
         std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
         
         a.print_full_report(full);

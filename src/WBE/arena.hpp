@@ -32,7 +32,10 @@ struct score_comparator {
 /* used to sort nodes by their mutation list */
 struct mutation_comparator {
     bool operator() (haplotype* left, haplotype* right) const {
-        if (left->stack_muts.size() != right->stack_muts.size()) {
+        if (left->full_score() != right->full_score()) {
+            return left->full_score() < right->full_score();
+        }
+        else if (left->stack_muts.size() != right->stack_muts.size()) {
             return left->stack_muts.size() < right->stack_muts.size();
         }  
         for (size_t i = 0; i < left->stack_muts.size(); ++i) {
@@ -86,6 +89,16 @@ public:
             [&](tbb::blocked_range<size_t> range) {
                 for (size_t i = range.begin(); i != range.end(); i++) {
                     nodes[i].reset_state();
+                }
+            }
+        );
+    }
+
+    void recover_haplotype_state() {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i != range.end(); i++) {
+                    nodes[i].recover_state();
                 }
             }
         );
