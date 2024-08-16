@@ -140,6 +140,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 std::vector<std::pair<haplotype*, double>>
 freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
+    fprintf(stderr, "%ld peaks selected for Freyja!\n\n", input.size());
     dump_barcode(arena, input);
 
     if (std::system(
