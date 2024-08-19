@@ -42,6 +42,7 @@ coord_converter::coord_converter(const panmanUtils::Tree& t) {
             }
         }
         map[blockId].first.push_back({0, {}});
+        consensus += '_';
     }
     map.resize(maxBlockId + 1);
     // Assigning nucleotide gaps
