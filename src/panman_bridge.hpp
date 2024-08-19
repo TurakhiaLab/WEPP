@@ -19,7 +19,7 @@ public:
         const auto& block = map[blockId];
 
         size_t start = static_cast<size_t> (block.first.front().second.empty() ? block.first.front().first : block.first.front().second.front());
-        size_t end = static_cast<size_t>(map[blockId].first.back().first);
+        size_t end = static_cast<size_t>(block.first.back().first);
         return std::make_pair(start, end);
     }
     
