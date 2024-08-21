@@ -6,6 +6,7 @@
 
 #include "config.hpp"
 #include "read.hpp"
+#include "util.hpp"
 
 struct haplotype {
     int depth;
@@ -156,6 +157,6 @@ struct multi_haplotype {
     std::vector<int> children;
 
     int mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) {
-        return root->mutation_distance(comp, min_pos, max_pos);
+        return ::mutation_distance(comp, root->stack_muts(min_pos, max_pos));
     }
 };

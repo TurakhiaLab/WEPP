@@ -268,7 +268,7 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read &r = arena.reads()[read];
-                                  int parsimony = hap->mutation_distance(r.mutations, r.start, r.end);
+                                  int parsimony = hap->mutation_distance(r);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
