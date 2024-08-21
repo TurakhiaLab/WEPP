@@ -366,7 +366,7 @@ wepp_filter::singular_step(arena& arena, haplotype* hap)
 }
 
 void
-wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*, mutation_comparator>& peaks, std::set<haplotype*, mutation_comparator>& nbrs)
+wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*>& peaks, std::set<haplotype*>& nbrs)
 {
     /* 1. add to peaks */    
     peaks.insert(consideration.begin(), consideration.end());
@@ -411,7 +411,7 @@ wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consid
 }
 
 bool
-wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs)
+wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks, std::set<haplotype*> &nbrs)
 {
     assert(!current.empty() && !remaining_reads.empty());
 
@@ -491,7 +491,7 @@ wepp_filter::filter(arena& arena)
     cartesian_map(arena, initial, arena.reads());
 
     // iterative removal 
-    std::set<haplotype*, mutation_comparator> peaks, nbrs;
+    std::set<haplotype*> peaks, nbrs;
     while (!step(arena, initial, peaks, nbrs)) { }
 
     std::vector<haplotype*> res(peaks.begin(), peaks.end());

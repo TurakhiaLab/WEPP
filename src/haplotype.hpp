@@ -8,11 +8,10 @@
 #include "read.hpp"
 
 struct haplotype {
+    int depth;
     /* children and mutations  */
     haplotype* parent;
-    /* muts from root to here */
     std::vector<mutation> muts;
-    std::vector<mutation> stack_muts;
 
     // original tree
     std::string id;
@@ -49,124 +48,97 @@ struct haplotype {
         return it != muts.end() && it->pos <= end;
     }
 
-    // given a range and reference mutation list
-    // tells the (genome) positions where the this mutation list differs from reference
-    // min_pos and max_pos are genome positions
-    std::vector<int> mutations(std::vector<mutation> const& comp, int min_pos, int max_pos) const {
-        std::vector<int> muts;
+    std::vector<mutation> stack_muts(int start = 0, int end = INT_MAX) const {
+        std::vector<mutation> ret;
 
-        mutation search;
-        search.pos = min_pos;
-        int i = std::lower_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
-        search.pos = max_pos;
-        int last_i = std::upper_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
-        int j = 0;
+        if (parent)
+        {
+            for (const mutation &mut : parent->stack_muts(start, end))
+            {
+                /* only need to compare to our muts since parent's are unique */
+                bool valid = true;
+                for (const mutation &comp : muts)
+                {
+                    if (comp.pos == mut.pos)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
 
-        while (i < last_i || j < (int) comp.size()) {
-            if (i == last_i) {                
-                if (comp[j].mut != NUC_N) {
-                    muts.push_back(comp[j].pos);
+                if (valid) {
+                    ret.push_back(mut);
                 }
-                ++j;
-            }
-            else if (stack_muts[i].pos < min_pos) {
-                ++i;
-            }
-            else if (stack_muts[i].pos > max_pos) {
-                assert(0);
-                return muts;
-            }
-            else if (j == (int) comp.size()) {
-                if (stack_muts[i].mut != NUC_N) {
-                    muts.push_back(stack_muts[i].pos);
-                }
-                ++i;
-            }
-            else if (stack_muts[i].pos < comp[j].pos) {
-                if (stack_muts[i].mut != NUC_N) {
-                    muts.push_back(stack_muts[i].pos);
-                }
-                ++i;
-            }
-            else if (stack_muts[i].pos > comp[j].pos) {
-                if (comp[j].mut != NUC_N) {
-                    muts.push_back(comp[j].pos);
-                }
-                ++j;
-            }
-            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && stack_muts[i].mut != NUC_N && comp[j].mut != NUC_N) {
-                muts.push_back(comp[j].pos);
-                ++i; ++j;
-            }
-            else {
-                ++i; ++j;
             }
         }
-
-        return muts;
-    }
-
-    // called so much it's worth optimizing out the vector
-    int mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) const {
-        int muts = 0;
-
-        mutation search;
-        search.pos = min_pos;
-        int i = std::lower_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
-        search.pos = max_pos;
-        int last_i = std::upper_bound(stack_muts.begin(), stack_muts.end(), search) - stack_muts.begin();
-        int j = 0;
-
-        while (i < last_i || j < (int) comp.size()) {
-            if (i == last_i) {                
-                if (comp[j].mut != NUC_N) {
-                    ++muts;
-                }
-                ++j;
-            }
-            else if (stack_muts[i].pos < min_pos) {
-                ++i;
-            }
-            else if (stack_muts[i].pos > max_pos) {
-                assert(0);
-                return muts;
-            }
-            else if (j == (int) comp.size()) {
-                if (stack_muts[i].mut != NUC_N) {
-                    ++muts;
-                }
-                ++i;
-            }
-            else if (stack_muts[i].pos < comp[j].pos) {
-                if (stack_muts[i].mut != NUC_N) {
-                    ++muts;
-                }
-                ++i;
-            }
-            else if (stack_muts[i].pos > comp[j].pos) {
-                if (comp[j].mut != NUC_N) {
-                    ++muts;
-                }
-                ++j;
-            }
-            else if (stack_muts[i].pos == comp[j].pos && stack_muts[i].mut != comp[j].mut && stack_muts[i].mut != NUC_N && comp[j].mut != NUC_N) {
-                ++muts;
-                ++i; ++j;
-            }
-            else {
-                ++i; ++j;
+        /* maybe rewinded mutation back to original */
+        for (const mutation &mut : muts)
+        {
+            if (mut.ref != mut.mut && mut.pos >= start && mut.pos <= end)
+            {
+                ret.push_back(mut);
             }
         }
-
-        return muts;
+        std::sort(ret.begin(), ret.end());
+        return ret;
     }
-
+    
     int mutation_distance(const raw_read& other) const {
-        return mutation_distance(other.mutations, other.start, other.end);
+        return ::mutation_distance(other.mutations, this->stack_muts(other.start, other.end));
     }
 
     int mutation_distance(haplotype * other) const {
-        return mutation_distance(other->stack_muts, 0, INT_MAX);
+        std::vector<mutation> us, theirs;
+        haplotype const* a = this, *b = other;
+
+        auto add_to = [](haplotype const* src, std::vector<mutation>&dump) {
+            for (const auto& mut : src->muts) {
+                bool valid = true;
+                for (const auto& existing : dump) {
+                    if (existing.pos == mut.pos) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (valid) {
+                    dump.push_back(mut);
+                }
+            }
+        };
+
+        while (a->depth < b->depth) {
+            add_to(a, us);
+            a = a->parent;
+        }
+
+        while (b->depth < a->depth) {
+            add_to(b, theirs);
+            b = b->parent;
+        }
+
+        while (a != b) {
+            add_to(a, us);
+            add_to(b, theirs);
+            a = a->parent;
+            b = b->parent;
+        }
+
+        auto del_backs = [](std::vector<mutation>& muts) {
+            auto it = muts.begin();
+            while (it < muts.end()) {
+                if (it->ref == it->mut) {
+                    it = muts.erase(it);
+                }
+            }
+        };
+
+        del_backs(us);
+        del_backs(theirs);
+
+        std::sort(us.begin(), us.end());
+        std::sort(theirs.begin(), theirs.end());
+
+        return ::mutation_distance(us, theirs);
     }
 
     double full_score() const {
@@ -182,10 +154,6 @@ struct multi_haplotype {
 
     /* arena indices of ranged node children */
     std::vector<int> children;
-
-    std::vector<int> mutations(std::vector<mutation> const& comp, int min_pos, int max_pos) {
-        return root->mutations(comp, min_pos, max_pos);
-    }
 
     int mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) {
         return root->mutation_distance(comp, min_pos, max_pos);

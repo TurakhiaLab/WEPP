@@ -52,7 +52,9 @@ public:
             inPMATBuffer.push(boost::iostreams::lzma_decompressor());
             inPMATBuffer.push(fin);
             std::istream inputStream(&inPMATBuffer);
-            tree.emplace(panmanUtils::Tree(inputStream));
+            panmanUtils::TreeGroup g(inputStream);
+            assert(g.trees.size() == 1);
+            tree.emplace(g.trees[0]);
         }
         return tree.value();
     }

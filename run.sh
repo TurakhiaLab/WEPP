@@ -36,7 +36,7 @@ file_path="data/ont8-05"
 # file_path="point_loma"
 
 # indel sim
-MAT="sars_2000_msa.panmat"
+MAT="subtree_14.panman"
 file_path="data/indel-sim"
 
 ##Setting up directory

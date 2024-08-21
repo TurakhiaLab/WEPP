@@ -8,6 +8,8 @@
 #include "util.hpp"
 #include "panman_bridge.hpp"
 
+constexpr bool IGNORE_N_MUTS = true;
+
 //Get the names of samples prsent in samples.vcf
 std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples) {
     std::vector<std::string> vcf_samples;
@@ -110,9 +112,11 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
             m.ref = nuc_from_char(ref[m.pos - 1]);
             int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
             m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
-            ret.push_back(m);
+            if (!IGNORE_N_MUTS || m.mut != NUC_N) {
+                ret.push_back(m);
 
-            covered.insert(m.pos);
+                covered.insert(m.pos);
+            }
         }
     }
 
@@ -130,9 +134,11 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
                 mutation mut;
                 mut.pos = i;
                 mut.ref = mut.mut = nuc_from_char(ref[i - 1]);
-                ret.push_back(mut);
+                if (!IGNORE_N_MUTS || mut.mut != NUC_N) {
+                    ret.push_back(mut);
 
-                covered.insert(i);
+                    covered.insert(i);
+                }
             }
         }
         else {
@@ -170,19 +176,8 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
     return ret;
 }
 
-// we duplicate this logic a bunch...
-int mutation_distance(std::vector<mutation> node1_mutations, std::vector<mutation> node2_mutations) {
-    auto compareMutations = [](const mutation &a, const mutation &b)
-    {
-        if (a.pos != b.pos)
-            return a.pos < b.pos;
-        else
-            return a.mut < b.mut;
-    };
-
-    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
-    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
-
+// precondition, both mutation lists are sorted
+int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
     int muts = 0;
 
     int i = 0;
