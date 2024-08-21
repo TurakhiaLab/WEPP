@@ -1,4 +1,5 @@
 #include "arena.hpp"
+#include "timer.hpp"
 
 arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
 {
@@ -10,20 +11,9 @@ arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
     this->nodes.reserve(pan_tree_size(real_root));
     std::vector<panmanUtils::Node*> empty;
 
+    timer t;
     this->from_pan(nullptr, real_root, this->site_read_map(), empty);
-
-    haplotype* hap = &nodes[8];
-    std::cout << " Hap " << hap->id << std::endl;
-    std::string sequence = this->reference();
-    std::string raw;
-    for (mutation const& mut : hap->stack_muts) {
-        sequence[mut.pos - 1] = char_from_nuc(mut.mut);
-    }
-
-    // for (char c : sequence) if (c != '_') raw += c;
-    std::ofstream fout("debug/panman/build/y.fa");
-    for (char c : sequence) fout << c << std::endl;
-    std::cout << "Sequence " << nodes[2].stack_muts.size() << " vs " << nodes[1].stack_muts.size() << std::endl;
+    std::cout << "From pan took " << t.seconds() << " seconds " << std::endl;
 }
 
 
@@ -38,7 +28,7 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
             has_any = true;
             break;
         }
-    }    
+    }  
 
     if (!has_any) {
         parent_mapping.push_back(node);
@@ -55,46 +45,15 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
 
     this->nodes.emplace_back();
     haplotype *ret = &this->nodes.back();
+    ret->depth = parent ? parent->depth + 1 : 0;
     ret->parent = parent;
     ret->mapped = false;
     ret->score = 0;
     ret->dist_divergence = 1;
-    ret->stack_muts = {};
     ret->id = node->identifier;
     ret->condensed_source = node;
 
     ret->muts = parent ? std::move(muts) : std::vector<mutation>{};
-
-    /* flatten mutation list */
-    if (parent)
-    {
-        for (const mutation &mut : parent->stack_muts)
-        {
-            /* only need to compare to our muts since parent's are unique */
-            bool valid = true;
-            for (const mutation &comp : ret->muts)
-            {
-                if (comp.pos == mut.pos)
-                {
-                    valid = false;
-                    break;
-                }
-            }
-
-            if (valid) {
-                ret->stack_muts.push_back(mut);
-            }
-        }
-    }
-    /* maybe rewinded mutation back to original */
-    for (const mutation &mut : ret->muts)
-    {
-        if (mut.ref != mut.mut)
-        {
-            ret->stack_muts.push_back(mut);
-        }
-    }
-    std::sort(ret->stack_muts.begin(), ret->stack_muts.end());
     std::sort(ret->muts.begin(), ret->muts.end());
 
     condensed_node_mappings[node] = {node};
@@ -144,6 +103,9 @@ std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
             sm_itr++;
         }
     }
+
+    sort(sample_mutations.begin(), sample_mutations.end());
+    
     return sample_mutations;
 }
 
@@ -254,9 +216,9 @@ multi_haplotype *arena::find_range_tree_for(const raw_read &read)
     return nullptr;
 }
 
-std::set<haplotype *, mutation_comparator> arena::closest_neighbors(haplotype *target, int max_radius, int num_limit) const
+std::set<haplotype *> arena::closest_neighbors(haplotype *target, int max_radius, int num_limit) const
 {
-    std::set<haplotype *, mutation_comparator> ret;
+    std::set<haplotype *> ret;
 
     std::queue<haplotype *> q;
     q.push(target);

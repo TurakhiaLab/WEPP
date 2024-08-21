@@ -64,9 +64,9 @@ class wepp_filter: public initial_filter {
     bool valid_two_tops(haplotype *a, haplotype *b) {
          return a->mutation_distance(b) > max_peak_peak_mutation;
     }
-    void clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*, mutation_comparator>& peaks, std::set<haplotype*, mutation_comparator>& nbrs);
+    void clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*>& peaks, std::set<haplotype*>& nbrs);
 
-    bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*, mutation_comparator> &peaks, std::set<haplotype*, mutation_comparator> &nbrs);
+    bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks, std::set<haplotype*> &nbrs);
 
     double node_score(int parsimony, int epps, int degree)
     {

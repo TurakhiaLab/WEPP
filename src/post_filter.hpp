@@ -50,9 +50,9 @@ public:
 
             // add neighbors
             {
-                std::set<haplotype *, mutation_comparator> build;
+                std::set<haplotype *> build;
                 for (haplotype* hap: this_round) {
-                    std::set<haplotype *, mutation_comparator> nbrs = arena.closest_neighbors(hap, max_rad, max_nbrs);
+                    std::set<haplotype *> nbrs = arena.closest_neighbors(hap, max_rad, max_nbrs);
                     build.insert(nbrs.begin(), nbrs.end());
                 }
                 input = std::vector<haplotype*>(build.begin(), build.end());

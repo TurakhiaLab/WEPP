@@ -116,7 +116,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
-        for (const mutation& m : n->stack_muts)
+        for (const mutation& m : n->stack_muts())
         {
             if (m.mut != NUC_N && !m.is_indel()) {
                 std::string build = ungapped_string(m);
@@ -408,7 +408,7 @@ kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         // map n -> n'
         for (size_t i = 0; i < seeds.size(); ++i)
         {
-            std::set<haplotype*, mutation_comparator> 
+            std::set<haplotype*> 
                 all_neighbors = arena.closest_neighbors(input[seeds[i]], explore_rad, INT_MAX);
 
             // randomly select weighted neighbor based on scores
