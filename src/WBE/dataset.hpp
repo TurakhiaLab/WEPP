@@ -24,8 +24,16 @@ public:
         return options["output-directory"].as<std::string>() + '/';
     }
 
+    std::string comparison_directory() const {
+        return options["comparison-directory"].as<std::string>() + '/';
+    }
+
     std::string file_prefix() const {
         return options["output-files-prefix"].as<std::string>();
+    }
+
+    std::string comparison_file_prefix() const {
+        return options["comparison-files-prefix"].as<std::string>();
     }
 
     std::string ref_path() const {
@@ -42,6 +50,18 @@ public:
 
     std::string haplotype_read_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
+    }
+
+    std::string haplotype_proportion_path() const {
+        return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string comparison_haplotype_proportion_path() const {
+        return this->comparison_directory() + this->comparison_file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string haplotype_growth_path() const {
+        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.txt";
     }
 
     const std::string& reference() const {
@@ -75,6 +95,10 @@ public:
     std::string pb_path() const {
         return this->directory() + this->file_prefix() + "_reads.pb";
     }
+    
+    std::string comparison_pb_path() const {
+        return this->comparison_directory() + this->comparison_file_prefix() + "_reads.pb";
+    }
 
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
@@ -97,6 +121,16 @@ public:
             T.uncondense_leaves();
         }
         return T;
+    }
+
+    MAT::Tree cmp_mat() const {
+       MAT::Tree T;
+       T.root = NULL;
+
+       std::string mat_filename = this->comparison_directory() + this->options["ref-mat"].as<std::string>();
+       T = MAT::load_mutation_annotated_tree(mat_filename);
+       T.uncondense_leaves();
+       return T;
     }
 
     std::vector<std::string> true_haplotypes() const {
