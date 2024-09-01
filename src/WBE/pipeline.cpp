@@ -5,7 +5,7 @@
 void detect_peaks(const dataset& d) {
     auto main = std::make_unique<wepp_filter>();
     //auto main = std::make_unique<lineage_root_filter>();
-
+    
     auto post = std::make_unique<freyja_post_filter>();
     //post->num_filter_rounds = 1;
     post->num_filter_rounds = 10;
@@ -54,8 +54,19 @@ void pipeline::run_from_last_initial(bool is_full_run) {
         
         a.print_full_report(full);
 
+        ////////////////////////////////////REMOVE when working with real data
+        //std::vector<haplotype*> current;
+        //current.reserve(full.size());
+        //std::transform(full.begin(), full.end(), std::back_inserter(current),
+        //           [](const std::pair<haplotype*, double>& pair) {
+        //               return pair.first;
+        //           });
+        //a.print_mutation_distance(current);
+        /////////////////////////////////////////
+
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
 
+        a.dump_haplotype_proportion(full);
         a.dump_read2node_mapping(full);
     }
 }

@@ -496,6 +496,18 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     }
 }
 
+void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream csv(this->ds.haplotype_proportion_path());
+    std::string csv_print;
+    for (const auto &n_p : abundance)
+    {
+        csv_print = n_p.first->id + "," + std::to_string(n_p.second);
+        csv_print += "\n";
+        csv << csv_print;
+    }
+}
+
 void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
     std::ofstream csv(this->ds.haplotype_read_path());

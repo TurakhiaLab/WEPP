@@ -32,7 +32,7 @@ struct score_comparator {
 /* used to sort nodes by their mutation list */
 struct mutation_comparator {
     bool operator() (haplotype* left, haplotype* right) const {
-        if (left->full_score() != right->full_score()) {
+        if (abs(left->full_score() - right->full_score()) > SCORE_EPSILON) {
             return left->full_score() < right->full_score();
         }
         else if (left->stack_muts.size() != right->stack_muts.size()) {
@@ -188,4 +188,6 @@ public:
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
+
+    void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
 };
