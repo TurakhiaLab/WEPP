@@ -14,7 +14,6 @@ find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
 FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
 
-#find_package(OpenMP REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 if(DEFINED Protobuf_PATH) 
@@ -24,44 +23,60 @@ else()
 endif()
 
 include_directories(${Protobuf_INCLUDE_DIRS})
+
+message("USING ${Protobuf_VERSION}")
+
+if(DEFINED CapnProto_PATH) 
+	find_package(CapnProto REQUIRED HINTS ${CapnProto_PATH}) 
+else()
+	find_package(CapnProto REQUIRED) 
+endif()
+
+include_directories(${CAPNP_INCLUDE_DIRS})
+add_definitions(${CAPNP_DEFINITIONS})
+
 file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
     
 # Include JSONCPP
 include(${CMAKE_TOOLCHAIN_FILE})
 find_package(jsoncpp CONFIG REQUIRED)
 
-file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panmanUtils.hpp")
+file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panman.hpp")
+
+if(DEFINED CapnProto_PATH)
+	capnp_generate(
+		LANGUAGE cpp
+		TARGET wbe  
+		PROTOS panman.capnp
+    )
+else()
+	capnp_generate_cpp(
+		CAPNP_SRCS CAPNP_HDRS 
+		panman.capnp
+    )
+endif()
 
 if(DEFINED Protobuf_PATH)
-	protobuf_generate(
-		LANGUAGE cpp
-		TARGET wbe
-		PROTOS protobuf/panman.proto
-    )
-
     protobuf_generate(
         LANGUAGE cpp
         TARGET wbe
-        PROTOS protobuf/sam.proto
+        PROTOS sam.proto
     )
     
     add_executable(wbe
 	    ${WBE_SRCS} ${PANMAT_SRCS}
     )
 else()
-	protobuf_generate_cpp(
-		PROTO_SRCS PROTO_HDRS
-		protobuf/panman.proto)
-	
     protobuf_generate_cpp(
         SAM_SRCS SAM_HDRS 
-        protobuf/sam.proto)
+        sam.proto
+    )
    
     add_executable(wbe
 	    ${WBE_SRCS} ${PANMAT_SRCS}
-        ${SAM_SRCS} ${PROTO_SRCS}
-        ${SAM_HDRS} ${PROTO_HDRS}
+        ${SAM_SRCS} ${PROTO_SRCS} ${CAPNP_SRCS}
+		${SAM_HDRS} ${PROTO_HDRS} ${CAPNP_HDRS} 
     )
 endif()
 
-TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) # OpenMP::OpenMP_CXX)

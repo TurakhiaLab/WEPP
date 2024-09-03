@@ -75,7 +75,7 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
                   .run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
-        std::cerr << conv_desc << std::endl;
+        std::cerr << conv_desc << e.what() << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
             exit(0);
@@ -101,7 +101,6 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
         size_t const count = (size_t) (mut.mutInfo >> 4);
         bool const is_deletion = (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::ND || 
             (mut.mutInfo & 0xF) == panmanUtils::NucMutationType::NSNPD;
-
         for (size_t i = 0; i < count; ++i) {
             int offset_nuc_position = mut.nucGapPosition == -1 ? mut.nucPosition + i : mut.nucPosition;
             int offset_gap_position = mut.nucGapPosition == -1 ? -1 : mut.nucGapPosition + i; 
