@@ -4,7 +4,7 @@ static constexpr int NEIGHBOR_DIST = 2;
 
 void analyze_peaks(const dataset& d) {
     // Read files
-    std::vector<std::pair<std::string, double>> curr_hap_abundance, cmp_hap_abundance;
+    std::vector<std::pair<std::string, double>> curr_hap_abundance, cmp_hap_abundance; 
     read_haplotype_proportion(curr_hap_abundance, d.haplotype_proportion_path()); 
     read_haplotype_proportion(cmp_hap_abundance, d.comparison_haplotype_proportion_path());
     auto T_curr = d.mat(false); 
@@ -49,6 +49,7 @@ void analyze_peaks(const dataset& d) {
 
     // Store mutation vectors of peaks
     std::unordered_map<std::string, std::vector<MAT::Mutation>> curr_hap_mutations, cmp_hap_mutations;
+    std::vector<std::vector<std::string>> curr_hap_neighbors;
     for (auto h_a: curr_hap_abundance) 
     {
         auto sample_mutations = get_mutations(T_curr, h_a.first);
@@ -61,6 +62,26 @@ void analyze_peaks(const dataset& d) {
                 mut_itr++;
         }
         curr_hap_mutations.insert({h_a.first, sample_mutations});
+
+        // Update curr_hap_neighbors
+        bool found = false;
+        for (auto& h_n: curr_hap_neighbors) {
+            for (auto hap: h_n) {
+                auto cmp_mutations = curr_hap_mutations[hap];
+                if (mutation_distance(sample_mutations, cmp_mutations) <= NEIGHBOR_DIST)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) 
+            {
+                h_n.emplace_back(h_a.first);
+                break;
+            }
+        }
+        if (!found)
+            curr_hap_neighbors.emplace_back(std::vector<std::string>{h_a.first}); 
     }
 
     for (auto h_a: cmp_hap_abundance) 
@@ -77,42 +98,91 @@ void analyze_peaks(const dataset& d) {
         cmp_hap_mutations.insert({h_a.first, sample_mutations});
     }
 
-    // Find neighboring cmp peaks wrt curr_peaks
+    // Find neighboring cmp_peaks wrt curr_peaks
     std::ofstream txt(d.haplotype_growth_path());
-    for (auto curr_h_a: curr_hap_abundance) 
+    for (auto c_h_n: curr_hap_neighbors) 
     {
-        // Get Lineage name
-        std::string curr_lineage = "";
-        for (auto anc : T_curr.rsearch(curr_h_a.first, true))
+        std::set<std::string> curr_lineages, cmp_lineages;
+        std::vector<std::string> cmp_hap_considered;
+        double curr_abundance = 0.0, cmp_abundance = 0.0;
+        for (auto curr_hap: c_h_n)
         {
-            const auto &clade = anc->clade_annotations[1];
-            if (clade != "")
+            auto curr_mutations = curr_hap_mutations[curr_hap];
+            auto curr_abun_itr = std::find_if(curr_hap_abundance.begin(), curr_hap_abundance.end(),
+                           [curr_hap](const std::pair<std::string, double>& element) {
+                               return element.first == curr_hap;
+                           });
+            curr_abundance += curr_abun_itr->second; 
+
+            // Get curr_lineages 
+            for (auto anc : T_curr.rsearch(curr_hap, true))
             {
-                curr_lineage = clade;
-                break;
+                const auto &clade = anc->clade_annotations[1];
+                if (clade != "")
+                {
+                    curr_lineages.insert(clade);
+                    break;
+                }
+            }
+
+            // Check neighbors in cmp_hap_abundance
+            for (auto cmp_h_a: cmp_hap_abundance) 
+            {
+                if (std::find(cmp_hap_considered.begin(), cmp_hap_considered.end(), cmp_h_a.first) != cmp_hap_considered.end())
+                    continue;
+                auto cmp_mutations = cmp_hap_mutations[cmp_h_a.first];
+                if (mutation_distance(curr_mutations, cmp_mutations) <= NEIGHBOR_DIST) {
+                    cmp_hap_considered.emplace_back(cmp_h_a.first);
+                    cmp_abundance += cmp_h_a.second;
+
+                    // Get cmp_lineages 
+                    for (auto anc : T_cmp.rsearch(cmp_h_a.first, true))
+                    {
+                        const auto &clade = anc->clade_annotations[1];
+                        if (clade != "")
+                        {
+                            cmp_lineages.insert(clade);
+                            break;
+                        }
+                    }
+                }
             }
         }
 
-        std::vector<std::string> neighbor_cmp_haps;
-        auto curr_mutations = curr_hap_mutations[curr_h_a.first];
-        for (auto cmp_h_a: cmp_hap_abundance) 
+        if (cmp_abundance)
         {
-            auto cmp_mutations = cmp_hap_mutations[cmp_h_a.first];
-            if (mutation_distance(curr_mutations, cmp_mutations) <= NEIGHBOR_DIST)
+            // Write lineage and abundances
+            txt << "(" + std::to_string(c_h_n.size()) + " Peaks - ";
+            for (auto it = curr_lineages.begin(); it != curr_lineages.end(); it++) 
             {
-                // Get Lineage name
-                std::string cmp_lineage = "";
-                for (auto anc : T_cmp.rsearch(cmp_h_a.first, true))
-                {
-                    const auto &clade = anc->clade_annotations[1];
-                    if (clade != "")
-                    {
-                        cmp_lineage = clade;
-                        break;
-                    }
-                }
-                txt << curr_h_a.first + "(" + curr_lineage + ")" + "\t" + std::to_string(curr_h_a.second) + "\t->\t" + cmp_h_a.first + "(" + cmp_lineage + ")" + "\t" + std::to_string(cmp_h_a.second) + "\n";
+                if (it != curr_lineages.begin())
+                    txt << ",";
+                txt << *it;
             }
+            txt << ")\t" + std::to_string(curr_abundance) + "\t->\t(" + std::to_string(cmp_hap_considered.size()) + " Peaks - ";
+            for (auto it = cmp_lineages.begin(); it != cmp_lineages.end(); it++) 
+            {
+                if (it != cmp_lineages.begin())
+                    txt << ",";
+                txt << *it;
+            }
+            txt << ")\t" + std::to_string(cmp_abundance) + "\n";
+
+            // Write peak names
+            for (size_t i = 0; i < c_h_n.size(); i++)
+            {
+                if (i)
+                    txt << ",";
+                txt << c_h_n[i];
+            }
+            txt << "\t->\t";
+            for (size_t i = 0; i < cmp_hap_considered.size(); i++)
+            {
+                if (i)
+                    txt << ",";
+                txt << cmp_hap_considered[i];
+            }
+            txt << "\n";
         }
     }
 }
