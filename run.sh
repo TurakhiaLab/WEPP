@@ -36,8 +36,8 @@ file_path="data/ont8-05"
 # file_path="point_loma"
 
 # indel sim
-MAT="subtree_14.panman"
-file_path="data/indel-sim"
+MAT="viralmsa_8M.panman.xz"
+file_path="data/del-sim"
 
 ##Setting up directory
 #rm -r ${file_path}
@@ -51,8 +51,8 @@ file_path="data/indel-sim"
 # source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${REF} ${file_prefix} ${file_path}
 #conda deactivate
 
-# wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
-# gdb --args wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
+# wbe sam2PB -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path} -i ${MAT}
+# gdb --args wbe sam2PB -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path} -i ${MAT}
 
 #FREYJA
 # rm ../Freyja/my_output_latest.txt ../Freyja/${file_prefix}_reads_freyja.*

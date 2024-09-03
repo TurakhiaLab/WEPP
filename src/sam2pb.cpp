@@ -25,7 +25,7 @@ constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
 constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = true;
 // also for pairs of mutation frequencies
-constexpr double frequency_read_cutoff = 0.02;
+constexpr double frequency_read_cutoff = 0.005;
 constexpr int phred_score_cutoff = 20;
 
 const std::string CHROM = "NC_045512v2";
@@ -562,13 +562,15 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                       });
 
     /* finally, reverse merge table */
+    int unmerged_count = 0;
     for (int i = 0; i < data.reverse_columns_size(); ++i) {
         Sam::column_info const &inv = data.reverse_columns()[i];
         for (int j = 0; j < inv.input_columns_size(); ++j) {
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
+            unmerged_count += inv.input_columns().size();
         }
     }
 
-    printf("--- parsed %s containing %d merged reads in %ld sec\n\n", filename.c_str(), read_count, t.seconds());   
+    printf("--- parsed %s containing %d merged / %d unmerged reads in %ld sec\n\n", filename.c_str(), read_count, unmerged_count, t.seconds());   
     return reads;
 }
