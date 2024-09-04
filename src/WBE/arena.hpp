@@ -32,7 +32,10 @@ struct score_comparator {
 /* used to sort nodes by their mutation list */
 struct mutation_comparator {
     bool operator() (haplotype* left, haplotype* right) const {
-        if (left->stack_muts.size() != right->stack_muts.size()) {
+        if (abs(left->full_score() - right->full_score()) > SCORE_EPSILON) {
+            return left->full_score() < right->full_score();
+        }
+        else if (left->stack_muts.size() != right->stack_muts.size()) {
             return left->stack_muts.size() < right->stack_muts.size();
         }  
         for (size_t i = 0; i < left->stack_muts.size(); ++i) {
@@ -60,7 +63,7 @@ class arena {
     std::array<int, NUM_RANGE_BINS> true_read_counts;
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
-    MAT::Tree mat;
+    MAT::Tree mat, ref_mat;
     std::unordered_map<MAT::Node *, std::vector<MAT::Node *>> condensed_node_mappings;
 
     const dataset& ds;
@@ -71,7 +74,8 @@ class arena {
 public:
     arena(const dataset& ds) : ds{ds} {
         this->raw_reads = ds.reads();
-        this->mat = ds.mat();
+        this->ref_mat = ds.mat(true);
+        this->mat = ds.mat(false);
         
         MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
 
@@ -85,6 +89,16 @@ public:
             [&](tbb::blocked_range<size_t> range) {
                 for (size_t i = range.begin(); i != range.end(); i++) {
                     nodes[i].reset_state();
+                }
+            }
+        );
+    }
+
+    void recover_haplotype_state() {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes.size()),
+            [&](tbb::blocked_range<size_t> range) {
+                for (size_t i = range.begin(); i != range.end(); i++) {
+                    nodes[i].recover_state();
                 }
             }
         );
@@ -170,8 +184,10 @@ public:
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
-    void print_flipped_mutation_distance(const std::vector<haplotype *> &selected);
+    void print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected);
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
+
+    void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
 };
