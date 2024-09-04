@@ -322,8 +322,8 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     chunks.emplace_back(i, c);
 
     // rotate "randomly" so threads all dont go exactly small to large
-    int const random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % epps->size();
-    std::rotate(epps->begin(), epps->begin() + random_val, epps->end());
+    int const random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % chunks.size();
+    std::rotate(chunks.begin(), chunks.begin() + random_val, chunks.end());
 
     for (const auto& [i, c] : chunks) {
         size_t j = ((*epps)[i] - &arena.haplotypes()[0]) / this->mutex_bin_size;
