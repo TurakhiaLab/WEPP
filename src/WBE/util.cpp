@@ -33,8 +33,16 @@ MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::vector<raw_read>
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < read_map.size(); i++) {
         auto rp = read_map[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
+        std::unordered_set<int> unknown_sites;
+        for (const auto& mut: rp.mutations) {
+            if (mut.mut_nuc == 0b1111)
+                unknown_sites.insert(mut.position);
+        }
+        for (int j = rp.start; j <= rp.end; j++) {
+            if (unknown_sites.find(j) == unknown_sites.end())
+                site_read_map.insert(j);
+        }
+        unknown_sites.clear();
     }
 
     //REMOVE sites not covered by reads
@@ -93,22 +101,20 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
+    ("ref-mat,r", po::value<std::string>()->default_value(""),
+     "Reference mutation-annotated tree file")
     ("output-directory,o", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
+     ("comparison-directory,p", po::value<std::string>()->default_value("./"),
+     "Read files from the comparison directory. Default is current directory.")
     ("output-files-prefix,v", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
+    ("comparison-files-prefix,w", po::value<std::string>()->default_value("my_vcf"),
+    "Prefix to be used for comparison intermediate files.")
     ("ref-fasta,f", po::value<std::string>()->default_value(""),
      "Input fasta file representing reference sequence")
     ("align-sam,s", po::value<std::string>()->default_value(""),
      "Input sam file representing reference sequence")
-    ("distribution,d", po::value<std::string>()->default_value(""),
-     "Give the distribution of samples, comma delimited.")
-    ("haplotype-samples,w", po::value<int>()->default_value(10),
-     "Give the number of haplotype samples")
-    ("lineage,l", po::value<std::string>()->default_value(""),
-     "Give lineage of samples, comma delimited.")
-    ("prior-lineages,p", po::value<std::string>()->default_value(""),
-     "Give lineage to be included, comma delimited.") 
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -196,8 +202,7 @@ std::vector<MAT::Mutation> get_mutations(const MAT::Tree& T, const std::string s
     return sample_mutations;
 }
 
-size_t 
-get_num_leaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, MAT::Node* condensed_node) {
+size_t get_num_leaves(const std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &condensed_node_mappings, MAT::Node* condensed_node) {
     size_t leaves = 0;
     if (!condensed_node_mappings.find(condensed_node)->second.empty()) {
         auto front_node = condensed_node_mappings.find(condensed_node)->second.front();

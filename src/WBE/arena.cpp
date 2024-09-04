@@ -167,7 +167,7 @@ multi_haplotype *arena::find_range_tree_for(const raw_read &read)
 
 std::set<haplotype *, mutation_comparator> arena::closest_neighbors(haplotype *target, int max_radius, int num_limit) const
 {
-    std::set<haplotype *, mutation_comparator> ret;
+    std::set<haplotype *, mutation_comparator> all_neighbors, ret;
 
     std::queue<haplotype *> q;
     q.push(target);
@@ -175,17 +175,13 @@ std::set<haplotype *, mutation_comparator> arena::closest_neighbors(haplotype *t
     {
         haplotype *curr = q.front();
         q.pop();
-        if (ret.find(curr) != ret.end() || curr->mutation_distance(target) > max_radius)
+        if (all_neighbors.find(curr) != all_neighbors.end() || curr->mutation_distance(target) > max_radius)
         {
             continue;
         }
         else
         {
-            ret.insert(curr);
-            if ((int)ret.size() >= num_limit)
-            {
-                return ret;
-            }
+            all_neighbors.insert(curr);
         }
 
         if (curr->parent)
@@ -198,6 +194,12 @@ std::set<haplotype *, mutation_comparator> arena::closest_neighbors(haplotype *t
             q.push(hap);
         }
     }
+
+    // Find the num_limit-th element or the end of the set
+    auto itr_end = (int)all_neighbors.size() > num_limit ? std::next(all_neighbors.begin(), num_limit) : all_neighbors.end();
+
+    // Move the first num_limit elements to the ret set
+    std::move(all_neighbors.begin(), itr_end, std::inserter(ret, ret.end()));
 
     return ret;
 }
@@ -250,8 +252,16 @@ void arena::print_cooccuring_mutations(int window_size)
     for (size_t i = 0; i < this->raw_reads.size(); i++)
     {
         const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
+        std::unordered_set<int> unknown_sites;
+        for (const auto& mut: rp.mutations) {
+            if (mut.mut_nuc == 0b1111)
+                unknown_sites.insert(mut.position);
+        }
+        for (int j = rp.start; j <= rp.end; j++) {
+            if (unknown_sites.find(j) == unknown_sites.end())
+                site_read_map.insert(j);
+        }
+        unknown_sites.clear();
     }
 
     std::vector<std::string> comp = this->ds.true_haplotypes();
@@ -293,8 +303,16 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     for (size_t i = 0; i < this->raw_reads.size(); i++)
     {
         const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
+        std::unordered_set<int> unknown_sites;
+        for (const auto& mut: rp.mutations) {
+            if (mut.mut_nuc == 0b1111)
+                unknown_sites.insert(mut.position);
+        }
+        for (int j = rp.start; j <= rp.end; j++) {
+            if (unknown_sites.find(j) == unknown_sites.end())
+                site_read_map.insert(j);
+        }
+        unknown_sites.clear();
     }
 
     double average_dist = 0.0;
@@ -365,16 +383,24 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     printf("average mutation_distance: %0.3f\n", average_dist);
 }
 
-void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &selected)
+void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected)
 {
     std::unordered_set<int> site_read_map;
     for (size_t i = 0; i < this->raw_reads.size(); i++)
     {
         const auto &rp = raw_reads[i];
-        for (int j = rp.start; j <= rp.end; j++)
-            site_read_map.insert(j);
+        std::unordered_set<int> unknown_sites;
+        for (const auto& mut: rp.mutations) {
+            if (mut.mut_nuc == 0b1111)
+                unknown_sites.insert(mut.position);
+        }
+        for (int j = rp.start; j <= rp.end; j++) {
+            if (unknown_sites.find(j) == unknown_sites.end())
+                site_read_map.insert(j);
+        }
+        unknown_sites.clear();
     }
-
+    
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
@@ -382,7 +408,7 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn->condensed_source].front()->identifier);
+        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn.first->condensed_source].front()->identifier);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -396,8 +422,13 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
         std::string best_node = "";
         int min_dist = INT_MAX;
         for (const std::string &reference : comp)
-        {
-            auto sample_mutations = get_mutations(this->mat, reference);
+        {   
+            std::vector<MAT::Mutation>sample_mutations;
+            // Use reference tree for sample nodes if given as an input
+            if (this->ref_mat.root != NULL)
+                sample_mutations = get_mutations(this->ref_mat, reference);
+            else
+                sample_mutations = get_mutations(this->mat, reference);
             // Remove mutations from sample_mutations that are not present in site_read_map
             auto mut_itr = sample_mutations.begin();
             while (mut_itr != sample_mutations.end())
@@ -416,8 +447,19 @@ void arena::print_flipped_mutation_distance(const std::vector<haplotype *> &sele
             }
         }
 
-        average_dist += (double)min_dist / selected.size();
-        printf("* dist: %02d (to) %s \n", min_dist, best_node.c_str()); 
+        std::string lineage_name = "";
+        for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
+        {
+            const auto &clade = anc->clade_annotations[1];
+            if (clade != "")
+            {
+                lineage_name = clade;
+                break;
+            }
+        }
+
+        printf("PEAK: %s Lineage: %s weighted_dist: %.2f raw_dist: %02d proportion: %.2f (to) %s \n", pn.first->id.c_str(), lineage_name.c_str(), (min_dist * pn.second), min_dist, pn.second, best_node.c_str()); 
+        average_dist += (min_dist * pn.second);
     }
 
     printf("average (flipped) mutation_distance: %0.3f\n", average_dist);
@@ -429,14 +471,7 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     std::cout << "----- [final report] -----" << std::endl
               << std::endl;
 
-    std::vector<haplotype *> haps;
-    std::transform(abundance.begin(), abundance.end(), std::back_inserter(haps),
-                   [](const auto &p)
-                   {
-                       return p.first;
-                   });
-    
-    print_flipped_mutation_distance(haps);
+    print_flipped_mutation_distance(abundance);
 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)
@@ -458,6 +493,18 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     for (const auto &[name, val] : a_map)
     {
         printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
+    }
+}
+
+void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream csv(this->ds.haplotype_proportion_path());
+    std::string csv_print;
+    for (const auto &n_p : abundance)
+    {
+        csv_print = n_p.first->id + "," + std::to_string(n_p.second);
+        csv_print += "\n";
+        csv << csv_print;
     }
 }
 
