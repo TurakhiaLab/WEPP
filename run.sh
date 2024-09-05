@@ -10,34 +10,29 @@ cd ../
 
 #Variables
 file_prefix="my_vcf"
+# file_prefix="PL_2023_03_01"
 
 # ont (15)
 # MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-# file_path="ont15-01"
+# file_path="golden_mixture1_v41_control"
 
 # ont (8)/6
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
-# file_path="data/ont8-06"
+# file_path="golden_mixture6_v41_control"
 
 # ont (8)/5
-MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
-file_path="data/ont8-05"
+# MAT="updated_1_public-2023-04-10.all.masked.pb.gz"
+# file_path="mixture-05"
 
 # illumina
-# MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
-# file_path="data/illumina"
-
-# dec 2023
-# MAT="public-2023-12-31.all.masked.pb.gz"
-# file_path="data/ilummina-2023-dec"
+MAT="public-2023-08-17.all.masked.nextclade.pangolin.pb"
+file_path="output_files"
 
 # point loma
 # MAT="updated_public-2023-04-10.all.masked.pb.gz"
 # file_path="point_loma"
 
-# indel sim
-MAT="viralmsa_8M.panman.xz"
-file_path="data/del-sim"
+REF="test/NC_045512v2.fa"
 
 ##Setting up directory
 #rm -r ${file_path}
@@ -51,8 +46,8 @@ file_path="data/del-sim"
 # source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${REF} ${file_prefix} ${file_path}
 #conda deactivate
 
-# wbe sam2PB -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path} -i ${MAT}
-# gdb --args wbe sam2PB -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path} -i ${MAT}
+wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
+# gdb --args wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
 
 #FREYJA
 # rm ../Freyja/my_output_latest.txt ../Freyja/${file_prefix}_reads_freyja.*
@@ -68,8 +63,7 @@ file_path="data/del-sim"
 # python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
 
 #DETECTING PEAKS
-wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
-# gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
+wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+# gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
-#CALCULATING MUTATION DISTANCE
-# wbe refinePeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+#usher_to_taxonium -i debug/gisaidAndPublic.2022-02-08.masked.pb.gz -o debug/gisaidAndPublic.2022-02-08.masked.jsonl.gz --name_internal_nodes --clade_types nextstrain,pango

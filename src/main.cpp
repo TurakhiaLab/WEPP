@@ -6,6 +6,7 @@
 #include "util.hpp"
 #include "pipeline.hpp"
 #include "sam2pb.hpp"
+#include "analyze_peaks.hpp"
 
 int main (int argc, char** argv) {
     namespace po = boost::program_options;
@@ -43,6 +44,9 @@ int main (int argc, char** argv) {
     } else if (cmd == "sam2PB") {
         dataset ds{parseWBEcommand(parsed)};
         sam2PB(ds);
+    } else if (cmd == "analyzePeaks") {
+        dataset ds{parseWBEcommand(parsed)};
+        analyze_peaks(ds);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

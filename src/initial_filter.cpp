@@ -230,6 +230,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
         }
 
         haps[i]->dist_divergence = divergence;
+        haps[i]->orig_score = haps[i]->score;
     }
 
     /* initial sort into scores */
@@ -327,8 +328,8 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     chunks.emplace_back(i, c);
 
     // rotate "randomly" so threads all dont go exactly small to large
-    int const random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % epps->size();
-    std::rotate(epps->begin(), epps->begin() + random_val, epps->end());
+    int const random_val = ((*epps)[epps->size() / 2] - &arena.haplotypes()[0]) % chunks.size();
+    std::rotate(chunks.begin(), chunks.begin() + random_val, chunks.end());
 
     for (const auto& [i, c] : chunks) {
         size_t j = ((*epps)[i] - &arena.haplotypes()[0]) / this->mutex_bin_size;
@@ -493,7 +494,7 @@ wepp_filter::filter(arena& arena)
     // iterative removal 
     std::set<haplotype*> peaks, nbrs;
     while (!step(arena, initial, peaks, nbrs)) { }
-
+    
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
     res.insert(res.end(), nbrs.begin(), nbrs.end());
 
@@ -503,6 +504,7 @@ wepp_filter::filter(arena& arena)
 std::vector<haplotype*> 
 lineage_root_filter::filter(arena& arena)
 {
+    arena.reset_haplotype_state();
     std::vector<haplotype*> initial = arena.haplotype_pointers();
     initial.erase(
         std::remove_if(
@@ -566,6 +568,7 @@ lineage_root_filter::filter(arena& arena)
 
 std::vector<haplotype*> 
 lineage_root_except_filter::filter(arena& arena) {
+    arena.reset_haplotype_state();
     lineage_root_filter filter;
     std::vector<haplotype*> all_lineages = filter.filter(arena);
 
@@ -587,6 +590,7 @@ lineage_root_except_filter::filter(arena& arena) {
 std::vector<haplotype*> 
 random_nodes_filter::filter(arena& arena)
 {
+    arena.reset_haplotype_state();
     std::vector<haplotype*> initial = arena.haplotype_pointers();
     // ensure root is always selected
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -628,6 +632,7 @@ uniform_nodes_filter::dfs(haplotype* curr, haplotype* last_set, std::vector<hapl
 std::vector<haplotype*> 
 uniform_nodes_filter::filter(arena& arena)
 {
+    arena.reset_haplotype_state();
     std::vector<haplotype*> dump;
     dump.push_back(&arena.haplotypes()[0]);
     dfs(&arena.haplotypes()[0], &arena.haplotypes()[0], dump);

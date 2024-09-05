@@ -10,7 +10,7 @@ class post_filter {
 public:
     int num_filter_rounds = 1;
     int freeze_round = 1;
-    int max_nbrs = 100;
+    int max_nbrs = 200;
     int max_rad = 4;
 
     virtual std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) = 0;
@@ -32,7 +32,7 @@ public:
                 }
             );
 
-            arena.print_mutation_distance(this_round);
+            //arena.print_mutation_distance(this_round);
 
             std::sort(this_round.begin(), this_round.end());
             if (i == num_filter_rounds - 1 || 

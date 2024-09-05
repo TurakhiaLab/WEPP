@@ -16,14 +16,16 @@
 #include "timer.hpp"
 
 #include "sam2pb.hpp"
-#include "sam.pb.h"  
+#include "sam.pb.h"
+
+#include "config.hpp"  
 
 // freyja - includes indels, litreally every single possible mutation of a chunk along with frequency
 // freyja-depth - how many reads/chunks were there starting at a given nucleotide
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 constexpr bool USE_READ_CORRECTION = true;
 constexpr bool USE_COLUMN_MERGING  = true;
-constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = true;
+constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
 // also for pairs of mutation frequencies
 constexpr double frequency_read_cutoff = 0.005;
 constexpr int phred_score_cutoff = 20;
@@ -41,19 +43,19 @@ void sam2PB(const dataset& d) {
     
     std::string ref_seq = d.reference();
 
-    std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
-    std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_freyja_vcf, outbuf_freyja_depth;
+    //std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
+    //std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);
+    //boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_freyja_vcf, outbuf_freyja_depth;
     
-    if (freyja_vcf_file.find(".gz\0") != std::string::npos)
-        outbuf_freyja_vcf.push(boost::iostreams::gzip_compressor());
-    if (freyja_depth_file.find(".gz\0") != std::string::npos)
-        outbuf_freyja_depth.push(boost::iostreams::gzip_compressor());
+    //if (freyja_vcf_file.find(".gz\0") != std::string::npos)
+    //    outbuf_freyja_vcf.push(boost::iostreams::gzip_compressor());
+    //if (freyja_depth_file.find(".gz\0") != std::string::npos)
+    //    outbuf_freyja_depth.push(boost::iostreams::gzip_compressor());
     
-    outbuf_freyja_vcf.push(outfile_freyja_vcf);
-    outbuf_freyja_depth.push(outfile_freyja_depth);
-    std::ostream freyja_vcf(&outbuf_freyja_vcf);
-    std::ostream freyja_depth(&outbuf_freyja_depth);
+    //outbuf_freyja_vcf.push(outfile_freyja_vcf);
+    //outbuf_freyja_depth.push(outfile_freyja_depth);
+    //std::ostream freyja_vcf(&outbuf_freyja_vcf);
+    //std::ostream freyja_depth(&outbuf_freyja_depth);
 
     sam sam{ref_seq};
     boost::filesystem::ifstream fileHandler(sam_file);
@@ -290,7 +292,7 @@ void sam::read_correction() {
             int curr = GENOME_STRING.find(effective);
             int indx = start + j;
 
-            if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > 1e-9) {
+            if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
                 if (MAP_TO_MAJORITY_INSTEAD_OF_N) {
                     align[j] = GENOME_STRING[majority[indx]];
                 }
@@ -306,7 +308,7 @@ void sam::read_correction() {
         for (int j = 0; j < (int) GENOME_STRING.size(); ++j) {
             if (j == majority[i]) continue;
 
-            if (frequency_read_cutoff - (double) collapsed_frequency_table[i][j] / total_occurences[i] > 1e-9) {
+            if (frequency_read_cutoff - (double) collapsed_frequency_table[i][j] / total_occurences[i] > SCORE_EPSILON) {
                 collapsed_frequency_table[i][majority[i]] += std::exchange(collapsed_frequency_table[i][j], 0);
             }
         }
