@@ -27,8 +27,20 @@ public:
         return options["output-directory"].as<std::string>() + '/';
     }
 
+    std::string comparison_directory() const {
+        return options["comparison-directory"].as<std::string>() + '/';
+    }
+
     std::string file_prefix() const {
         return options["output-files-prefix"].as<std::string>();
+    }
+
+    std::string comparison_file_prefix() const {
+        return options["comparison-files-prefix"].as<std::string>();
+    }
+
+    std::string ref_path() const {
+        return this->directory() + options["ref-fasta"].as<std::string>();
     }
 
     std::string first_checkpoint_path() const {
@@ -57,6 +69,16 @@ public:
             tree.emplace(g.trees[0]);
         }
         return tree.value();
+    std::string haplotype_proportion_path() const {
+        return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string comparison_haplotype_proportion_path() const {
+        return this->comparison_directory() + this->comparison_file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string haplotype_growth_path() const {
+        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.txt";
     }
 
     const std::string& reference() const {
@@ -84,6 +106,10 @@ public:
 
     std::string pb_path() const {
         return this->directory() + this->file_prefix() + "_reads.pb";
+    }
+    
+    std::string comparison_pb_path() const {
+        return this->comparison_directory() + this->comparison_file_prefix() + "_reads.pb";
     }
 
     std::vector<raw_read> reads() const;

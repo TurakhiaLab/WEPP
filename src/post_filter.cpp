@@ -118,11 +118,17 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
         std::set<std::string> my_muts;
         for (const mutation& m : n->stack_muts())
         {
+<<<<<<< HEAD:src/post_filter.cpp
             if (m.mut != NUC_N && !m.is_indel()) {
                 std::string build = ungapped_string(m);
                 mutations.insert(build);
                 my_muts.insert(std::move(build));
             }
+=======
+            std::string build = MAT::get_nuc(mut.ref_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
+            mutations.insert(build);
+            my_muts.insert(std::move(build));
+>>>>>>> wbe-clean:src/WBE/post_filter.cpp
         }
         node_muts.push_back(std::move(my_muts));
     }
@@ -130,15 +136,22 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     for (const raw_read& read: a.reads()) {
         for (mutation mut : read.mutations)
         {
+<<<<<<< HEAD:src/post_filter.cpp
             if (mut.mut != NUC_N && !mut.is_indel()) {
                 mutations.insert(ungapped_string(mut));
+=======
+            uint8_t const N = 0b1111;
+            if (mut.mut_nuc != N) {
+                std::string build = MAT::get_nuc(mut.ref_nuc) + std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
+                mutations.insert(build);
+>>>>>>> wbe-clean:src/WBE/post_filter.cpp
             }
         }
     }
 
     std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
 
-    std::ofstream outfile("Freyja/data/usher_barcodes.csv");
+    std::ofstream outfile("../Freyja/data/usher_barcodes.csv");
     for (const std::string &mut : mutations)
     {
         outfile << "," << mut;
@@ -160,13 +173,14 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 std::vector<std::pair<haplotype*, double>>
 freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
+    fprintf(stderr, "%ld peaks selected for Freyja!\n\n", input.size());
     dump_barcode(arena, input);
 
     if (std::system(
             "bash -c \""
-                "source ~/miniconda3/etc/profile.d/conda.sh && "
+                "source ~/miniforge3/etc/profile.d/conda.sh && "
                 "conda activate freyja-env && "
-                "freyja demix Freyja/cwap_variants.tsv Freyja/cwap_depth.tsv --barcodes Freyja/data/usher_barcodes.csv --output Freyja/my_output_latest.txt --eps 0.001"
+                "freyja demix ../Freyja/cwap_variants.tsv ../Freyja/cwap_depth.tsv --barcodes ../Freyja/data/usher_barcodes.csv --output ../Freyja/my_output_latest.txt --eps 0.005"
             "\""
         ) != 0)
     {
@@ -176,7 +190,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 
     std::vector<std::pair<haplotype *, double>> freyja_nodes;
 
-    std::ifstream fin("Freyja/my_output_latest.txt");
+    std::ifstream fin("../Freyja/my_output_latest.txt");
     std::string tmp;
     std::getline(fin, tmp);
     std::getline(fin, tmp);
