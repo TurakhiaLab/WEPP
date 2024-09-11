@@ -23,10 +23,10 @@ class wepp_filter: public initial_filter {
     double read_dist_factor_threshold = (double) 0.5 / 100;
     int max_peak_peak_mutation = 4;
     int max_peak_nonpeak_mutation = 4;
-    int top_n = 25;
-    int max_peaks = 300;
+    int top_n = 10;
+    int max_peaks = 250;
     // for a given peak
-    int max_neighbors = 50;
+    int max_neighbors = 75;
 
     // given a read index
     // what is its maximum parismony score?

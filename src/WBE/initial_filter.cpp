@@ -485,14 +485,14 @@ wepp_filter::filter(arena& arena)
 
     // cartesian map
     cartesian_map(arena, initial, arena.reads());
-
+    
     // iterative removal 
     std::set<haplotype*, mutation_comparator> peaks, nbrs;
     while (!step(arena, initial, peaks, nbrs)) { }
     
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
     res.insert(res.end(), nbrs.begin(), nbrs.end());
-
+    
     return res;
 }
 
