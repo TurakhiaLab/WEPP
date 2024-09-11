@@ -357,7 +357,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
         }
 
         average_dist += (double)min_dist / comp.size();
-        printf("* dist: %02d true node: %s pred node: %s \n", min_dist, reference.c_str(), best_node->identifier.c_str());
+        printf("* dist: %02d true_node: %s pred_node: %s \n", min_dist, reference.c_str(), best_node->identifier.c_str());
 
         // auto node_mutations = get_mutations(this->mat, best_node->identifier);
         // // Remove mutations from node_mutations that are not present in site_read_map
@@ -408,7 +408,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(this->mat, condensed_node_mappings[pn.first->condensed_source].front()->identifier);
+        auto node_mutations = get_mutations(this->mat, pn.first->id);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
