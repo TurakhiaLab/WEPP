@@ -32,10 +32,7 @@ struct score_comparator {
 /* used to sort nodes by their mutation list */
 struct mutation_comparator {
     bool operator() (haplotype* left, haplotype* right) const {
-        if (abs(left->full_score() - right->full_score()) > SCORE_EPSILON) {
-            return left->full_score() < right->full_score();
-        }
-        else if (left->stack_muts.size() != right->stack_muts.size()) {
+        if (left->stack_muts.size() != right->stack_muts.size()) {
             return left->stack_muts.size() < right->stack_muts.size();
         }  
         for (size_t i = 0; i < left->stack_muts.size(); ++i) {
@@ -163,7 +160,7 @@ public:
     multi_haplotype *find_range_tree_for(const raw_read &read);
 
     // note: this is by TREE edge distance as opposed to mutation distance
-    std::set<haplotype*, mutation_comparator> closest_neighbors(haplotype * target, int max_radius, int num_limit) const; 
+    std::set<haplotype*, score_comparator> closest_neighbors(haplotype * target, int max_radius, int num_limit) const; 
 
     // greatest score first
     std::set<haplotype*, score_comparator> highest_scoring_neighbors(haplotype* target, bool include_mapped, int max_radius, int num_limit) const;
