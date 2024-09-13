@@ -168,7 +168,6 @@ multi_haplotype *arena::find_range_tree_for(const raw_read &read)
 std::set<haplotype *, score_comparator> arena::closest_neighbors(haplotype *target, int max_radius, int num_limit) const
 {
     std::set<haplotype *, score_comparator> all_neighbors, ret;
-
     std::queue<haplotype *> q;
     q.push(target);
     while (!q.empty())

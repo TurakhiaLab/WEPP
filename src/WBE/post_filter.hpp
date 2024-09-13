@@ -58,7 +58,7 @@ public:
                 input = std::vector<haplotype*>(build.begin(), build.end());
             }
         }
-
+        
         return {};
     }
 };
