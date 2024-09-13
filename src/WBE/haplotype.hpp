@@ -26,7 +26,6 @@ struct haplotype {
 
     // raw score
     double score;
-    double orig_score;
     // 'f' score, where it rewards
     // nodes who's corresponding reads come from a 
     // wide variety of genome places
@@ -41,14 +40,13 @@ struct haplotype {
 
     void reset_state() {
         this->score = 0;
-        this->orig_score = 0;
         this->dist_divergence = 1;
         this->mapped = false;
         std::fill(this->mapped_read_counts.begin(), this->mapped_read_counts.begin() + NUM_RANGE_BINS, 0);
     }
 
     void recover_state() {
-        this->score = this->orig_score;
+        this->score = 0;
         this->mapped = false;
         std::fill(this->mapped_read_counts.begin(), this->mapped_read_counts.begin() + NUM_RANGE_BINS, 0);
     }

@@ -389,7 +389,7 @@ kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         // map n -> n'
         for (size_t i = 0; i < seeds.size(); ++i)
         {
-            std::set<haplotype*, score_comparator> 
+                std::set<haplotype*, score_comparator> 
                 all_neighbors = arena.closest_neighbors(input[seeds[i]], explore_rad, INT_MAX);
 
             // randomly select weighted neighbor based on scores
