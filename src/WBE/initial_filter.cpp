@@ -225,6 +225,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
         }
 
         haps[i]->dist_divergence = divergence;
+        haps[i]->orig_score = haps[i]->score;
     }
 
     /* initial sort into scores */
