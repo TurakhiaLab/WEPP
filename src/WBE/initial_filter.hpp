@@ -24,9 +24,9 @@ class wepp_filter: public initial_filter {
     int max_peak_peak_mutation = 4;
     int max_peak_nonpeak_mutation = 4;
     int top_n = 10;
-    int max_peaks = 250;
+    int max_peaks = 300;
     // for a given peak
-    int max_neighbors = 75;
+    int max_neighbors = 50;
 
     // given a read index
     // what is its maximum parismony score?

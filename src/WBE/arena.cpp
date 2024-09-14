@@ -7,6 +7,7 @@ haplotype *arena::from_mat(haplotype *parent, MAT::Node *node)
     ret->parent = parent;
     ret->mapped = false;
     ret->is_leaf = condensed_node_mappings.at(node).front()->is_leaf();
+    ret->orig_score = 0;
     ret->score = 0;
     ret->dist_divergence = 1;
     ret->stack_muts = {};
