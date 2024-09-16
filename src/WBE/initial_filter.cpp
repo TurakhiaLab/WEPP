@@ -147,7 +147,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     int num_threads = arena.owned_dataset().num_threads();
     // avoid many flushes of score and reallocations of the score vector
     // this does come at the cost of some threads missing out on work at the end
-    int grain_size = reads.size() / num_threads / this->grain_size_factor;
+    int grain_size = std::max((int)(reads.size() / num_threads / this->grain_size_factor), 1);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size(), grain_size),
                       [&](tbb::blocked_range<size_t> k)
