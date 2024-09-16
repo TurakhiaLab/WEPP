@@ -321,7 +321,11 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
     for (const std::string &reference : comp)
     {
-        auto sample_mutations = get_mutations(this->mat, reference);
+        std::vector<MAT::Mutation>sample_mutations;
+        if (this->ref_mat.root != NULL)
+            sample_mutations = get_mutations(this->ref_mat, reference);
+        else
+            sample_mutations = get_mutations(this->mat, reference);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
