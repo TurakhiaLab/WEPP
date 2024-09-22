@@ -218,7 +218,7 @@ multi_haplotype *arena::find_range_tree_for(const raw_read &read)
 
 std::set<haplotype *> arena::closest_neighbors(haplotype *target, int max_radius, int num_limit) const
 {
-    std::set<haplotype *> ret;
+    std::set<haplotype *> all_neighbors, ret;
 
     std::queue<haplotype *> q;
     q.push(target);
@@ -232,7 +232,7 @@ std::set<haplotype *> arena::closest_neighbors(haplotype *target, int max_radius
         }
         else
         {
-            all_neighbors.insert(curr);
+            ret.insert(curr);
         }
 
         if (curr->parent)
@@ -415,7 +415,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(condensed_node_mappings[pn->condensed_source].front());
+        auto node_mutations = get_mutations(condensed_node_mappings[pn.first->condensed_source].front());
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -450,9 +450,13 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         }
 
         std::string lineage_name = "";
-        for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
+        for (auto anc = condensed_node_mappings[pn.first->condensed_source].front(); anc; anc = anc->parent)
         {
-            const auto &clade = anc->clade_annotations[1];
+            if (anc->annotations.size() < 2) {
+                continue;
+            }
+
+            const auto &clade = anc->annotations[1];
             if (clade != "")
             {
                 lineage_name = clade;
@@ -481,6 +485,8 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
         std::string lineage_name;
         panmanUtils::Node* target = condensed_node_mappings[p.first->condensed_source].front();
         for (panmanUtils::Node* curr = target; target; target = target->parent) {
+            if (curr->annotations.size() < 2) continue;
+            
             const auto &clade = curr->annotations[1];
             if (clade != "")
             {

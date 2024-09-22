@@ -16,4 +16,5 @@ build
 Freyja
 data
 debug
+.snakemake
 rerun.sh

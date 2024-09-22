@@ -20,6 +20,8 @@ struct haplotype {
 
     std::vector<haplotype*> children;
 
+    // orig score
+    double orig_score;
     // raw score
     double score;
     // 'f' score, where it rewards
@@ -35,8 +37,15 @@ struct haplotype {
     std::array<int, NUM_RANGE_BINS> mapped_read_counts{};
 
     void reset_state() {
+        this->orig_score = 0;
         this->score = 0;
         this->dist_divergence = 1;
+        this->mapped = false;
+        std::fill(this->mapped_read_counts.begin(), this->mapped_read_counts.begin() + NUM_RANGE_BINS, 0);
+    }
+
+    void recover_state() {
+        this->score = this->orig_score;
         this->mapped = false;
         std::fill(this->mapped_read_counts.begin(), this->mapped_read_counts.begin() + NUM_RANGE_BINS, 0);
     }

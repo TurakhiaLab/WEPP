@@ -37,31 +37,6 @@ struct score_comparator {
     }
 };
 
-<<<<<<< HEAD:src/arena.hpp
-=======
-/* used to sort nodes by their mutation list */
-struct mutation_comparator {
-    bool operator() (haplotype* left, haplotype* right) const {
-        if (abs(left->full_score() - right->full_score()) > SCORE_EPSILON) {
-            return left->full_score() < right->full_score();
-        }
-        else if (left->stack_muts.size() != right->stack_muts.size()) {
-            return left->stack_muts.size() < right->stack_muts.size();
-        }  
-        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
-            if (left->stack_muts[i].position != right->stack_muts[i].position) {
-                return left->stack_muts[i].position < right->stack_muts[i].position;
-            }
-            else if (left->stack_muts[i].mut_nuc != right->stack_muts[i].mut_nuc) {
-                return left->stack_muts[i].mut_nuc < right->stack_muts[i].mut_nuc;
-            }
-        }
-
-        return false;
-    }
-};
-
->>>>>>> wbe-clean:src/WBE/arena.hpp
 class arena {
     std::vector<haplotype> nodes;
     std::vector<multi_haplotype> ranged_nodes;
@@ -74,30 +49,12 @@ class arena {
     std::array<int, NUM_RANGE_BINS> true_read_counts;
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
-<<<<<<< HEAD:src/arena.hpp
     const dataset& ds;
 
     // note: this is the uncondensed tree
     const panmanUtils::Tree &mat;
     coord_converter coord;
     std::unordered_map<panmanUtils::Node *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
-=======
-    MAT::Tree mat, ref_mat;
-    std::unordered_map<MAT::Node *, std::vector<MAT::Node *>> condensed_node_mappings;
-
-    const dataset& ds;
-
-    haplotype* from_mat(haplotype* parent, MAT::Node* node);
-    int mat_tree_size(MAT::Node *node); 
-    int build_range_tree(int parent, haplotype* curr, int start, int end);
-public:
-    arena(const dataset& ds) : ds{ds} {
-        this->raw_reads = ds.reads();
-        this->ref_mat = ds.mat(true);
-        this->mat = ds.mat(false);
-        
-        MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
->>>>>>> wbe-clean:src/WBE/arena.hpp
 
     haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping);
     int pan_tree_size(panmanUtils::Node *node); 
@@ -228,8 +185,5 @@ public:
 
     void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
 
-<<<<<<< HEAD:src/arena.hpp
-=======
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
->>>>>>> wbe-clean:src/WBE/arena.hpp
 };

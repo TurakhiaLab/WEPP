@@ -40,8 +40,8 @@ public:
         return running;
     }
 
-    void run();
+    void run_initial();
     void run_from_last_initial(bool is_full_run);
 };
 
-void detect_peaks(const dataset& d);
+void detect_peaks(const dataset& d, bool is_initial);

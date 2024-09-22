@@ -55,6 +55,14 @@ public:
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
+    std::string variants_path() const {
+        return this->directory() + this->file_prefix() + "_variants.tsv";
+    }
+
+    std::string depth_path() const {
+        return this->directory() + this->file_prefix() + "_depth.tsv";
+    }
+
     const panmanUtils::Tree& mat() const {
         static std::optional<panmanUtils::Tree> tree;
         if (!tree.has_value()) {
@@ -69,6 +77,8 @@ public:
             tree.emplace(g.trees[0]);
         }
         return tree.value();
+    }
+    
     std::string haplotype_proportion_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
