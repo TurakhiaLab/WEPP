@@ -21,7 +21,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[] = {"COMMAND","detectPeaks","sam2PB"};
+    std::string cnames[] = {"COMMAND","initial_filter","post_filter", "sam2PB"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
         "Detects peaks on selected lineages\n\n",
@@ -38,9 +38,13 @@ int main (int argc, char** argv) {
         //0 when no command is selected because that's what passes tests.
         exit(0);
     }
-    if (cmd == "detectPeaks") { 
+    if (cmd == "initial_filter") { 
         dataset ds{parseWBEcommand(parsed)};
-        detect_peaks(ds);
+        detect_peaks(ds, true);
+    }
+    else if (cmd == "post_filter") { 
+        dataset ds{parseWBEcommand(parsed)};
+        detect_peaks(ds, false);
     } else if (cmd == "sam2PB") {
         dataset ds{parseWBEcommand(parsed)};
         sam2PB(ds);

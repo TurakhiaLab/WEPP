@@ -57,6 +57,8 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
      "Give the distribution of samples, comma delimited.")
     ("haplotype-samples,w", po::value<int>()->default_value(10),
      "Give the number of haplotype samples")
+     ("ref-fasta,f", po::value<std::string>()->default_value(""),
+     "Input fasta file representing reference sequence")
     ("lineage,l", po::value<std::string>()->default_value(""),
      "Give lineage of samples, comma delimited.")
     ("prior-lineages,p", po::value<std::string>()->default_value(""),

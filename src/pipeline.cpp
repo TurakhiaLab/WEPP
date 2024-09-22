@@ -8,7 +8,7 @@
 
 #include "pipeline.hpp"
 
-void detect_peaks(const dataset& d) {
+void detect_peaks(const dataset& d, bool is_initial) {
     auto main = std::make_unique<wepp_filter>();
     //auto main = std::make_unique<lineage_root_filter>();
     
@@ -17,12 +17,15 @@ void detect_peaks(const dataset& d) {
     post->num_filter_rounds = 10;
 
     pipeline p{d, std::move(main), std::move(post)};
-    // p.a.print_cooccuring_mutations(600);
-    p.run();
-    //p.run_from_last_initial(false);
+    if (is_initial) {
+        p.run_initial();
+    }
+    else {
+        p.run_from_last_initial(false);
+    }
 }
 
-void pipeline::run() {
+void pipeline::run_initial() {
     std::vector<haplotype *> running = a.haplotype_pointers();
 
     {
@@ -37,8 +40,6 @@ void pipeline::run() {
 
     // save peaks
     save(running, ds.first_checkpoint_path());
-
-    this->run_from_last_initial(true);
 }
 
 void pipeline::run_from_last_initial(bool is_full_run) {

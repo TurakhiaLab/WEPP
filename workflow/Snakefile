@@ -1,0 +1,4 @@
+include: "rules/preprocess.smk"
+include: "rules/sam2pb.smk"
+include: "rules/initial_filter.smk"
+include: "rules/post_filter.smk"
