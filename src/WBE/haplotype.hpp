@@ -183,6 +183,62 @@ struct haplotype {
     double full_score() const {
         return score * sqrt(dist_divergence);
     }
+
+    std::vector<MAT::Mutation> mutation_distance_vector(const raw_read& other) const {
+        std::vector<MAT::Mutation> different_mutations, hap_range_mutations, read_mutations = other.mutations;
+        for (auto mut: this->stack_muts) {
+            if ((mut.position >= other.start) && (mut.position <= other.end))
+                hap_range_mutations.emplace_back(mut);
+        }
+        
+        tbb::parallel_sort(read_mutations.begin(), read_mutations.end(), [](const MAT::Mutation &a, const MAT::Mutation &b) {
+            if (a.position != b.position)
+                return a.position < b.position;
+            else
+                return a.mut_nuc < b.mut_nuc;
+        });
+
+        tbb::parallel_sort(hap_range_mutations.begin(), hap_range_mutations.end(), [](const MAT::Mutation &a, const MAT::Mutation &b) {
+            if (a.position != b.position)
+                return a.position < b.position;
+            else
+                return a.mut_nuc < b.mut_nuc;
+        });
+
+        auto read_iterator = read_mutations.begin();
+        auto hap_iterator = hap_range_mutations.begin();
+        while (read_iterator != read_mutations.end() && hap_iterator != hap_range_mutations.end()) {
+            if (read_iterator->position == hap_iterator->position) {
+                if ((read_iterator->mut_nuc != 0b1111) && (read_iterator->mut_nuc != hap_iterator->mut_nuc)) {
+                    different_mutations.emplace_back(*read_iterator);
+                }
+                read_iterator++;
+                hap_iterator++;
+            } else if (read_iterator->position < hap_iterator->position) {
+                if (read_iterator->mut_nuc != 0b1111)
+                    different_mutations.emplace_back(*read_iterator);
+                read_iterator++;
+            } else if (hap_iterator->position < read_iterator->position) {
+                different_mutations.emplace_back(*hap_iterator);
+                hap_iterator++;
+            }
+        }
+
+        while (read_iterator != read_mutations.end())
+        {
+            if (read_iterator->mut_nuc != 0b1111)
+                different_mutations.emplace_back(*read_iterator);
+            read_iterator++;
+        }
+
+        while (hap_iterator != hap_range_mutations.end())
+        {   
+            different_mutations.emplace_back(*hap_iterator);
+            hap_iterator++;
+        }
+
+        return different_mutations;
+    }
 };
 
 // range tree compression of haplotypes

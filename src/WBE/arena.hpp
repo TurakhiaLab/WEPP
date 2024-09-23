@@ -177,7 +177,7 @@ public:
         return nullptr;
     }
 
-    void print_cooccuring_mutations(int window_size);
+    void get_residual_cooccuring_mutations(int window_size);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
