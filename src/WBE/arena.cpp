@@ -54,6 +54,7 @@ haplotype *arena::from_mat(haplotype *parent, MAT::Node *node)
 
     return ret;
 }
+
 int arena::mat_tree_size(MAT::Node *node)
 {
     int ret = 1;
@@ -246,54 +247,208 @@ std::set<haplotype *, score_comparator> arena::highest_scoring_neighbors(haploty
     return ret;
 }
 
-void arena::print_cooccuring_mutations(int window_size)
+void arena::get_residual_cooccuring_mutations(int window_size)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
+    // Read residual_mutations
+    std::string file_path = "../Freyja/residual_mutations.txt";
+    std::ifstream file(file_path);  
+    std::vector<std::string> mutations;  
+
+    if (file.is_open()) {
+        std::string line;
+        // Read each line and store it in the vector
+        while (std::getline(file, line)) {
+            mutations.emplace_back(line);
+        }
+        file.close();  
+    } 
+    else
+        std::cerr << "Unable to open file: " << file_path << std::endl;
+
+    // Sort mutations based on site
+    std::sort(mutations.begin(), mutations.end(), [](const std::string &a, const std::string &b) {
+        int a_pos = std::stoi(a.substr(0, a.size() - 1));
+        int b_pos = std::stoi(b.substr(0, b.size() - 1));
+
+        if (a_pos != b_pos)
+            return std::stoi(a) < std::stoi(b);
+        else 
+            return a.back() < b.back();
+    });
+
+    // Create sets of co-occuring mutations
+    std::vector<std::vector<std::string>> cooccuring_mutations;
+    for (size_t i = 0; i < mutations.size(); i++)
     {
-        const auto &rp = raw_reads[i];
-        std::unordered_set<int> unknown_sites;
-        for (const auto& mut: rp.mutations) {
-            if (mut.mut_nuc == 0b1111)
-                unknown_sites.insert(mut.position);
+        std::vector<std::string> cooccuring;
+        auto ref_mut = mutations[i];
+        int ref_position = std::stoi(ref_mut.substr(0, ref_mut.size() - 1));
+        for (size_t j = i + 1; j < mutations.size(); j++) 
+        {
+            auto cmp_mut = mutations[j];
+            int cmp_position = std::stoi(cmp_mut.substr(0, cmp_mut.size() - 1));
+            if ((cmp_position - ref_position) > window_size)
+                break;
+            else
+                cooccuring.emplace_back(cmp_mut);
         }
-        for (int j = rp.start; j <= rp.end; j++) {
-            if (unknown_sites.find(j) == unknown_sites.end())
-                site_read_map.insert(j);
+        if (!cooccuring.empty()) 
+        {
+            cooccuring.emplace(cooccuring.begin(), ref_mut);
+            cooccuring_mutations.emplace_back(cooccuring);
         }
-        unknown_sites.clear();
     }
 
-    std::vector<std::string> comp = this->ds.true_haplotypes();
-    for (const std::string &reference : comp)
+    // Check freq of co-occuring mutations
+    for (auto cooccuring: cooccuring_mutations)
     {
-        auto sample_mutations = get_mutations(this->mat, reference);
-        // Remove mutations from sample_mutations that are not present in site_read_map
-        auto mut_itr = sample_mutations.begin();
-        while (mut_itr != sample_mutations.end())
-        {
-            if (site_read_map.find(mut_itr->position) == site_read_map.end())
-                mut_itr = sample_mutations.erase(mut_itr);
+        int start_position = std::stoi(cooccuring.front().substr(0, cooccuring.front().size() - 1));
+        int end_position = std::stoi(cooccuring.back().substr(0, cooccuring.back().size() - 1));
+
+        std::string grouped_mutations;
+        std::vector<int> ref_sites;
+        std::vector<std::string> mutations;
+        for (auto mut: cooccuring) {
+            if (mut != cooccuring.front())
+                grouped_mutations += ":";
+            grouped_mutations += mut;
+            int site = std::stoi(mut.substr(0, mut.size() - 1));
+            if (ds.reference()[site - 1] == mut.back())
+                ref_sites.emplace_back(site);
             else
-                mut_itr++;
+                mutations.emplace_back(mut);
         }
 
-        std::sort(sample_mutations.begin(), sample_mutations.end());
-
-        std::cout << " reference: " << reference << std::endl;
-        for (size_t i = 0; i < sample_mutations.size(); ++i)
+        // Checking reads
+        int reads_mutations_present = 0, reads_sites_present = 0;
+        std::vector<raw_read> reads_carrying_muts;
+        for (size_t i = 0; i < this->raw_reads.size(); i++)
         {
-            for (size_t j = i + 1; j < sample_mutations.size(); ++j)
-            {
-                if (sample_mutations[j].position - sample_mutations[i].position > window_size)
-                {
-                    break;
+            const auto &rp = raw_reads[i];
+            if ((rp.start <= start_position) && (rp.end >= end_position)) {
+                reads_sites_present += rp.degree;
+                int mutations_covered = 0;
+                for (auto mut: rp.mutations) {
+                    if (mut.mut_nuc != 0b1111) {
+                        auto ref_sites_itr = std::find(ref_sites.begin(), ref_sites.end(), mut.position);
+                        if (ref_sites_itr != ref_sites.end())
+                        {
+                            mutations_covered = 0;
+                            break;
+                        }
+                        else 
+                        {
+                            std::string curr_mut = std::to_string(mut.position) + MAT::get_nuc(mut.mut_nuc);
+                            auto mutations_itr = std::find(mutations.begin(), mutations.end(), curr_mut);
+                            if (mutations_itr != mutations.end())
+                                mutations_covered++;
+                        }
+                    }
                 }
-
-                std::cout << " first " << sample_mutations[i].get_string()
-                          << " second << " << sample_mutations[j].get_string() << std::endl;
+                if (mutations_covered == (int)mutations.size()) {
+                    reads_mutations_present += rp.degree;
+                    reads_carrying_muts.emplace_back(rp);
+                }
             }
         }
+
+        if (reads_sites_present) 
+        {
+            printf("%s -> %f,%d,%d\n", grouped_mutations.c_str(), (double)reads_mutations_present / reads_sites_present, reads_mutations_present, reads_sites_present);
+
+            std::vector<std::string> selected_nodes = {
+			    	"node_991589",
+	                "USA/NY-CDC-LC0978715/2022|OQ206817.1|2022-12-31",
+	                "CHN/SH-XG2307-9897/2023|C_AA029986.1|2023-06-26",
+	                "node_987817",
+	                "England/PHEC-YYE5AXM/2023|2023-06-17",
+	                "USA/IL-RIPHL_121818_G/2023|OR103062.1|2023-05-24",
+	                "node_994586"
+            };
+
+            std::vector<haplotype> selected;
+            std::vector<std::string> single_epps;
+            for (auto hap: this->haplotypes())
+            {
+                if (std::find(selected_nodes.begin(), selected_nodes.end(), hap.id) != selected_nodes.end())
+                    selected.emplace_back(hap);
+            }
+            
+            std::vector<int> cooccuring_sites;
+            for (auto c_mut: cooccuring)
+                cooccuring_sites.emplace_back(std::stoi(c_mut.substr(0, c_mut.size()- 1)));
+            
+            int single_EPP_reads = 0;
+            std::unordered_map<int, int> parsimony;
+            for (auto rp: reads_carrying_muts) 
+            {
+                //Find EPPs for every read
+                std::vector<haplotype> epps;
+                int min_dist = std::numeric_limits<int>::max();
+                std::vector<std::vector<MAT::Mutation>> epp_mut_vector; 
+                for (const auto& curr_node: selected) {
+                    auto curr_dist = curr_node.mutation_distance_vector(rp);
+                    if ((int)curr_dist.size() <= min_dist) {
+                        if ((int)curr_dist.size() < min_dist) {
+                            min_dist = (int)curr_dist.size();
+                            epps.clear();
+                        }
+                        else {
+                            int curr_remaining_parsimony = 0;
+                            for (auto mut: curr_dist) {
+                                if (std::find(cooccuring_sites.begin(), cooccuring_sites.end(), mut.position) == cooccuring_sites.end())
+                                    curr_remaining_parsimony++;
+                            }
+
+                            auto itr_epp = epps.begin();
+                            while (itr_epp != epps.end()) {
+                                auto prev_dist = itr_epp->mutation_distance_vector(rp);
+                                int prev_remaining_parsimony = 0;
+                                for (auto mut: prev_dist) {
+                                    if (std::find(cooccuring_sites.begin(), cooccuring_sites.end(), mut.position) == cooccuring_sites.end())
+                                        prev_remaining_parsimony++;
+                                }
+                                if (prev_remaining_parsimony < curr_remaining_parsimony)
+                                    itr_epp = epps.erase(itr_epp);
+                                else
+                                    itr_epp++;
+                            }   
+                        }
+                        epps.emplace_back(curr_node);
+                        epp_mut_vector.emplace_back(curr_dist);
+                    }
+                }
+                
+                if (parsimony.find(min_dist) == parsimony.end())
+                    parsimony[min_dist] = rp.degree;
+                else
+                    parsimony[min_dist] += rp.degree;
+
+                if (epps.size() == 1) {
+                    single_EPP_reads += rp.degree;
+                    if (std::find(single_epps.begin(), single_epps.end(), epps.front().id) == single_epps.end())
+                        single_epps.emplace_back(epps.front().id);
+                }
+                else {
+                    printf("EPP:");
+                    for (size_t i = 0; i < epps.size(); i++) {
+                        auto node = epps[i];
+                        printf(" %s(", node.id.c_str());
+                        for (auto mut: epp_mut_vector[i])
+                            printf("%d", mut.position);
+                        printf(")"); 
+                    }
+                    printf("\n");
+                }
+            }
+            printf("Single EPPs: %ld reads: %d\n", single_epps.size(), single_EPP_reads);
+            for (auto epp: single_epps)
+                printf("%s\n", epp.c_str());
+            for (auto par: parsimony)
+                printf("Parsimony: %d - %d\n", par.first, par.second);
+        }
+        else 
+            printf("%s -> No reads cover these mutations\n", grouped_mutations.c_str());
     }
 }
 
@@ -469,7 +624,6 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     printf("average (flipped) mutation_distance: %0.3f\n", average_dist);
 }
 
-
 void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
     std::cout << "----- [final report] -----" << std::endl
@@ -523,32 +677,33 @@ void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, doub
     tbb::concurrent_hash_map<std::string, std::vector<std::string>> node_reads_map;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> range)
-                      {
-            for (size_t i = range.begin(); i < range.end(); ++i) {
-                //Find EPPs for every read
-                std::vector<haplotype*> epps;
-                int min_dist = std::numeric_limits<int>::max();
-                for (const auto& curr_node: abundance) {
-                    int curr_dist = curr_node.first->mutation_distance(reads[i]);
-                    if (curr_dist <= min_dist) {
-                        if (curr_dist < min_dist) {
-                            min_dist = curr_dist;
-                            epps.clear();
-                        }
-                        epps.emplace_back(curr_node.first);
+    {
+        for (size_t i = range.begin(); i < range.end(); ++i) {
+            //Find EPPs for every read
+            std::vector<haplotype*> epps;
+            int min_dist = std::numeric_limits<int>::max();
+            for (const auto& curr_node: abundance) {
+                int curr_dist = curr_node.first->mutation_distance(reads[i]);
+                if (curr_dist <= min_dist) {
+                    if (curr_dist < min_dist) {
+                        min_dist = curr_dist;
+                        epps.clear();
                     }
+                    epps.emplace_back(curr_node.first);
                 }
-                
-                //Account for all the reads while assigning to EPPs
-                const auto& read_names = reverse_merge[reads[i].read];
-                for (const auto& curr_node: epps) {
-                    tbb::concurrent_hash_map<std::string, std::vector<std::string>>::accessor ac;
-                    auto created = node_reads_map.insert(ac, std::make_pair(curr_node->id, read_names));
-                    if (!created)
-                        ac->second.insert(ac->second.end(), read_names.begin(), read_names.end());
-                    ac.release();
-                }
-            } }, ap);
+            }
+            
+            //Account for all the reads while assigning to EPPs
+            const auto& read_names = reverse_merge[reads[i].read];
+            for (const auto& curr_node: epps) {
+                tbb::concurrent_hash_map<std::string, std::vector<std::string>>::accessor ac;
+                auto created = node_reads_map.insert(ac, std::make_pair(curr_node->id, read_names));
+                if (!created)
+                    ac->second.insert(ac->second.end(), read_names.begin(), read_names.end());
+                ac.release();
+            }
+        } 
+    }, ap);
 
     for (const auto &n_r : node_reads_map)
     {
