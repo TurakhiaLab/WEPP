@@ -147,7 +147,8 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
             "bash -c \""
                 "source ~/miniforge3/etc/profile.d/conda.sh && "
                 "conda activate freyja-env && "
-                "freyja demix ../Freyja/cwap_variants.tsv ../Freyja/cwap_depth.tsv --barcodes ../Freyja/data/usher_barcodes.csv --output ../Freyja/my_output_latest.txt --eps 0.005"
+                "cd ../Freyja && "
+                "freyja demix cwap_variants.tsv cwap_depth.tsv --barcodes data/usher_barcodes.csv --output my_output_latest.txt --eps 0.005"
             "\""
         ) != 0)
     {
