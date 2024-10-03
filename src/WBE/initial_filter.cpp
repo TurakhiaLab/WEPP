@@ -214,17 +214,21 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     for (size_t i = 0; i < haps.size(); ++i)
     {
         /* calculate divergence */
-        double divergence = 0;
+        int divergence = 0, bins_active = 0;
         for (size_t j = 0; j < NUM_RANGE_BINS; ++j)
         {
+            if (arena.read_counts()[j])
+            {
+                bins_active += 1;
+            }
             double const proportion = (double) haps[i]->mapped_read_counts[j] / arena.read_counts()[j];
             if (proportion > read_dist_factor_threshold)
             {
-                divergence += 1.0 / NUM_RANGE_BINS;
+                divergence += 1;
             }
         }
 
-        haps[i]->dist_divergence = divergence;
+        haps[i]->dist_divergence = (double) divergence / bins_active;
         haps[i]->orig_score = haps[i]->score;
     }
 
