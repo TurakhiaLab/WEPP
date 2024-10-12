@@ -60,44 +60,43 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < data.size(); ++i) {
         indices[i] = i;
     }
-    std::sort(indices.begin(), indices.end(), [&data](const int& i1, const int& i2) {
+    tbb::parallel_sort(indices.begin(), indices.end(), [&data](const int& i1, const int& i2) {
         return data[i1].cost < data[i2].cost;  
     });
 
     // Modify the cost values
     tbb::queuing_mutex my_mutex;
     static tbb::affinity_partitioner ap;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, indices.size()), 
-        [&](const tbb::blocked_range<size_t>& r) {
-            for (size_t i = r.begin(); i < r.end(); ++i) 
-            { 
-                int idx = indices[i];
-                auto curr_data = data[idx];
-                auto curr_mutations = curr_data.mutations;
-                int min_dist = INT_MAX;
-                int closest_j = INT_MAX;
-                for (size_t j = i+1; j < indices.size(); j++) 
-                {
-                    int jdx = indices[j];
-                    auto cmp_data = data[jdx];
-                    auto cmp_mutations = cmp_data.mutations;
-                    int curr_dist = 0;
-                    for (size_t k = 0; k < curr_mutations.size(); k++) {
-                        if (curr_mutations[k] != cmp_mutations[k])
-                            curr_dist++;
-                    }
-                    if (curr_dist < min_dist) {
-                        min_dist = curr_dist;
-                        closest_j = jdx;
-                    }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, indices.size()), [&](const tbb::blocked_range<size_t>& r) 
+    {
+        for (size_t i = r.begin(); i < r.end(); ++i) 
+        { 
+            int idx = indices[i];
+            auto curr_data = data[idx];
+            auto curr_mutations = curr_data.mutations;
+            int min_dist = INT_MAX;
+            int closest_j = INT_MAX;
+            for (size_t j = i+1; j < indices.size(); j++) 
+            {
+                int jdx = indices[j];
+                auto cmp_data = data[jdx];
+                auto cmp_mutations = cmp_data.mutations;
+                int curr_dist = 0;
+                for (size_t k = 0; k < curr_mutations.size(); k++) {
+                    if (curr_mutations[k] != cmp_mutations[k])
+                        curr_dist++;
                 }
-                {
-                    tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                    closest_indices[i] = closest_j;
+                if (curr_dist < min_dist) {
+                    min_dist = curr_dist;
+                    closest_j = jdx;
                 }
             }
-        });
+            {
+                tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                closest_indices[i] = closest_j;
+            }
+        }
+    });
 
     // Updating cost values
     for (size_t i = 0; i < indices.size(); ++i) 

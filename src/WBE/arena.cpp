@@ -666,15 +666,15 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
     }
 }
 
-void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, double>> &abundance)
+void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
     std::ofstream csv(this->ds.haplotype_read_path());
     std::string csv_print;
 
     const std::vector<raw_read> &reads = this->reads();
-    std::unordered_map<std::string, std::vector<std::string>> reverse_merge = ds.read_reverse_merge();
+    std::unordered_map<std::string, std::vector<std::string>> reverse_merge = this->ds.read_reverse_merge();
 
-    tbb::concurrent_hash_map<std::string, std::vector<std::string>> node_reads_map;
+    tbb::concurrent_hash_map<std::string, std::vector<std::string>> haplotype_reads_map;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> range)
     {
@@ -697,7 +697,7 @@ void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, doub
             const auto& read_names = reverse_merge[reads[i].read];
             for (const auto& curr_node: epps) {
                 tbb::concurrent_hash_map<std::string, std::vector<std::string>>::accessor ac;
-                auto created = node_reads_map.insert(ac, std::make_pair(curr_node->id, read_names));
+                auto created = haplotype_reads_map.insert(ac, std::make_pair(curr_node->id, read_names));
                 if (!created)
                     ac->second.insert(ac->second.end(), read_names.begin(), read_names.end());
                 ac.release();
@@ -705,7 +705,8 @@ void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, doub
         } 
     }, ap);
 
-    for (const auto &n_r : node_reads_map)
+    // Write CSV
+    for (const auto &n_r : haplotype_reads_map)
     {
         csv_print = n_r.first;
         for (const auto &r_name : n_r.second)
@@ -719,4 +720,182 @@ void arena::dump_read2node_mapping(const std::vector<std::pair<haplotype *, doub
     int result = std::system(command.c_str());
     if (result)
         fprintf(stderr, "\nCannot run sam_generation.py\n");
+}
+
+void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream csv_haplotypes(this->ds.mutation_haplotypes_path()), csv_reads(this->ds.mutation_reads_path());
+    std::string csv_print_haplotypes, csv_print_reads;
+
+    // Read residual_mutations
+    std::string file_path = "../Freyja/residual_mutations.txt";
+    std::ifstream file(file_path);  
+    std::vector<std::tuple<int, char, float>> mutations; 
+
+    if (file.is_open()) {
+        std::string line;
+        // Read each line and store it in the mutations
+        while (std::getline(file, line)) {
+            std::size_t comma_pos = line.find(',');
+            std::string mutation_part = line.substr(0, comma_pos);
+            float value = std::stof(line.substr(comma_pos + 1));
+            int pos = std::stoi(mutation_part.substr(0, mutation_part.size() - 1));
+            char nuc = mutation_part.back();
+            mutations.emplace_back(std::make_tuple(pos, nuc, value));
+        }
+        fprintf(stderr, "Residual mutations: %ld\n", mutations.size());
+        file.close();  
+    } 
+    else {
+        std::cerr << "Unable to open file: " << file_path << std::endl;
+    }
+
+    // Mask positions on the reads covered by mutations
+    tbb::concurrent_hash_map<std::string, std::vector<raw_read>> mutations_read_map;
+    tbb::concurrent_hash_map<std::string, std::vector<haplotype *>> mutations_haplotype_map;
+    const std::vector<raw_read> &reads = this->reads();
+    std::unordered_map<std::string, std::vector<std::string>> reverse_merge = this->ds.read_reverse_merge();
+
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](const tbb::blocked_range<size_t>& r) 
+    {
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+            raw_read rp = reads[i];
+            // Get residual sites covered by rp
+            std::vector<std::tuple<int, char, float>> residual_sites_covered;
+            std::copy_if(mutations.begin(), mutations.end(), std::back_inserter(residual_sites_covered),
+                     [rp](const std::tuple<int, char, float>& mutation) {
+                         return std::get<0>(mutation) >= rp.start && std::get<0>(mutation) <= rp.end;
+                     });
+
+            // Get residual_mutations_covered covered by reads and convert them to 'N'
+            std::vector<std::string> residual_mutations_covered;
+            for (const auto& mut_tuple: residual_sites_covered) {
+                std::string curr_residual_mut = std::to_string(std::get<0>(mut_tuple)) + std::get<1>(mut_tuple) + ":" + std::to_string(std::get<2>(mut_tuple));
+                bool site_found = false;
+                for (auto &mut: rp.mutations) {
+                    if (mut.position == std::get<0>(mut_tuple)) {
+                        // If NOT 'N' then both position and allele should match
+                        if (mut.mut_nuc != 0b1111) {
+                            if (MAT::get_nuc(mut.mut_nuc) == std::get<1>(mut_tuple)) {
+                                // Masking the mutation on site before pushing
+                                mut.mut_nuc = 0b1111;
+                                residual_mutations_covered.emplace_back(curr_residual_mut);
+                            }
+                        }
+                        // If 'N' then only position should match
+                        else
+                            residual_mutations_covered.emplace_back(curr_residual_mut);
+                        site_found = true;
+                        break;
+                    }
+                }
+                if (!site_found) {
+                    if (ds.reference()[std::get<0>(mut_tuple) - 1] == std::get<1>(mut_tuple)) {
+                        // Add site as masked mutation
+                        MAT::Mutation mut;
+                        mut.ref_nuc = MAT::get_nuc_id(std::get<1>(mut_tuple));
+                        mut.par_nuc = mut.ref_nuc;
+                        mut.mut_nuc = 0b1111;
+                        mut.position = std::get<0>(mut_tuple);
+                        rp.mutations.emplace_back(mut);
+                        std::sort(rp.mutations.begin(), rp.mutations.end());
+                        residual_mutations_covered.emplace_back(curr_residual_mut);
+                    }
+                }
+            }
+
+            // Add rp to mutations_read_map if it covers residual mutations
+            for (const auto& curr_residual_mut: residual_mutations_covered) {
+                tbb::concurrent_hash_map<std::string, std::vector<raw_read>>::accessor ac;
+                mutations_read_map.insert(ac, curr_residual_mut);
+                ac->second.emplace_back(rp);
+                ac.release();
+            }
+        }
+    }, ap);
+    
+    // Write csv_reads
+    for (const auto &m_r : mutations_read_map)
+    {
+        csv_print_reads = m_r.first;
+        for (const auto &rp : m_r.second) {
+            for (const auto& r_name: reverse_merge[rp.read])
+                csv_print_reads += "," + r_name;
+        }
+        csv_print_reads += "\n";
+        csv_reads << csv_print_reads;
+    }
+
+    // Find EPPs for each residual mutation in mutations_read_map
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, mutations_read_map.size()), [&](const tbb::blocked_range<size_t>& r) 
+    {
+        for (size_t i = r.begin(); i != r.end(); ++i) {
+            tbb::concurrent_hash_map<std::string, std::vector<raw_read>>::const_accessor k_ac;
+            auto itr = mutations_read_map.begin();
+            std::advance(itr, i);
+
+            if (mutations_read_map.find(k_ac, itr->first)) {  
+                std::unordered_map<haplotype *, int> hap_reads_count;
+                for (const auto& rp: k_ac->second) 
+                {
+                    //Find EPPs for every read
+                    std::vector<haplotype* > epps;
+                    int min_dist = std::numeric_limits<int>::max();
+                    for (const auto& curr_node_abun: abundance) {
+                        int curr_dist = curr_node_abun.first->mutation_distance(rp);
+                        if (curr_dist <= min_dist) {
+                            if (curr_dist < min_dist) {
+                                min_dist = curr_dist;
+                                epps.clear();
+                            }
+                            epps.emplace_back(curr_node_abun.first);
+                        }
+                    }
+
+                    // Add read count to each EPP in hap_reads_count
+                    for (const auto& curr_node: epps) {
+                        if (hap_reads_count.find(curr_node) == hap_reads_count.end())
+                            hap_reads_count[curr_node] = rp.degree;
+                        else
+                            hap_reads_count[curr_node] += rp.degree;
+                    }
+                }
+
+                // Find max reads mapping to a haplotype
+                int max_reads = 0;
+                auto max_itr = std::max_element(hap_reads_count.begin(), hap_reads_count.end(),
+                    [](const auto& lhs, const auto& rhs) {
+                        return lhs.second < rhs.second;
+                    });
+                if (max_itr != hap_reads_count.end())
+                    max_reads = max_itr->second;
+                else
+                    fprintf(stderr, "\nThere are ZERO reads mapping to the selected peaks\n\n");
+
+                // Store unseen mutations and their haplotypes in mutations_haplotype_map
+                std::vector<haplotype *> possible_haplotypes;
+                for (const auto& h_c: hap_reads_count) {
+                    if (h_c.second == max_reads)
+                        possible_haplotypes.emplace_back(h_c.first);
+                }
+
+                // Add haplotypes for current mutation to mutations_haplotype_map
+                tbb::concurrent_hash_map<std::string, std::vector<haplotype *>>::accessor ac;
+                mutations_haplotype_map.insert(ac, std::make_pair(k_ac->first, possible_haplotypes));
+                ac.release();
+            }
+        }
+    }, ap);
+    
+    // Write csv_haplotypes
+    for (const auto &m_h : mutations_haplotype_map)
+    {
+        csv_print_haplotypes = m_h.first;
+        for (const auto &hap : m_h.second) {
+            csv_print_haplotypes += "," + hap->id;
+        }
+        csv_print_haplotypes += "\n";
+        csv_haplotypes << csv_print_haplotypes;
+    }
 }

@@ -31,7 +31,7 @@ def correct_fastq(file_path, output_path):
                 i += 1
 
 # Usage
-input_file = 'point_loma/PL_2023_03_01_reads.fastq_orig'  # Replace with the path to your input FASTQ file
-output_file = 'point_loma/PL_2023_03_01_reads.fastq'  # Replace with the desired path for the corrected output FASTQ file
+input_file = 'NYC_jan_18_2022/SRR18583213.fastq'  # Replace with the path to your input FASTQ file
+output_file = 'NYC_jan_18_2022/NYC_jan_18_2022.fastq'  # Replace with the desired path for the corrected output FASTQ file
 
 correct_fastq(input_file, output_file)
