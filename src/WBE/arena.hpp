@@ -186,7 +186,9 @@ public:
     
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
-    void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
-
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
+    
+    void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
+
+    void dump_read2haplotype_mapping(const std::vector<std::pair<haplotype*, double>> & abundance);
 };

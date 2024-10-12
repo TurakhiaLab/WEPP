@@ -12,8 +12,8 @@ void detect_peaks(const dataset& d) {
 
     pipeline p{d, std::move(main), std::move(post)};
     //p.a.get_residual_cooccuring_mutations(150);
-    p.run();
-    //p.run_from_last_initial(false);
+    //p.run();
+    p.run_from_last_initial(false);
 }
 
 void pipeline::run() {
@@ -67,6 +67,9 @@ void pipeline::run_from_last_initial(bool is_full_run) {
         std::cout << "--- post filter took " << timer.Stop() / 1000 << " seconds " << std::endl;
 
         a.dump_haplotype_proportion(full);
-        a.dump_read2node_mapping(full);
+        a.resolve_unaccounted_mutations(full);
+        a.dump_read2haplotype_mapping(full);
+
+        std::cout << "--- RUN COMPLETED" << std::endl;
     }
 }

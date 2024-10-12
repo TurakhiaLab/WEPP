@@ -52,6 +52,14 @@ public:
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
+    std::string mutation_reads_path() const {
+        return this->directory() + this->file_prefix() + "_mutation_reads.csv";
+    }
+    
+    std::string mutation_haplotypes_path() const {
+        return this->directory() + this->file_prefix() + "_mutation_haplotypes.csv";
+    }
+
     std::string haplotype_proportion_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
