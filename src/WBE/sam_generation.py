@@ -40,7 +40,7 @@ def write_sam_files(input_sam_file):
                             w_file.write(f"@RG\tID:group{idx}\tDS:Node:{hap}")
                             # Write unseen groups of haplotypes
                             if len(hap_muts[hap]):
-                                w_file.write(f"\tXU:Z")
+                                w_file.write(f"\tUM:Z")
                                 for m_idx, mut in enumerate(hap_muts[hap]):
                                     if m_idx == 0:
                                         w_file.write(f":unseen{mutations[mut]}")
@@ -50,17 +50,17 @@ def write_sam_files(input_sam_file):
                     else:
                         tokens = line.split()
                         # Write haplotypes mapping to this read
-                        w_file.write(line+"\tXG:Z")
+                        w_file.write(line+"\tRG:Z")
                         for idx, hap in enumerate(read_haps[tokens[0]]):
                             if idx == 0:
                                 w_file.write(f":group{haplotypes[hap]}")
                             else:
                                 w_file.write(f",group{haplotypes[hap]}")
-                        w_file.write(f"\tXC:i:{len(read_haps[tokens[0]])}")
+                        w_file.write(f"\tEPP:i:{len(read_haps[tokens[0]])}")
 
                         # Write unseen mutations present in this read
                         if (len(read_muts[tokens[0]])):
-                            w_file.write("\tXU:Z")
+                            w_file.write("\tUM:Z")
                             for idx, mut in enumerate(read_muts[tokens[0]]):
                                 if idx == 0:
                                     w_file.write(f":unseen{mutations[mut]}")
