@@ -569,8 +569,8 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
         Sam::column_info const &inv = data.reverse_columns()[i];
         for (int j = 0; j < inv.input_columns_size(); ++j) {
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
-            unmerged_count += inv.input_columns().size();
         }
+        unmerged_count += inv.input_columns().size();
     }
 
     printf("--- parsed %s containing %d merged / %d unmerged reads in %ld sec\n\n", filename.c_str(), read_count, unmerged_count, t.seconds());   
