@@ -116,12 +116,12 @@ struct haplotype {
             }
         };
 
-        while (a->depth < b->depth) {
+        while (a->depth > b->depth) {
             add_to(a, us);
             a = a->parent;
         }
 
-        while (b->depth < a->depth) {
+        while (b->depth > a->depth) {
             add_to(b, theirs);
             b = b->parent;
         }
@@ -138,6 +138,9 @@ struct haplotype {
             while (it < muts.end()) {
                 if (it->ref == it->mut) {
                     it = muts.erase(it);
+                }
+                else {
+                    it++;
                 }
             }
         };

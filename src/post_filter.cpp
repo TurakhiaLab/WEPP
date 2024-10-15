@@ -317,7 +317,7 @@ std::vector<std::pair<haplotype*, double>>
 kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
     using my_mutex_t = tbb::queuing_mutex;
-    std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::mt19937 rng(1231);
 
     // const size_t n = (size_t)(1 + 1 / min_abundance);
 
