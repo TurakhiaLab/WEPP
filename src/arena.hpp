@@ -37,6 +37,27 @@ struct score_comparator {
     }
 };
 
+/* used to sort nodes by their mutation list */
+struct mutation_comparator {
+    bool operator() (haplotype* left, haplotype* right) const {
+        const auto& left_stack_muts = left->stack_muts();
+        const auto& right_stack_muts = right->stack_muts();
+        if (left_stack_muts.size() != right_stack_muts.size()) {
+            return left_stack_muts.size() < right_stack_muts.size();
+        }  
+        for (size_t i = 0; i < left_stack_muts.size(); ++i) {
+            if (left_stack_muts[i].pos != right_stack_muts[i].pos) {
+                return left_stack_muts[i].pos < right_stack_muts[i].pos;
+            }
+            else if (left_stack_muts[i].mut != right_stack_muts[i].mut) {
+                return left_stack_muts[i].mut < right_stack_muts[i].mut;
+            }
+        }
+
+        return false;
+    }
+};
+
 class arena {
     std::vector<haplotype> nodes;
     std::vector<multi_haplotype> ranged_nodes;
@@ -159,7 +180,8 @@ public:
 
     multi_haplotype *find_range_tree_for(const raw_read &read);
 
-    std::set<haplotype*> closest_neighbors(haplotype * target, int max_radius, int num_limit) const; 
+    // note: this is by TREE edge distance as opposed to mutation distance
+    std::set<haplotype*, score_comparator> closest_neighbors(haplotype * target, int max_radius, int num_limit) const; 
 
     // greatest score first
     std::set<haplotype*, score_comparator> highest_scoring_neighbors(haplotype* target, bool include_mapped, int max_radius, int num_limit) const;
@@ -176,14 +198,18 @@ public:
         return nullptr;
     }
 
-    void print_cooccuring_mutations(int window_size);
+    void get_residual_cooccuring_mutations(int window_size);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
+    
     void print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected);
+    
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
-    void dump_read2node_mapping(const std::vector<std::pair<haplotype*, double>> & abundance); 
-
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
+    
+    void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
+
+    void dump_read2haplotype_mapping(const std::vector<std::pair<haplotype*, double>> & abundance);
 };

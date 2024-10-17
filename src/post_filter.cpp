@@ -167,8 +167,9 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
             (std::string("bash -c \"") +
                 "source ~/miniconda3/etc/profile.d/conda.sh && " +
                 "conda activate freyja-env && " +
+                "cd ../Freyja && " +
                 "freyja demix " + arena.owned_dataset().variants_path() + " " + arena.owned_dataset().depth_path() + 
-                    " --barcodes ./Freyja/data/usher_barcodes.csv --output ./Freyja/my_output_latest.txt --eps 0.005" +
+                    " --barcodes data/usher_barcodes.csv --output my_output_latest.txt --eps 0.005" +
             "\"").c_str()
         ) != 0)
     {
@@ -410,7 +411,7 @@ kmeans_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         // map n -> n'
         for (size_t i = 0; i < seeds.size(); ++i)
         {
-            std::set<haplotype*> 
+                std::set<haplotype*, score_comparator> 
                 all_neighbors = arena.closest_neighbors(input[seeds[i]], explore_rad, INT_MAX);
 
             // randomly select weighted neighbor based on scores
