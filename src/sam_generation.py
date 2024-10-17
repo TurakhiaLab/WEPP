@@ -32,16 +32,41 @@ def write_sam_files(input_sam_file):
                 else:
                     if add_RG:
                         add_RG = False
+                        # Write unseen groups of mutations
+                        for mut, idx in mutations.items():
+                            w_file.write(f"@CO\tUM:unseen{idx}\tUS:{mut}\n")
+                        # Write read groups of haplotypes
                         for hap, idx in haplotypes.items():
-                            w_file.write(f"@RG\tID:group{idx}\tDS:Node:{hap}\n")
+                            w_file.write(f"@RG\tID:group{idx}\tDS:Node:{hap}")
+                            # Write unseen groups of haplotypes
+                            if len(hap_muts[hap]):
+                                w_file.write(f"\tUM:Z")
+                                for m_idx, mut in enumerate(hap_muts[hap]):
+                                    if m_idx == 0:
+                                        w_file.write(f":unseen{mutations[mut]}")
+                                    else:
+                                        w_file.write(f",unseen{mutations[mut]}")
+                            w_file.write("\n")
                     else:
                         tokens = line.split()
-                        w_file.write(line+"\tXG:Z")
-                        for idx, hap in enumerate(read_hap_map[tokens[0]]):
+                        # Write haplotypes mapping to this read
+                        w_file.write(line+"\tRG:Z")
+                        for idx, hap in enumerate(read_haps[tokens[0]]):
                             if idx == 0:
                                 w_file.write(f":group{haplotypes[hap]}")
                             else:
                                 w_file.write(f",group{haplotypes[hap]}")
+                        w_file.write(f"\tEPP:i:{len(read_haps[tokens[0]])}")
+
+                        # Write unseen mutations present in this read
+                        if (len(read_muts[tokens[0]])):
+                            w_file.write("\tUM:Z")
+                            for idx, mut in enumerate(read_muts[tokens[0]]):
+                                if idx == 0:
+                                    w_file.write(f":unseen{mutations[mut]}")
+                                else:
+                                    w_file.write(f",unseen{mutations[mut]}")
+
                         w_file.write("\n")
 
         # Convert sam to bam
@@ -66,8 +91,14 @@ start_time = time.time()
 file_prefix = sys.argv[2]
 directory = sys.argv[1]
 
-# Reading File
-read_hap_map, haplotypes = read_csv_file(directory + "/" + file_prefix + "_haplotype_reads.csv")
+# Reading haplotype_reads File
+read_haps, haplotypes = read_csv_file(directory + "/" + file_prefix + "_haplotype_reads.csv")
+
+# Reading mutations_reads File
+read_muts, mutations = read_csv_file(directory + "/" + file_prefix + "_mutation_reads.csv")
+
+# Reading mutations_haplotypes File
+hap_muts, _ = read_csv_file(directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Writing File
 write_sam_files(directory + "/" + file_prefix + "_alignment.sam")

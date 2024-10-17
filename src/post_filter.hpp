@@ -10,8 +10,8 @@ class post_filter {
 public:
     int num_filter_rounds = 1;
     int freeze_round = 1;
-    int max_nbrs = 200;
-    int max_rad = 4;
+    int max_nbrs = 500;
+    int max_rad = 2;
 
     virtual std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) = 0;
 
@@ -50,15 +50,15 @@ public:
 
             // add neighbors
             {
-                std::set<haplotype *> build;
+                std::set<haplotype *, score_comparator> build;
                 for (haplotype* hap: this_round) {
-                    std::set<haplotype *> nbrs = arena.closest_neighbors(hap, max_rad, max_nbrs);
+                    std::set<haplotype *, score_comparator> nbrs = arena.closest_neighbors(hap, max_rad, max_nbrs);
                     build.insert(nbrs.begin(), nbrs.end());
                 }
                 input = std::vector<haplotype*>(build.begin(), build.end());
             }
         }
-
+        
         return {};
     }
 

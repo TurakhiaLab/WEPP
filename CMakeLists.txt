@@ -77,6 +77,12 @@ else()
         ${SAM_SRCS} ${PROTO_SRCS} ${CAPNP_SRCS}
 		${SAM_HDRS} ${PROTO_HDRS} ${CAPNP_HDRS} 
     )
+
+    add_executable(closest_peak_clustering
+        src/Freyja/closest_peak_clustering.cpp
+    )
 endif()
 
 TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_LINK_LIBRARIES(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS}) # OpenMP::OpenMP_CXX)
