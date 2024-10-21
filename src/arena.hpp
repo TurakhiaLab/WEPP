@@ -160,8 +160,15 @@ public:
         for (size_t i = 0; i < this->raw_reads.size(); i++)
         {
             const auto &rp = raw_reads[i];
+            std::vector<int> ambiguous_sites;
+            for (auto& mut: rp.mutations) {
+                if (mut.mut == NUC_N)
+                    ambiguous_sites.emplace_back(mut.pos);
+            }
+
             for (int j = rp.start; j <= rp.end; j++)
-                ret.insert(j);
+                if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end())
+                    ret.insert(j);
         }
         return ret;
     }

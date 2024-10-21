@@ -34,8 +34,8 @@ const std::string CHROM = "NC_045512v2";
 
 void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
-    std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
-    std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
+    //std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
+    //std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
     std::string sam_file = d.sam_path();
 
     //Reading reference genome

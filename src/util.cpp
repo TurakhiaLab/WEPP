@@ -53,16 +53,6 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     "Prefix to be used for dumping all intermediate files.")
     ("align-sam,s", po::value<std::string>()->default_value(""),
      "Input sam file representing reference sequence")
-    ("distribution,d", po::value<std::string>()->default_value(""),
-     "Give the distribution of samples, comma delimited.")
-    ("haplotype-samples,w", po::value<int>()->default_value(10),
-     "Give the number of haplotype samples")
-     ("ref-fasta,f", po::value<std::string>()->default_value(""),
-     "Input fasta file representing reference sequence")
-    ("lineage,l", po::value<std::string>()->default_value(""),
-     "Give lineage of samples, comma delimited.")
-    ("prior-lineages,p", po::value<std::string>()->default_value(""),
-     "Give lineage to be included, comma delimited.") 
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the

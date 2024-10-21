@@ -29,7 +29,7 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
             break;
         }
     }  
-
+    
     if (!has_any) {
         parent_mapping.push_back(node);
 
