@@ -96,74 +96,23 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
         for (size_t i = 0; i < count; ++i) {
             int offset_nuc_position = mut.nucGapPosition == -1 ? mut.nucPosition + i : mut.nucPosition;
             int offset_gap_position = mut.nucGapPosition == -1 ? -1 : mut.nucGapPosition + i; 
-            int const start_pos = coord.query(mut.primaryBlockId, offset_nuc_position, offset_gap_position);
+            int const pos = coord.query(mut.primaryBlockId, offset_nuc_position, offset_gap_position);
 
             mutation m;
-            m.pos = start_pos;
+            m.pos = pos;
             m.ref = nuc_from_char(ref[m.pos - 1]);
             int raw = (mut.nucs >> (4 * (5 - i))) & 0xF;
             m.mut = is_deletion ? NUC_GAP : nuc_from_pannuc(raw);
             if (!IGNORE_N_MUTS || m.mut != NUC_N) {
                 ret.push_back(m);
-
                 covered.insert(m.pos);
             }
         }
     }
 
-    for (const panmanUtils::BlockMut& block_mut : node->blockMutation) {
-        assert(!block_mut.inversion);
-        
-        const auto [start, end] = coord.block_range(block_mut.primaryBlockId);
-        if (block_mut.blockMutInfo) {
-            // insertion
-            for (size_t i = start; i <= end; ++i) {
-                if (covered.find(i) != covered.end()) {
-                    continue;
-                }
-
-                mutation mut;
-                mut.pos = i;
-                mut.ref = mut.mut = nuc_from_char(ref[i - 1]);
-                if (!IGNORE_N_MUTS || mut.mut != NUC_N) {
-                    ret.push_back(mut);
-
-                    covered.insert(i);
-                }
-            }
-        }
-        else {
-            // deletion
-            for (size_t i = start; i <= end; ++i) {
-                if (covered.find(i) != covered.end()) {
-                    continue;
-                }
-
-                mutation mut;
-                mut.pos = i;
-                mut.ref = nuc_from_char(ref[i - 1]);
-                mut.mut = NUC_GAP;
-                ret.push_back(mut);
-
-                covered.insert(i);
-            }
-        }
-    }
-
-    // if it's the root, whatever is not mentioned originally should be treated as gap
-    // (if consensus is not already gap)
-    if (node->parent == nullptr) {
-        for (size_t i = 1; i <= ref.size(); ++i) {
-            if (covered.find(i) == covered.end() && ref[i - 1] != '_') {
-                mutation mut;
-                mut.pos = i;
-                mut.ref = nuc_from_char(ref[i - 1]);
-                mut.mut = NUC_GAP;
-                ret.push_back(mut);
-            }
-        }
-    }
-
+    // blockMutation should only be present in root
+    assert((node->parent == nullptr) == (node->blockMutation.size() != 0));
+    
     return ret;
 }
 
