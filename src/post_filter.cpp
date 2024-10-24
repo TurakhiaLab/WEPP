@@ -97,29 +97,13 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     std::set<std::string> mutations;
     std::vector<std::set<std::string>> node_muts;
 
-    std::map<size_t, size_t> ungapped_pos;
-    size_t non_gap_reference_size = 0;
-    for (size_t i = 0; i < a.reference().size(); ++i) {
-        if (a.reference()[i] != '_')
-        {
-            ungapped_pos[i + 1] = ++non_gap_reference_size;
-        }
-    }
-
-    auto ungapped_string = [&](mutation const& m) {
-        char ref = char_from_nuc(m.ref);
-        int pos = ungapped_pos.at(m.pos);
-        char mut = char_from_nuc(m.mut);
-        return ref + std::to_string(pos) + mut;
-    };
-
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
         for (const mutation& m : n->stack_muts)
         {
-            if (m.mut != NUC_N && !m.is_indel()) {
-                std::string build = ungapped_string(m);
+            if (m.mut != NUC_N && !m.is_del()) {
+                std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
                 mutations.insert(build);
                 my_muts.insert(std::move(build));
             }
@@ -128,10 +112,11 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     }
 
     for (const raw_read& read: a.reads()) {
-        for (mutation mut : read.mutations)
+        for (mutation m : read.mutations)
         {
-            if (mut.mut != NUC_N && !mut.is_indel()) {
-                mutations.insert(ungapped_string(mut));
+            if (m.mut != NUC_N && !m.is_del()) {
+                std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
+                mutations.insert(build);
             }
         }
     }

@@ -72,8 +72,8 @@ struct mutation {
 
     // note that it says if it's an indel relative to reference
     // not relative to parent
-    bool is_indel() const {
-        return this->ref == NUC_GAP || this->mut == NUC_GAP;
+    bool is_del() const {
+        return this->mut == NUC_GAP;
     }
 
     std::string get_string() const {
