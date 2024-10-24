@@ -265,7 +265,7 @@ std::set<haplotype *, score_comparator> arena::closest_neighbors(haplotype *targ
         }
         else
         {
-            ret.insert(curr);
+            all_neighbors.insert(curr);
         }
 
         if (curr->parent)
