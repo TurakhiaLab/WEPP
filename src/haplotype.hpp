@@ -13,6 +13,7 @@ struct haplotype {
     /* children and mutations  */
     haplotype* parent;
     std::vector<mutation> muts;
+    std::vector<mutation> stack_muts;
 
     // original tree
     std::string id;
@@ -58,100 +59,21 @@ struct haplotype {
         return it != muts.end() && it->pos <= end;
     }
 
-    std::vector<mutation> stack_muts(int start = 0, int end = INT_MAX) const {
-        std::vector<mutation> ret;
-
-        if (parent)
-        {
-            for (const mutation &mut : parent->stack_muts(start, end))
-            {
-                /* only need to compare to our muts since parent's are unique */
-                bool valid = true;
-                for (const mutation &comp : muts)
-                {
-                    if (comp.pos == mut.pos)
-                    {
-                        valid = false;
-                        break;
-                    }
-                }
-
-                if (valid) {
-                    ret.push_back(mut);
-                }
-            }
+    std::vector<mutation> get_mutations(int start = 0, int end = INT_MAX) const {
+        std::vector<mutation> muts_in_range;
+        for (const mutation &mut : stack_muts) {
+            if (mut.pos >= start && mut.pos <= end)
+                muts_in_range.emplace_back(mut);
         }
-        /* maybe rewinded mutation back to original */
-        for (const mutation &mut : muts)
-        {
-            if (mut.ref != mut.mut && mut.pos >= start && mut.pos <= end)
-            {
-                ret.push_back(mut);
-            }
-        }
-        std::sort(ret.begin(), ret.end());
-        return ret;
+        return muts_in_range;
     }
-    
+
     int mutation_distance(const raw_read& other) const {
-        return ::mutation_distance(other.mutations, this->stack_muts(other.start, other.end));
+        return ::mutation_distance(other.mutations, this->get_mutations(other.start, other.end));
     }
 
     int mutation_distance(haplotype * other) const {
-        std::vector<mutation> us, theirs;
-        haplotype const* a = this, *b = other;
-
-        auto add_to = [](haplotype const* src, std::vector<mutation>&dump) {
-            for (const auto& mut : src->muts) {
-                bool valid = true;
-                for (const auto& existing : dump) {
-                    if (existing.pos == mut.pos) {
-                        valid = false;
-                        break;
-                    }
-                }
-                if (valid) {
-                    dump.push_back(mut);
-                }
-            }
-        };
-
-        while (a->depth > b->depth) {
-            add_to(a, us);
-            a = a->parent;
-        }
-
-        while (b->depth > a->depth) {
-            add_to(b, theirs);
-            b = b->parent;
-        }
-
-        while (a != b) {
-            add_to(a, us);
-            add_to(b, theirs);
-            a = a->parent;
-            b = b->parent;
-        }
-
-        auto del_backs = [](std::vector<mutation>& muts) {
-            auto it = muts.begin();
-            while (it < muts.end()) {
-                if (it->ref == it->mut) {
-                    it = muts.erase(it);
-                }
-                else {
-                    it++;
-                }
-            }
-        };
-
-        del_backs(us);
-        del_backs(theirs);
-
-        std::sort(us.begin(), us.end());
-        std::sort(theirs.begin(), theirs.end());
-
-        return ::mutation_distance(us, theirs);
+        return ::mutation_distance(other->stack_muts, this->stack_muts);
     }
 
     double full_score() const {
@@ -169,6 +91,6 @@ struct multi_haplotype {
     std::vector<int> children;
 
     int mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) {
-        return ::mutation_distance(comp, root->stack_muts(min_pos, max_pos));
+        return ::mutation_distance(comp, root->get_mutations(min_pos, max_pos));
     }
 };

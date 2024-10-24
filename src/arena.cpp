@@ -13,7 +13,7 @@ arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
 
     timer t;
     this->from_pan(nullptr, real_root, this->site_read_map(), empty);
-    std::cout << "From pan took " << t.seconds() << " seconds " << std::endl;
+    std::cout << "Linearizing panmat took " << t.seconds() << " seconds " << std::endl << std::endl;
 }
 
 
@@ -54,8 +54,40 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
     ret->dist_divergence = 1;
     ret->id = node->identifier;
     ret->condensed_source = node;
+    ret->stack_muts = {};
+    ret->muts = {};
 
-    ret->muts = parent ? std::move(muts) : std::vector<mutation>{};
+    // Update stack_muts
+    if (parent)
+    {
+        for (const mutation &mut : parent->stack_muts)
+        {
+            /* only need to compare to our muts since parent's are unique */
+            bool valid = true;
+            for (const mutation &comp : muts)
+            {
+                if (comp.pos == mut.pos)
+                {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid) {
+                ret->stack_muts.push_back(mut);
+            }
+        }
+    }
+    /* maybe rewinded mutation back to original */
+    for (const mutation &mut : muts)
+    {
+        if (mut.ref != mut.mut)
+        {
+            ret->stack_muts.push_back(mut);
+            ret->muts.push_back(mut);
+        }
+    }
+    std::sort(ret->stack_muts.begin(), ret->stack_muts.end());
     std::sort(ret->muts.begin(), ret->muts.end());
 
     condensed_node_mappings[node] = {node};

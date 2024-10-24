@@ -28,6 +28,7 @@ file_prefix="my_vcf"
 
 # illumina
 MAT="sars_8M.panman"
+#MAT="sars_20_viralmsa.panman"
 file_path="single_hap_simulated"
 
 # point loma
@@ -65,8 +66,8 @@ file_path="single_hap_simulated"
 # python src/WBE/freyja_correct_format.py my_output_latest.txt ${file_prefix} ${file_path}
 
 #DETECTING PEAKS
-#wbe initial_filter -T 8 -i ${MAT} -v ${file_prefix} -o ${file_path}
-wbe post_filter -T 16 -i ${MAT} -v ${file_prefix} -o ${file_path}
+wbe initial_filter -T 56 -i ${MAT} -v ${file_prefix} -o ${file_path}
+#wbe post_filter -T 56 -i ${MAT} -v ${file_prefix} -o ${file_path}
 # gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
 
 #usher_to_taxonium -i debug/gisaidAndPublic.2022-02-08.masked.pb.gz -o debug/gisaidAndPublic.2022-02-08.masked.jsonl.gz --name_internal_nodes --clade_types nextstrain,pango

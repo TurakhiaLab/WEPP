@@ -116,7 +116,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
-        for (const mutation& m : n->stack_muts())
+        for (const mutation& m : n->stack_muts)
         {
             if (m.mut != NUC_N && !m.is_indel()) {
                 std::string build = ungapped_string(m);

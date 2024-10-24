@@ -40,17 +40,15 @@ struct score_comparator {
 /* used to sort nodes by their mutation list */
 struct mutation_comparator {
     bool operator() (haplotype* left, haplotype* right) const {
-        const auto& left_stack_muts = left->stack_muts();
-        const auto& right_stack_muts = right->stack_muts();
-        if (left_stack_muts.size() != right_stack_muts.size()) {
-            return left_stack_muts.size() < right_stack_muts.size();
+        if (left->stack_muts.size() != right->stack_muts.size()) {
+            return left->stack_muts.size() < right->stack_muts.size();
         }  
-        for (size_t i = 0; i < left_stack_muts.size(); ++i) {
-            if (left_stack_muts[i].pos != right_stack_muts[i].pos) {
-                return left_stack_muts[i].pos < right_stack_muts[i].pos;
+        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
+            if (left->stack_muts[i].pos != right->stack_muts[i].pos) {
+                return left->stack_muts[i].pos < right->stack_muts[i].pos;
             }
-            else if (left_stack_muts[i].mut != right_stack_muts[i].mut) {
-                return left_stack_muts[i].mut < right_stack_muts[i].mut;
+            else if (left->stack_muts[i].mut != right->stack_muts[i].mut) {
+                return left->stack_muts[i].mut < right->stack_muts[i].mut;
             }
         }
 
