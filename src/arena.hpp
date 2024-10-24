@@ -73,7 +73,7 @@ class arena {
     // note: this is the uncondensed tree
     const panmanUtils::Tree &mat;
     coord_converter coord;
-    std::unordered_map<panmanUtils::Node *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
+    std::unordered_map<haplotype *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
 
     haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping);
     int pan_tree_size(panmanUtils::Node *node); 
@@ -180,7 +180,7 @@ public:
     }
 
     const std::vector<panmanUtils::Node*>& source_nodes(haplotype* haplotype) {
-        return this->condensed_node_mappings[haplotype->condensed_source];
+        return this->condensed_node_mappings[haplotype];
     }
 
     multi_haplotype *find_range_tree_for(const raw_read &read);
@@ -193,7 +193,7 @@ public:
 
     haplotype* haplotype_with_id(const std::string& id) {
         for (size_t i = 0; i < nodes.size(); ++i) {
-            for (panmanUtils::Node* source: this->condensed_node_mappings[nodes[i].condensed_source])
+            for (panmanUtils::Node* source: this->condensed_node_mappings[&nodes[i]])
             if (source->identifier == id) {
                 return &nodes[i];
             }
