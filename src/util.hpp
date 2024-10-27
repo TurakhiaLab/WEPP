@@ -17,7 +17,7 @@ read_sample_vcf(const std::string& vcf_filename_samples);
 boost::program_options::variables_map 
 parseWBEcommand(boost::program_options::parsed_options parsed);
 
-std::vector<mutation> 
-get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord, bool ignore_root=true);
+void 
+get_single_mutations(std::vector<mutation>& mutations, const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord, bool ignore_root=true);
 
 int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations);

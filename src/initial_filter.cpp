@@ -52,7 +52,7 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 
     // go through all of this haplotypes mutations
     // and see if it increases or decreases overall mutations
-    std::vector<mutation>& curr_muts = curr->root->muts;
+    std::vector<mutation> curr_muts = curr->root->get_current_mutations(read.start, read.end);
 
     size_t i = 0; // index of parent location
     mutation search;
@@ -61,9 +61,9 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 
     // keeping track of read mutation position may actually be the dominating factor with so many N
     // so we bin search whenever necessary
-    while (i < parent_locations.size() || (j != curr_muts.end() && j->pos <= read.end)) {
-        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || j->pos > read.end || parent_locations[i] < j->pos);
-        bool us_first = (j != curr_muts.end() && j->pos <= read.end) && (i == parent_locations.size() || j->pos < parent_locations[i]);
+    while (i < parent_locations.size() || j != curr_muts.end()) {
+        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || parent_locations[i] < j->pos);
+        bool us_first = j != curr_muts.end() && (i == parent_locations.size() || j->pos < parent_locations[i]);
 
         if (us_first) {
             auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
@@ -112,8 +112,8 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 /* maps a single read to entire tree, caching aliveness */
 /* and finding the epp positions of a given read */
 /* parent_locations is the positions where the parent has different mutations than the read */
-/* max_val corresponds to max parismony */
 /* max indices correspond to the indices of the epp nodes */
+/* max_val corresponds to max parismony */
 static void 
 single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &max_indices, int &max_val)
 {

@@ -21,7 +21,10 @@ haplotype *
 arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping)
 {
     // if no mutations in site read map, condense and continue
-    std::vector<mutation> muts = this->get_single_mutations(node);
+    std::vector<mutation> muts;
+    muts.reserve(node->nucMutation.size());
+    this->get_single_mutations(muts, node);
+    tbb::parallel_sort(muts.begin(), muts.end());
 
     bool has_any = parent == nullptr; // root always gets added
     for (const mutation& mut: muts) {
@@ -54,12 +57,16 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
     ret->dist_divergence = 1;
     ret->id = node->identifier;
     ret->condensed_source = node;
-    ret->stack_muts = {};
     ret->muts = {};
+    ret->n_muts = {};
+    ret->stack_muts = {};
+    ret->stack_n_muts = {};
+    ret->reference = &this->reference();
 
     // Update stack_muts
     if (parent)
     {
+        // Update stack_muts from parent
         for (const mutation &mut : parent->stack_muts)
         {
             /* only need to compare to our muts since parent's are unique */
@@ -77,18 +84,129 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
                 ret->stack_muts.push_back(mut);
             }
         }
+        
+        // Update stack_n_muts from parent
+        for (const auto &coords : parent->stack_n_muts)
+        {
+            /* only need to compare to our muts since parent's are unique */
+            mutation search;
+            search.pos = coords.first;
+            std::vector<int> break_mutations;
+            auto it = std::lower_bound(muts.begin(), muts.end(), search);
+            while ((it != muts.end()) && (it->pos <= coords.second)) 
+            {
+                break_mutations.emplace_back(it->pos);
+                it++;
+            }
+            if (break_mutations.empty())
+                ret->stack_n_muts.push_back(coords);
+            else 
+            {
+                int start_point = coords.first, end_point;
+                for (const auto& pos: break_mutations) 
+                {
+                    end_point = pos - 1;
+                    ret->stack_n_muts.push_back({start_point, end_point});
+                    start_point = pos + 1;
+                }
+                ret->stack_n_muts.push_back({start_point, coords.second});
+            }
+        }
     }
+    
     /* maybe rewinded mutation back to original */
     for (const mutation &mut : muts)
     {
-        if ((site_read_map.find(mut.pos) != site_read_map.end()) && (mut.ref != mut.mut)) 
-        {
-            ret->stack_muts.push_back(mut);
-            ret->muts.push_back(mut);
+        if ((site_read_map.find(mut.pos) != site_read_map.end()) && (mut.ref != mut.mut))
+        { 
+            if (mut.mut != NUC_N)
+            {
+                ret->stack_muts.push_back(mut);
+                ret->muts.push_back(mut);
+            }
+            else 
+            {   
+                // Update stack_n_muts
+                auto it = std::lower_bound(ret->stack_n_muts.begin(), ret->stack_n_muts.end(), std::make_pair(mut.pos, INT_MIN),
+                    [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
+                        return range.second < value.first; 
+                });
+                // No end coordinate is greater than mut.pos
+                if (it == ret->stack_n_muts.end()) 
+                {
+                    if (it != ret->stack_n_muts.begin())
+                    {
+                        it = std::prev(it);
+                        if ((mut.pos - it->second) == 1)
+                            it->second = mut.pos;
+                        else
+                            ret->stack_n_muts.push_back({mut.pos, mut.pos}); 
+                    }
+                    else
+                        ret->stack_n_muts.push_back({mut.pos, mut.pos}); 
+                }
+                else 
+                {
+                    // Check if can be merged at the start of selected block
+                    if ((it->first - mut.pos) == 1)
+                    {
+                        it->first = mut.pos;
+                        // Try merging with previous block
+                        if (it != ret->stack_n_muts.begin()) {
+                            auto prev_it = std::prev(it);
+                            if ((mut.pos - prev_it->second) == 1) {
+                                it->first = prev_it->first;
+                                ret->stack_n_muts.erase(prev_it);
+                            }
+                        }
+                    }
+                    else 
+                    {
+                        // Check if can be merged at the end of previous block
+                        if (it != ret->stack_n_muts.begin()) {
+                            auto prev_it = std::prev(it);
+                            if ((mut.pos - prev_it->second) == 1)
+                                prev_it->second = mut.pos;
+                            else
+                                ret->stack_n_muts.insert(it, {mut.pos, mut.pos}); 
+                        }
+                        // Create a new block at the start of stack_n_muts
+                        else
+                            ret->stack_n_muts.insert(ret->stack_n_muts.begin(), {mut.pos, mut.pos});
+                    }
+                }
+
+                // Update n_muts
+                it = std::lower_bound(ret->n_muts.begin(), ret->n_muts.end(), std::make_pair(mut.pos, INT_MIN),
+                    [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
+                        return range.second < value.first; 
+                });
+                // No end coordinate is greater than mut.pos
+                if (it == ret->n_muts.end()) 
+                {
+                    if (it != ret->n_muts.begin())
+                    {
+                        it = std::prev(it);
+                        if ((mut.pos - it->second) == 1)
+                            it->second = mut.pos;
+                        else
+                            ret->n_muts.push_back({mut.pos, mut.pos}); 
+                    }
+                    else
+                        ret->n_muts.push_back({mut.pos, mut.pos}); 
+                }
+                else 
+                {
+                    fprintf(stderr, "\n\nIncoming panmat mutations are NOT sorted\n\n");
+                }
+            }
         }
     }
-    tbb::parallel_sort(ret->stack_muts.begin(), ret->stack_muts.end());
+
     tbb::parallel_sort(ret->muts.begin(), ret->muts.end());
+    tbb::parallel_sort(ret->n_muts.begin(), ret->n_muts.end());
+    tbb::parallel_sort(ret->stack_muts.begin(), ret->stack_muts.end());
+    tbb::parallel_sort(ret->stack_n_muts.begin(), ret->stack_n_muts.end());
 
     condensed_node_mappings[ret] = {node};
     std::vector<panmanUtils::Node*> &condensed_list = condensed_node_mappings[ret];
@@ -113,11 +231,14 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     return ret;
 }
 
-std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
+ std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
     std::vector<mutation> sample_mutations;
     // Checking all ancestors of a node
-    for (const panmanUtils::Node* curr = node; curr; curr = curr->parent) { 
-        for (const auto& mut: get_single_mutations(curr)) {
+    for (const panmanUtils::Node* curr = node; curr; curr = curr->parent) {
+        std::vector<mutation> node_mutations;
+        node_mutations.reserve(curr->nucMutation.size());
+        get_single_mutations(node_mutations, curr);
+        for (const auto& mut: node_mutations) {
             auto sm_itr = sample_mutations.begin();
             while (sm_itr != sample_mutations.end()) {
                 if (sm_itr->pos == mut.pos)
@@ -144,8 +265,9 @@ std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
     return sample_mutations;
 }
 
-std::vector<mutation> arena::get_single_mutations(const panmanUtils::Node* node) {
-    return ::get_single_mutations(this->reference(), node, coord);
+void arena::get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* node) {
+    ::get_single_mutations(mutations, this->reference(), node, coord);
+    return;
 }
 
 int arena::build_range_tree(int parent, haplotype *curr, int start, int end)
