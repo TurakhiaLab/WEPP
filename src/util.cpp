@@ -77,16 +77,15 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     return vm;
 }
 
-std::vector<mutation> 
-get_single_mutations(const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord, bool ignore_root) {
+void
+get_single_mutations(std::vector<mutation>& ret, const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord, bool ignore_root) {
     // if is root, then we treat it slightly different
     // because in panmat it's with respect to a blank sequence
     // but we do it with respect to a root sequence in the most case
     if (!node->parent && ignore_root) {
-        return {};
+        return;
     }
 
-    std::vector<mutation> ret;
     std::unordered_set<size_t> covered;
 
     for (const panmanUtils::NucMut& mut: node->nucMutation) {
@@ -113,19 +112,15 @@ get_single_mutations(const std::string& ref, const panmanUtils::Node* node, cons
     // blockMutation should only be present in root
     assert((node->parent == nullptr) == (node->blockMutation.size() != 0));
     
-    return ret;
+    return;
 }
 
 // precondition, both mutation lists are sorted
 int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
-    int muts = 0;
+    int muts = 0, i = 0, j = 0;
 
-    int i = 0;
-    int last_i = node1_mutations.size();
-    int j = 0;
-
-    while (i < last_i || j < (int) node2_mutations.size()) {
-        if (i == last_i) {                
+    while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
+        if (i == (int) node1_mutations.size()) {                
             if (node2_mutations[j].mut != NUC_N) {
                 ++muts;
             }

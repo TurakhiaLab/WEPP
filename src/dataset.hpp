@@ -107,7 +107,9 @@ public:
             std::string ref = converter.reference;
 
             // the only time the reference is not the root
-            std::vector<mutation> root_muts = ::get_single_mutations(ref, mat.root, converter, false);
+            std::vector<mutation> root_muts;
+            root_muts.reserve(mat.root->nucMutation.size());
+            ::get_single_mutations(root_muts, ref, mat.root, converter, false);
             for (const mutation& mut : root_muts) {
                 ref[mut.pos - 1] = char_from_nuc(mut.mut);
             }

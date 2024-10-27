@@ -80,7 +80,7 @@ class arena {
     int build_range_tree(int parent, haplotype* curr, int start, int end);
 
     // just here mutations
-    std::vector<mutation> get_single_mutations(const panmanUtils::Node* n);
+    void get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* n);
 
     // mutations from root to here
     std::vector<mutation> get_mutations(const panmanUtils::Node* n);

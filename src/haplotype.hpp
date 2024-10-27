@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <tbb/parallel_sort.h>
 
 #include "panman/panmanUtils.hpp"
 
@@ -13,13 +14,17 @@ struct haplotype {
     /* children and mutations  */
     haplotype* parent;
     std::vector<mutation> muts;
+    std::vector<std::pair<int, int>> n_muts;
     std::vector<mutation> stack_muts;
+    std::vector<std::pair<int, int>> stack_n_muts;
 
     // original tree
     std::string id;
     panmanUtils::Node* condensed_source;
 
     std::vector<haplotype*> children;
+
+    const std::string* reference;
 
     // orig score
     double orig_score;
@@ -55,16 +60,117 @@ struct haplotype {
         mutation search;
         search.pos = start;
 
+        // Check muts
         auto it = std::lower_bound(muts.begin(), muts.end(), search);
-        return it != muts.end() && it->pos <= end;
+        if (it != muts.end() && it->pos <= end)
+            return true;
+        // Check n_muts
+        else
+        {
+            auto it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, INT_MIN),
+                [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
+                    return range.second < value.first; 
+            });
+            if (it != n_muts.end() && it->first <= end)
+                return true;
+            else 
+                return false;
+        }
     }
 
-    std::vector<mutation> get_mutations(int start = 0, int end = INT_MAX) const {
+    std::vector<mutation> get_current_mutations(int start = 0, int end = INT_MAX) const {
         std::vector<mutation> muts_in_range;
-        for (const mutation &mut : stack_muts) {
+        for (const mutation &mut: muts) {
             if (mut.pos >= start && mut.pos <= end)
                 muts_in_range.emplace_back(mut);
+            else if (mut.pos > end)
+                break;
         }
+        
+        // Store Ns in muts_in_range
+        for (const auto& coords: n_muts) {
+            int start_pos, end_pos;
+            if ((end < coords.first) || (start > coords.second))
+                continue;
+            else if (start <= coords.first) {
+                start_pos = coords.first;
+                if (end >= coords.second) {
+                    end_pos = coords.second;
+                }
+                else {
+                    end_pos = end;
+                }
+            }
+            else {
+                start_pos = start;
+                if (end >= coords.second) {
+                    end_pos = coords.second;
+                }
+                else {
+                    end_pos = end;
+                }
+            } 
+            
+            // Add N muts in muts_in_range
+            for (int i = start_pos; i <= end_pos; i++)
+            {
+                mutation m;
+                m.pos = i;
+                m.ref = nuc_from_char(reference->at(i - 1));
+                m.mut = NUC_N;
+                muts_in_range.push_back(m);
+            }
+        }
+        tbb::parallel_sort(muts_in_range.begin(), muts_in_range.end());
+
+        return muts_in_range;
+    }
+    
+    std::vector<mutation> get_mutations(int start = 0, int end = INT_MAX) const {
+        std::vector<mutation> muts_in_range;
+        for (const mutation &mut: stack_muts) {
+            if (mut.pos >= start && mut.pos <= end)
+                muts_in_range.emplace_back(mut);
+            else if (mut.pos > end)
+                break;
+        }
+        
+        // Store Ns in muts_in_range
+        for (const auto& coords: stack_n_muts) {
+            int start_pos, end_pos;
+            if ((end < coords.first) || (start > coords.second))
+                continue;
+            else if (start <= coords.first) {
+                start_pos = coords.first;
+                if (end >= coords.second) {
+                    end_pos = coords.second;
+                }
+                else {
+                    end_pos = end;
+                }
+            }
+            else {
+                start_pos = start;
+                if (end >= coords.second) {
+                    end_pos = coords.second;
+                }
+                else {
+                    end_pos = end;
+                }
+            } 
+            
+            // Add N muts in muts_in_range
+            for (int i = start_pos; i <= end_pos; i++)
+            {
+                mutation m;
+                m.pos = i;
+                m.ref = nuc_from_char(reference->at(i - 1));
+                m.mut = NUC_N;
+                muts_in_range.push_back(m);
+            }
+        }
+        tbb::parallel_sort(muts_in_range.begin(), muts_in_range.end());
+        
         return muts_in_range;
     }
 
@@ -73,7 +179,7 @@ struct haplotype {
     }
 
     int mutation_distance(haplotype * other) const {
-        return ::mutation_distance(other->stack_muts, this->stack_muts);
+        return ::mutation_distance(other->get_mutations(), this->get_mutations());
     }
 
     double full_score() const {
