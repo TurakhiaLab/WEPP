@@ -28,7 +28,7 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
 
     bool has_any = parent == nullptr; // root always gets added
     for (const mutation& mut: muts) {
-        if (site_read_map.find(mut.pos) != site_read_map.end()) {
+        if ((site_read_map.find(mut.pos) != site_read_map.end()) && (mut.mut != NUC_N)) {
             has_any = true;
             break;
         }
