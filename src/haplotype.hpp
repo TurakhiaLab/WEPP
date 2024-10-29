@@ -80,36 +80,31 @@ struct haplotype {
 
     std::vector<mutation> get_current_mutations(int start = 0, int end = INT_MAX) const {
         std::vector<mutation> muts_in_range;
-        for (const mutation &mut: muts) {
-            if (mut.pos >= start && mut.pos <= end)
-                muts_in_range.emplace_back(mut);
-            else if (mut.pos > end)
-                break;
+        mutation search;
+        search.pos = start;
+        auto it = std::lower_bound(muts.begin(), muts.end(), search);
+        while ((it != muts.end()) && (it->pos <= end)) 
+        {
+            muts_in_range.emplace_back(*it);
+            it++;
         }
         
         // Store Ns in muts_in_range
-        for (const auto& coords: n_muts) {
+        auto n_it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, INT_MIN),
+            [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
+                return range.second < value.first; 
+        });
+        while ((n_it != n_muts.end()) && (n_it->first <= end))
+        {
             int start_pos, end_pos;
-            if ((end < coords.first) || (start > coords.second))
-                continue;
-            else if (start <= coords.first) {
-                start_pos = coords.first;
-                if (end >= coords.second) {
-                    end_pos = coords.second;
-                }
-                else {
-                    end_pos = end;
-                }
-            }
-            else {
-                start_pos = start;
-                if (end >= coords.second) {
-                    end_pos = coords.second;
-                }
-                else {
-                    end_pos = end;
-                }
-            } 
+            if (start <= n_it->first)
+                start_pos = n_it->first;
+            else
+                start_pos = start; 
+            if (end >= n_it->second)
+                end_pos = n_it->second;
+            else
+                end_pos = end;
             
             // Add N muts in muts_in_range
             for (int i = start_pos; i <= end_pos; i++)
@@ -120,7 +115,9 @@ struct haplotype {
                 m.mut = NUC_N;
                 muts_in_range.push_back(m);
             }
-        }
+            n_it++;
+        } 
+
         tbb::parallel_sort(muts_in_range.begin(), muts_in_range.end());
 
         return muts_in_range;
@@ -128,36 +125,31 @@ struct haplotype {
     
     std::vector<mutation> get_mutations(int start = 0, int end = INT_MAX) const {
         std::vector<mutation> muts_in_range;
-        for (const mutation &mut: stack_muts) {
-            if (mut.pos >= start && mut.pos <= end)
-                muts_in_range.emplace_back(mut);
-            else if (mut.pos > end)
-                break;
+        mutation search;
+        search.pos = start;
+        auto it = std::lower_bound(stack_muts.begin(), stack_muts.end(), search);
+        while ((it != stack_muts.end()) && (it->pos <= end)) 
+        {
+            muts_in_range.emplace_back(*it);
+            it++;
         }
         
         // Store Ns in muts_in_range
-        for (const auto& coords: stack_n_muts) {
+        auto n_it = std::lower_bound(stack_n_muts.begin(), stack_n_muts.end(), std::make_pair(start, INT_MIN),
+            [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
+                return range.second < value.first; 
+        });
+        while ((n_it != stack_n_muts.end()) && (n_it->first <= end))
+        {
             int start_pos, end_pos;
-            if ((end < coords.first) || (start > coords.second))
-                continue;
-            else if (start <= coords.first) {
-                start_pos = coords.first;
-                if (end >= coords.second) {
-                    end_pos = coords.second;
-                }
-                else {
-                    end_pos = end;
-                }
-            }
-            else {
-                start_pos = start;
-                if (end >= coords.second) {
-                    end_pos = coords.second;
-                }
-                else {
-                    end_pos = end;
-                }
-            } 
+            if (start <= n_it->first)
+                start_pos = n_it->first;
+            else
+                start_pos = start; 
+            if (end >= n_it->second)
+                end_pos = n_it->second;
+            else
+                end_pos = end;
             
             // Add N muts in muts_in_range
             for (int i = start_pos; i <= end_pos; i++)
@@ -168,7 +160,9 @@ struct haplotype {
                 m.mut = NUC_N;
                 muts_in_range.push_back(m);
             }
-        }
+            n_it++;
+        } 
+
         tbb::parallel_sort(muts_in_range.begin(), muts_in_range.end());
         
         return muts_in_range;
