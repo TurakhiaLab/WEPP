@@ -10,27 +10,41 @@ arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
     panmanUtils::Node* real_root = this->mat.root;
     this->nodes.reserve(pan_tree_size(real_root));
     std::vector<panmanUtils::Node*> empty;
+    std::vector<mutation> empty_n_muts;
 
     timer t;
-    this->from_pan(nullptr, real_root, this->site_read_map(), empty);
+    this->from_pan(nullptr, real_root, this->site_read_map(), empty, empty_n_muts);
     std::cout << "Linearizing panmat took " << t.seconds() << " seconds " << std::endl << std::endl;
 }
 
 
 haplotype *
-arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping)
+arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping, const std::vector<mutation>& condensed_n_muts)
 {
     // if no mutations in site read map, condense and continue
     std::vector<mutation> muts;
-    muts.reserve(node->nucMutation.size());
+    muts.reserve(node->nucMutation.size() + condensed_n_muts.size());
     this->get_single_mutations(muts, node);
+    for (const auto& m: condensed_n_muts) 
+    {
+        auto it = std::lower_bound(muts.begin(), muts.end(), m);
+        if ((it != muts.end()) && (it->pos != m.pos))
+            muts.insert(it, m);
+    }
     tbb::parallel_sort(muts.begin(), muts.end());
 
     bool has_any = parent == nullptr; // root always gets added
+    std::vector<mutation> child_condensed_n_muts;
     for (const mutation& mut: muts) {
-        if ((site_read_map.find(mut.pos) != site_read_map.end()) && (mut.mut != NUC_N)) {
-            has_any = true;
-            break;
+        if (site_read_map.find(mut.pos) != site_read_map.end()) 
+        {   
+            if (mut.mut != NUC_N) {
+                has_any = true;
+                break;
+            }
+            else {
+                child_condensed_n_muts.emplace_back(mut);
+            }
         }
     }  
     
@@ -39,13 +53,15 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
 
         for (panmanUtils::Node *child : node->children)
         {
-            haplotype *curr = this->from_pan(parent, child, site_read_map, parent_mapping);
+            haplotype *curr = this->from_pan(parent, child, site_read_map, parent_mapping, child_condensed_n_muts);
             if (curr) {
                 parent->children.emplace_back(curr);
             }
         }
         return nullptr;
     }
+    else
+        child_condensed_n_muts.clear();
 
     this->nodes.emplace_back();
     haplotype *ret = &this->nodes.back();
@@ -212,7 +228,7 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
     std::vector<panmanUtils::Node*> &condensed_list = condensed_node_mappings[ret];
     for (panmanUtils::Node *child : node->children)
     {
-        haplotype *curr = this->from_pan(ret, child, site_read_map, condensed_list);
+        haplotype *curr = this->from_pan(ret, child, site_read_map, condensed_list, child_condensed_n_muts);
         if (curr) {
             ret->children.emplace_back(curr);
         }
