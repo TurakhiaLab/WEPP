@@ -111,7 +111,7 @@ get_single_mutations(std::vector<mutation>& ret, const std::string& ref, const p
 
     // blockMutation should only be present in root
     assert((node->parent == nullptr) == (node->blockMutation.size() != 0));
-    
+
     return;
 }
 

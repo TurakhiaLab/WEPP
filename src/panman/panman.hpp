@@ -2,7 +2,6 @@
 #include <string>
 #include <fstream>
 #include <unordered_map>
-#include <set>
 #include <queue>
 #include <atomic>
 #include <tbb/concurrent_unordered_map.h>
@@ -17,6 +16,7 @@
 #include <capnp/message.h>
 #include <capnp/serialize-packed.h>
 #include <kj/std/iostream.h>
+#include <set>
 
 namespace panmanUtils {
 
@@ -116,6 +116,13 @@ struct NucMut {
         for(int i = start; i < end; i++) {
             nucs += (std::get<2>(mutationArray[i]) << (4*(5-(i - start))));
         }
+
+        // if (nucPosition == 0){
+        //     std::cout << "\t Writing " << nucPosition << " " << 
+        //                 (int)mutInfo << " " << 
+        //                 nucs << " " <<
+        //                 std::endl;
+        // }
     }
 
     // Create non-SNP mutations from SNP mutations at consecutive positions
@@ -264,7 +271,7 @@ struct BlockGapList {
 // PanMAT tree node
 class Node {
   public:
-    float branchLength;
+    float branchLength = 0.0;
     size_t level;
     std::string identifier;
     Node* parent;
@@ -287,7 +294,7 @@ class Tree {
     // memory, assign mutations from the proto file to the tree nodes using preorder
     // traversal
     void assignMutationsToNodes(Node* root, size_t& currentIndex,
-                                std::vector< panman::Node::Reader >& nodes);
+                                std::vector<panman::Node::Reader>& storedNode);
 
     // Get the total number of mutations of given type
     int getTotalParsimonyParallel(NucMutationType nucMutType,
@@ -301,7 +308,10 @@ class Tree {
     // Tree traversal for FASTA writer
     void printFASTAHelper(panmanUtils::Node* root, sequence_t& sequence,
                           blockExists_t& blockExists, blockStrand_t& blockStrand, std::ostream& fout,
-                          bool aligned = false);
+                          bool aligned = false, bool rootSeq = false, const std::tuple<int, int, int, int> &start = {-1,-1,-1,-1}, const std::tuple<int, int, int, int>& end={-1,-1,-1,-1}, bool allIndex = false);
+
+    void printSingleNodeHelper(std::vector<panmanUtils::Node*> &nodeList, int nodeListIndex, sequence_t& sequence,
+        blockExists_t& blockExists, blockStrand_t& blockStrand, std::ostream& fout, bool aligned, bool rootSeq, const std::tuple< int, int, int, int >& panMATStart={-1,-1,-1,-1}, const std::tuple< int, int, int, int >& panMATEnd={-1,-1,-1,-1});
 
     // Merge parent and child nodes when compressing subtree
     void mergeNodes(Node* par, Node* chi);
@@ -390,7 +400,7 @@ class Tree {
     void protoMATToTree(const panman::Tree::Reader& mainTree);
 
     // Fitch Algorithm on Nucleotide mutations
-    int nucFitchForwardPass(Node* node, std::unordered_map< std::string, int >& states);
+    int nucFitchForwardPass(Node* node, std::unordered_map< std::string, int >& states, int refState=-1);
     int nucFitchForwardPassOpt(Node* node, std::unordered_map< std::string, int >& states);
     // Default state is used in rerooting to a tip sequence. It is used to fix the state at
     // the root
@@ -450,7 +460,10 @@ class Tree {
     // void printSummary();
     void printSummary(std::ostream &out);
     void printBfs(Node* node = nullptr);
-    void printFASTA(std::ostream& fout, bool aligned = false);
+    void printFASTA(std::ostream& fout, bool aligned = false, bool rootSeq = false, const std::tuple<int, int, int, int> &start={-1,-1,-1,-1}, const std::tuple<int, int, int, int> &end={-1,-1,-1,-1}, bool allIndex = false);
+    void printSingleNode(std::ostream& fout, const sequence_t& sequence,
+                                         const blockExists_t& blockExists, const blockStrand_t& blockStrand,
+                                         std::string nodeIdentifier, std::tuple< int, int, int, int > &panMATStart, std::tuple< int, int, int, int > &panMATEnd);
     void printFASTAParallel(std::ofstream& fout, bool aligned = false);
     void printMAF(std::ostream& fout);
 
@@ -464,6 +477,7 @@ class Tree {
     // sequences are assumed to be the same as their strands in the root sequence for the
     // purpose of splitting the terminal blocks during extraction
     void extractPanMATSegment(kj::std::StdOutputStream& fout, int64_t start, int64_t end);
+    void extractPanMATIndex(std::ostream& fout, int64_t start, int64_t end, std::string nodeIdentifier, bool single=true);
 
     Node* subtreeExtractParallel(std::vector< std::string > nodeIds, const std::set< std::string >& nodeIdsToDefinitelyInclude = {});
     // Node* subtreeExtractParallel(std::vector< std::string > nodeIds);
@@ -492,7 +506,7 @@ class Tree {
     int32_t getUnalignedGlobalCoordinate(int32_t primaryBlockId, int32_t secondaryBlockId,
                                          int32_t pos, int32_t gapPos, const sequence_t& sequence,
                                          const blockExists_t& blockExists, const blockStrand_t& blockStrand,
-                                         int circularOffset = 0);
+                                         int circularOffset = 0, bool * check = nullptr);
     std::tuple< int, int, int, int > globalCoordinateToBlockCoordinate(
         int64_t globalCoordinate,
         const sequence_t& sequence,
@@ -701,7 +715,7 @@ class TreeGroup {
 
     TreeGroup* subnetworkExtract(std::unordered_map< int, std::vector< std::string > >& nodeIds);
 
-    void printFASTA(std::ofstream& fout);
+    void printFASTA(std::ofstream& fout, bool rootSeq = false);
     void writeToFile(kj::std::StdOutputStream& fout);
     void printComplexMutations(std::ostream& fout);
 };

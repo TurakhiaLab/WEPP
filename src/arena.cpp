@@ -17,7 +17,6 @@ arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
     std::cout << "Linearizing panmat took " << t.seconds() << " seconds " << std::endl << std::endl;
 }
 
-
 haplotype *
 arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping, const std::vector<mutation>& condensed_n_muts)
 {
@@ -28,8 +27,13 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
     for (const auto& m: condensed_n_muts) 
     {
         auto it = std::lower_bound(muts.begin(), muts.end(), m);
-        if ((it != muts.end()) && (it->pos != m.pos))
-            muts.insert(it, m);
+        if (it != muts.end()) {
+            if (it->pos != m.pos)
+                muts.insert(it, m);
+        }
+        else {
+            muts.emplace_back(m);
+        }
     }
     tbb::parallel_sort(muts.begin(), muts.end());
 
@@ -249,31 +253,52 @@ int arena::pan_tree_size(panmanUtils::Node *node)
 
  std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
     std::vector<mutation> sample_mutations;
+    std::unordered_map<int, mutation> parent_n_mutations;
     // Checking all ancestors of a node
     for (const panmanUtils::Node* curr = node; curr; curr = curr->parent) {
         std::vector<mutation> node_mutations;
         node_mutations.reserve(curr->nucMutation.size());
         get_single_mutations(node_mutations, curr);
         for (const auto& mut: node_mutations) {
-            auto sm_itr = sample_mutations.begin();
-            while (sm_itr != sample_mutations.end()) {
-                if (sm_itr->pos == mut.pos)
-                    break;
-                sm_itr++;
-            }
+            auto sm_itr = std::lower_bound(sample_mutations.begin(), sample_mutations.end(), mut);
             if (sm_itr == sample_mutations.end()) {
                 sample_mutations.emplace_back(mut);
             }
+            else if (sm_itr->pos != mut.pos) {
+                sample_mutations.insert(sm_itr, mut);
+            }
+            else {
+                if (sm_itr->mut == NUC_GAP) {
+                    if (parent_n_mutations.find(mut.pos) == parent_n_mutations.end())
+                        parent_n_mutations[mut.pos] = mut;
+                }
+            }
         }
     }
-    //Remove Back-Mutations
+    // Replace Gaps and remove back-mutations
     auto sm_itr = sample_mutations.begin();
     while (sm_itr != sample_mutations.end()) {
-        if (sm_itr->ref == sm_itr->mut)
-            sm_itr = sample_mutations.erase(sm_itr);
-        else {
-            sm_itr++;
+        //Update Gaps with their parent mutations
+        if (sm_itr->mut == NUC_GAP) {
+            if (parent_n_mutations.find(sm_itr->pos) != parent_n_mutations.end()) {
+                const auto& par_mut = parent_n_mutations[sm_itr->pos];
+                if (par_mut.ref != par_mut.mut) {
+                    sm_itr->mut = par_mut.mut;
+                    sm_itr++;
+                }
+                else
+                    sm_itr = sample_mutations.erase(sm_itr);
+            }
+            else {
+                sm_itr = sample_mutations.erase(sm_itr);
+            }
         }
+        // Remove Back-Mutations
+        else if (sm_itr->ref == sm_itr->mut) {
+            sm_itr = sample_mutations.erase(sm_itr);
+        }
+        else
+            sm_itr++;
     }
 
     tbb::parallel_sort(sample_mutations.begin(), sample_mutations.end());
@@ -370,7 +395,6 @@ void arena::build_range_trees()
         true_read_distribution[i] = (double)true_read_counts[i] / this->num_reads;
     }
 }
-
 
 multi_haplotype *arena::find_range_tree_for(const raw_read &read)
 {
@@ -477,6 +501,21 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     std::vector<std::string> comp = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
 
+    std::vector<std::vector<mutation>> selected_mutations;
+    for (const auto &pn : selected) {
+        auto node_mutations = get_mutations(pn->condensed_source);
+        // Remove mutations from node_mutations that are not present in site_read_map
+        auto mut_itr = node_mutations.begin();
+        while (mut_itr != node_mutations.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = node_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+       selected_mutations.emplace_back(node_mutations);
+    }
+
     for (const std::string &reference : comp)
     {
         std::vector<mutation>sample_mutations = get_mutations(this->mat.allNodes.at(reference));
@@ -492,9 +531,10 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
         std::string best_node = "";
         int min_dist = INT_MAX;
-        for (const auto &pn : selected)
+        for (size_t i = 0; i < selected.size(); i++)
         {
-            auto node_mutations = pn->stack_muts;
+            const auto& pn = selected[i];
+            auto node_mutations = selected_mutations[i];
             int curr_dist = mutation_distance(sample_mutations, node_mutations);
             if (curr_dist < min_dist)
             {
@@ -519,26 +559,41 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     std::vector<std::string> comp = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
 
+    std::vector<std::vector<mutation>> comp_mutations;
+    for (const std::string &reference : comp) {
+        auto sample_mutations = get_mutations(this->mat.allNodes.at(reference));
+        // Remove mutations from sample_mutations that are not present in site_read_map
+        auto mut_itr = sample_mutations.begin();
+        while (mut_itr != sample_mutations.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = sample_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+       comp_mutations.emplace_back(sample_mutations);
+    }
+    
     for (const auto &pn : selected)
     {
         // Getting node_mutations from the Tree
-        auto node_mutations = pn.first->stack_muts;
+        auto node_mutations = get_mutations(pn.first->condensed_source);
+        // Remove mutations from node_mutations that are not present in site_read_map
+        auto mut_itr = node_mutations.begin();
+        while (mut_itr != node_mutations.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = node_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
 
         std::string best_node = "";
         int min_dist = INT_MAX;
-        for (const std::string &reference : comp)
+        for (size_t i = 0; i < comp.size(); i++)
         {
-            auto sample_mutations = get_mutations(this->mat.allNodes.at(reference));
-            // Remove mutations from sample_mutations that are not present in site_read_map
-            auto mut_itr = sample_mutations.begin();
-            while (mut_itr != sample_mutations.end())
-            {
-                if (site_read_map.find(mut_itr->pos) == site_read_map.end())
-                    mut_itr = sample_mutations.erase(mut_itr);
-                else
-                    mut_itr++;
-            }
-
+            auto reference = comp[i];
+            auto sample_mutations = comp_mutations[i];
             int curr_dist = mutation_distance(sample_mutations, node_mutations);
             if (curr_dist < min_dist)
             {
@@ -550,14 +605,8 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         std::string lineage_name = "";
         for (auto anc = condensed_node_mappings[pn.first].front(); anc; anc = anc->parent)
         {
-            if (anc->annotations.size() < 2) {
-                continue;
-            }
-
-            const auto &clade = anc->annotations[1];
-            if (clade != "")
-            {
-                lineage_name = clade;
+            if (anc->annotations.size()) {
+                lineage_name = anc->annotations.front();
                 break;
             }
         }
@@ -582,12 +631,8 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
         std::string lineage_name;
         panmanUtils::Node* target = condensed_node_mappings[p.first].front();
         for (panmanUtils::Node* curr = target; target; target = target->parent) {
-            if (curr->annotations.size() < 2) continue;
-            
-            const auto &clade = curr->annotations[1];
-            if (clade != "")
-            {
-                lineage_name = clade;
+            if (curr->annotations.size()) {
+                lineage_name = curr->annotations.front();
                 break;
             }
         }
