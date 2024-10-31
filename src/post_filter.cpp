@@ -96,13 +96,24 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 {
     std::set<std::string> mutations;
     std::vector<std::set<std::string>> node_muts;
+    const auto& site_read_map = a.site_read_map();
 
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
-        for (const mutation& m : n->stack_muts)
+        // Replacing Deletions with their Parent Allele
+        auto hap_mutations = a.get_mutations(n->condensed_source);
+        auto mut_itr = hap_mutations.begin();
+        while (mut_itr != hap_mutations.end())
         {
-            if (m.mut != NUC_N && !m.is_del()) {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = hap_mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        for (const mutation& m : hap_mutations)
+        {
+            if (m.mut != NUC_N) {
                 std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
                 mutations.insert(build);
                 my_muts.insert(std::move(build));

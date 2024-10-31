@@ -82,9 +82,6 @@ class arena {
     // just here mutations
     void get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* n);
 
-    // mutations from root to here
-    std::vector<mutation> get_mutations(const panmanUtils::Node* n);
-
 
 public:
     arena(const dataset& ds);
@@ -204,6 +201,9 @@ public:
     }
 
     void get_residual_cooccuring_mutations(int window_size);
+
+    // mutations from root to here
+    std::vector<mutation> get_mutations(const panmanUtils::Node* n);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);

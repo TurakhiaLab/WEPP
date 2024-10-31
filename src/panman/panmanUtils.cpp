@@ -28,6 +28,59 @@ void stripStringInPlace(std::string& s) {
     }
 }
 
+std::string printNucMut(int32_t mutInfo){
+    std::string s = "Type ";
+    s += std::to_string(mutInfo&0xf);
+    s += " Length ";
+    s += std::to_string(mutInfo>>4);
+    return s;
+}
+
+std::string printNucs(int32_t mutInfo, int32_t nucs){
+    std::string s = " Chars: ";
+    int len = mutInfo >> 4;
+    for (int i=0; i<len; i++) {
+        s += std::to_string(nucs&0x4);
+        s += " ";
+        nucs = nucs >> 4;
+    }
+    return s;
+}
+
+void checkFunction(panmanUtils::Tree *T) {
+    std::cout << T->root->identifier << std::endl;
+    std::ofstream o("new.fa");
+    T->printFASTA(o);
+
+    // get node id
+    panmanUtils::Node * node = T->allNodes["England/MILK-338D3D9/2022|OV784995.1|2022-01-21"];
+    std::cout << "Found Node: " << node->identifier << std::endl;
+
+    while (node != nullptr) {
+        std::cout << "node: " << node->identifier << std::endl;
+        // Pring block mutations
+        std::cout << "Block mutations" << std::endl;
+        for(auto &u: node->blockMutation) {
+            std::cout << "\t" << u.blockMutInfo << " " <<
+                                 u.inversion << " " <<
+                                 u.primaryBlockId << " " <<
+                                 u.secondaryBlockId << " " << std::endl;
+        }
+
+        // Pring Nuc mutations
+        std::cout << "Nuc mutations" << std::endl;
+        for(auto &u: node->nucMutation) {
+            std::cout << "\t Position " << u.nucPosition << " Gap-position " <<
+                                 u.nucGapPosition << " " <<
+                                 printNucMut(u.mutInfo) << " " <<
+                                 printNucs(u.mutInfo, u.nucs) << " " << std::endl;
+        }
+        node = node->parent;
+    }
+
+    return;
+}
+
 // program option description for building/loading a PanMAT into memory
 po::options_description globalDesc("panmanUtils Command Line Arguments");
 po::positional_options_description globalPositionArgumentDesc;
@@ -96,11 +149,14 @@ void setupOptionDescriptions() {
     ("create-network,k", "Create PanMAN with network of trees from single or multiple PanMAN files")
     ("printMutations,p", "Create PanMAN with network of trees from single or multiple PanMAN files")
     ("acr,q", "ACR method [fitch(default), mppa]")
+    ("index",po::value< bool >(0), "Generating indexes and print sequence (passed as reference) between x:y")
+    ("printRoot", "Print root sequence")
     //("printNodePaths", "Create PanMAN with network of trees from single or multiple PanMAN files")
-
+  
+    ("low-mem-mode", "Perform Fitch Algrorithm in batch to save memory consumption")
     ("reference,n", po::value< std::string >(), "Identifier of reference sequence for PanMAN construction (optional), VCF extract (required), or reroot (required)")
-    ("start,s", po::value< std::string >(), "Start coordinate of protein translation")
-    ("end,e", po::value< std::string >(), "End coordinate of protein translation")
+    ("start,s", po::value< int64_t >(), "Start coordinate of protein translation/Start coordinate for indexing")
+    ("end,e", po::value< int64_t >(), "End coordinate of protein translation/End coordinate for indexing")
     ("treeID,d", po::value< std::string >(), "Tree ID, required for --vcf")
     ("input-file,i", po::value< std::string >(), "Path to the input file, required for --subnet, --annotate, and --create-network")
     ("output-file,o", po::value< std::string >(), "Prefix of the output file name")
@@ -397,6 +453,7 @@ void parseAndExecute(int argc, char* argv[]) {
         inPMATBuffer.push(inputFile);
         std::istream inputStream(&inPMATBuffer);
 
+        std::cout << "starting reading panman" << std::endl;
         TG = new panmanUtils::TreeGroup(inputStream);
 
         auto treeBuiltEnd = std::chrono::high_resolution_clock::now();
@@ -506,8 +563,13 @@ void parseAndExecute(int argc, char* argv[]) {
         }
 
         bool optimize = false;
-        if(globalVm.count("optimize")) {
+        if(globalVm.count("low-mem-mode")) {
             optimize = true;
+        }
+
+        std::string reference = "";
+        if (globalVm.count("reference")) {
+            reference = globalVm["reference"].as<std::string>();
         }
 
         std::string newickFileName = globalVm["input-newick"].as< std::string >();
@@ -519,13 +581,15 @@ void parseAndExecute(int argc, char* argv[]) {
 
         auto treeBuiltStart = std::chrono::high_resolution_clock::now();
 
-        // if(!optimize) {
-        T = new panmanUtils::Tree(inputStream, newickInputStream,
-                                  panmanUtils::FILE_TYPE::MSA);
-        // } else {
-        // T = new panmanUtils::Tree(inputStream, newickInputStream,
-        // panmanUtils::FILE_TYPE::MSA_OPTIMIZE);
-        // }
+        if(!optimize) {
+            T = new panmanUtils::Tree(inputStream, newickInputStream,
+                                  panmanUtils::FILE_TYPE::MSA, reference);
+        } else {
+            T = new panmanUtils::Tree(inputStream, newickInputStream,
+                                    panmanUtils::FILE_TYPE::MSA_OPTIMIZE, reference);
+        }
+
+        // checkFunction(T);
 
         std::vector<panmanUtils::Tree*> tg;
         tg.push_back(T);
@@ -605,7 +669,7 @@ void parseAndExecute(int argc, char* argv[]) {
             std::ostream fout (buf);
 
 
-            T->printFASTA(fout, false);
+            T->printFASTA(fout, false, true);
 
             if(globalVm.count("output-file")) outputFile.close();
         }
@@ -941,12 +1005,10 @@ void parseAndExecute(int argc, char* argv[]) {
             return;
         }
 
-        int treeID;
-        if(!globalVm.count("treeID")) {
-            panmanUtils::printError("TreeID not provided!");
-            std::cout << globalDesc;
-            return;
-        } else treeID = std::stoi(globalVm["treeID"].as< std::string >());
+        int treeID = 0;
+        if(globalVm.count("treeID")) {
+            treeID = std::stoi(globalVm["treeID"].as< std::string >());
+        }
 
         panmanUtils::TreeGroup tg = *TG;
         T = &tg.trees[treeID];
@@ -1025,7 +1087,7 @@ void parseAndExecute(int argc, char* argv[]) {
         panmanUtils::TreeGroup tg = *TG;
         T = &tg.trees[treeID];
 
-        if(!globalVm.count("start") || !globalVm.count("start")) {
+        if(!globalVm.count("start") || !globalVm.count("end")) {
             std::cout << "Start/End Coordinate not provided" << std::endl;
             return;
         }
@@ -1166,6 +1228,100 @@ void parseAndExecute(int argc, char* argv[]) {
                   << substitutionsTime.count() << " nanoseconds\n";
 
         if(globalVm.count("output-file")) outputFile.close();
+    } else if (globalVm.count("index")) {
+        // indexing
+        if(TG == nullptr) {
+            std::cout << "No PanMAN selected" << std::endl;
+            return;
+        }
+
+        panmanUtils::TreeGroup tg = *TG;
+
+        // Get start and end coordinate
+        int64_t startCoordinate = 0;
+        int64_t endCoordinate = -1;
+        if(!globalVm.count("start")) {
+            std::cout << "Start Coordinate not provided, setting it to 0" << std::endl;
+        } else {
+            startCoordinate = globalVm["start"].as< int64_t >();
+        }
+
+        if(!globalVm.count("end")) {
+            std::cout << "End Coordinate not provided, setting it to length of seqeunce - 1" << std::endl;
+        } else {
+            endCoordinate = globalVm["end"].as< int64_t >();
+        }
+
+        // get sequence
+        std::string reference="";
+        if(!globalVm.count("reference")) {
+            std::cout << "Error: Reference not provided" << std::endl;
+            return;
+        } else {
+            reference = globalVm["reference"].as< std::string >();
+        }
+    
+        auto fastaStart = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < tg.trees.size(); i++) {
+            T = &tg.trees[i];
+            if (T->allNodes.find(reference) == T->allNodes.end()) {
+                std::cout << "Error: reference " << reference << " does not exist in PanMAN\n";
+                exit(0);
+            }
+            if(globalVm.count("output-file")) {
+                std::string fileName = globalVm["output-file"].as< std::string >();
+                outputFile.open("./info/" + fileName + "_" + std::to_string(i) + ".index");
+                buf = outputFile.rdbuf();
+            } else {
+                buf = std::cout.rdbuf();
+            }
+            std::ostream fout (buf);
+
+            bool allIndex = globalVm["index"].as< bool >();
+
+            T->extractPanMATIndex(fout, startCoordinate,endCoordinate, reference, allIndex);
+
+            if(globalVm.count("output-file")) outputFile.close();
+        }
+
+        auto fastaEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::nanoseconds fastaTime = fastaEnd - fastaStart;
+        std::cout << "\nIndexing execution time: " << fastaTime.count() << " nanoseconds\n";
+
+        return;
+    } else if(globalVm.count("printRoot")) {
+        // Print raw sequences to output file
+
+        if(TG == nullptr) {
+            std::cout << "No PanMAN selected" << std::endl;
+            return;
+        }
+
+        panmanUtils::TreeGroup tg = *TG;
+
+        auto fastaStart = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < tg.trees.size(); i++) {
+            T = &tg.trees[i];
+            if(globalVm.count("output-file")) {
+                std::string fileName = globalVm["output-file"].as< std::string >();
+                outputFile.open("./info/" + fileName + "_" + std::to_string(i) + ".fasta");
+                buf = outputFile.rdbuf();
+            } else {
+                buf = std::cout.rdbuf();
+            }
+            std::ostream fout (buf);
+
+
+            T->printFASTA(fout, true, true);
+
+            if(globalVm.count("output-file")) outputFile.close();
+        }
+
+        auto fastaEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::nanoseconds fastaTime = fastaEnd - fastaStart;
+        std::cout << "\nFASTA execution time: " << fastaTime.count() << " nanoseconds\n";
+
+        return;
     } else {
         return;
     }
