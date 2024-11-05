@@ -611,7 +611,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
             }
         }
 
-        printf("PEAK: %s Lineage: %s weighted_dist: %.2f raw_dist: %02d proportion: %.2f (to) %s \n", pn.first->id.c_str(), lineage_name.c_str(), (min_dist * pn.second), min_dist, pn.second, best_node.c_str()); 
+        printf("PEAK: %s Lineage: %.*s weighted_dist: %.2f raw_dist: %02d proportion: %.2f (to) %s \n", pn.first->id.c_str(), static_cast<int>(lineage_name.size() - 1), lineage_name.c_str(), (min_dist * pn.second), min_dist, pn.second, best_node.c_str()); 
         average_dist += (min_dist * pn.second);
     }
 
@@ -628,11 +628,11 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)
     {
-        std::string lineage_name;
-        panmanUtils::Node* target = condensed_node_mappings[p.first].front();
-        for (panmanUtils::Node* curr = target; target; target = target->parent) {
-            if (curr->annotations.size()) {
-                lineage_name = curr->annotations.front();
+        std::string lineage_name = "";
+        for (auto anc = condensed_node_mappings[p.first].front(); anc; anc = anc->parent)
+        {
+            if (anc->annotations.size()) {
+                lineage_name = anc->annotations.front();
                 break;
             }
         }
@@ -645,7 +645,7 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     std::cout << "--- lineage abundance " << std::endl;
     for (const auto &[name, val] : a_map)
     {
-        printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
+        printf("* lineage: %.*s abundance: %.6f\n", static_cast<int>(name.size() - 1), name.c_str(), val);
     }
 }
 
