@@ -8,6 +8,7 @@
 #include "arena.hpp"
 #include "initial_filter.hpp"
 #include "post_filter.hpp"
+#include "config.hpp"
 
 class pipeline {
 public:
