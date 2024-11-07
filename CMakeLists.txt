@@ -58,11 +58,6 @@ if(DEFINED Protobuf_PATH)
         src/usher_common.cpp
         src/usher.cpp
         )
-    add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp
-        src/usher_mapper.cpp
-        )
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -75,12 +70,6 @@ if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
         TARGET ripples 
-        PROTOS parsimony.proto)
-
-
-    protobuf_generate(
-        LANGUAGE cpp
-        TARGET compareVCF 
         PROTOS parsimony.proto)
 
     protobuf_generate(
@@ -144,14 +133,6 @@ else()
         src/WBE/Freyja/closest_peak_clustering.cpp
         )
 
-    add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp
-        src/usher_mapper.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
-
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -177,7 +158,6 @@ else(SAVE_PROFILE)
         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
     endif(DEBUG)
 endif(SAVE_PROFILE)
-TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
