@@ -8,7 +8,6 @@
 #include "arena.hpp"
 #include "initial_filter.hpp"
 #include "post_filter.hpp"
-#include "variant_finder.hpp"
 
 class pipeline {
 public:
