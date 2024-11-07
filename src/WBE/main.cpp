@@ -34,7 +34,7 @@ int main (int argc, char** argv) {
     try {
         po::store(parsed, vm);
         cmd = vm["command"].as<std::string>();
-    } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
+    } catch (...) {
         fprintf(stderr, "\nNo command selected. Help follows:\n\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
