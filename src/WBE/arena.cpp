@@ -250,7 +250,7 @@ std::set<haplotype *, score_comparator> arena::highest_scoring_neighbors(haploty
 void arena::get_residual_cooccuring_mutations(int window_size)
 {
     // Read residual_mutations
-    std::string file_path = "../Freyja/residual_mutations.txt";
+    std::string file_path = "./src/Freyja/residual_mutations.txt";
     std::ifstream file(file_path);  
     std::vector<std::string> mutations;  
 
@@ -728,7 +728,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     std::string csv_print_haplotypes, csv_print_reads;
 
     // Read residual_mutations
-    std::string file_path = "../Freyja/residual_mutations.txt";
+    std::string file_path = "./src/Freyja/residual_mutations.txt";
     std::ifstream file(file_path);  
     std::vector<std::tuple<int, char, float>> mutations; 
 
