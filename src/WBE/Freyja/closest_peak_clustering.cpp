@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < indices.size(); ++i) 
     {
         int idx = indices[i];
-        if (data[idx].cost < eps) {
+        if ((data[idx].cost < eps) && (i+1 < indices.size())) {
             int jdx = closest_indices[i];
             data[jdx].cost += data[idx].cost;
             data[idx].cost = 0;
