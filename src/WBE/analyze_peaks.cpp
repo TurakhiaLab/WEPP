@@ -7,7 +7,7 @@ void analyze_peaks(const dataset& d) {
     std::vector<std::pair<std::string, double>> curr_hap_abundance, cmp_hap_abundance; 
     read_haplotype_proportion(curr_hap_abundance, d.haplotype_proportion_path()); 
     read_haplotype_proportion(cmp_hap_abundance, d.comparison_haplotype_proportion_path());
-    auto T_curr = d.mat(false); 
+    auto T_curr = d.mat(); 
     auto T_cmp = d.cmp_mat();
     
     std::unordered_map<std::string, std::vector<std::string>> reverse;

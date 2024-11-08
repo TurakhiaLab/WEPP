@@ -111,23 +111,12 @@ public:
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
-    MAT::Tree mat(bool is_ref) const {
+    MAT::Tree mat() const {
         MAT::Tree T;
         T.root = NULL;
-        if (is_ref) {
-            if (!this->options["ref-mat"].as<std::string>().empty()) 
-            {
-                std::string mat_filename = this->directory() + this->options["ref-mat"].as<std::string>();
-                T = MAT::load_mutation_annotated_tree(mat_filename);
-                T.uncondense_leaves();
-            }
-        }
-        else 
-        {
-            std::string mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
-            T = MAT::load_mutation_annotated_tree(mat_filename);
-            T.uncondense_leaves();
-        }
+        std::string mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
+        T = MAT::load_mutation_annotated_tree(mat_filename);
+        T.uncondense_leaves();
         return T;
     }
 
@@ -141,7 +130,7 @@ public:
        return T;
     }
 
-    std::vector<std::string> true_haplotypes() const {
+    std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>  true_haplotypes() const {
         return read_sample_vcf(this->directory() + this->file_prefix() + "_samples.vcf");
     }
 };

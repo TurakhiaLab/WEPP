@@ -60,7 +60,7 @@ class arena {
     std::array<int, NUM_RANGE_BINS> true_read_counts;
     std::array<double, NUM_RANGE_BINS> true_read_distribution;
 
-    MAT::Tree mat, ref_mat;
+    MAT::Tree mat;
     std::unordered_map<MAT::Node *, std::vector<MAT::Node *>> condensed_node_mappings;
 
     const dataset& ds;
@@ -71,8 +71,7 @@ class arena {
 public:
     arena(const dataset& ds) : ds{ds} {
         this->raw_reads = ds.reads();
-        this->ref_mat = ds.mat(true);
-        this->mat = ds.mat(false);
+        this->mat = ds.mat();
         
         MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
 

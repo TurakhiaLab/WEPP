@@ -9,7 +9,7 @@
 
 #include "read.hpp"
 
-std::vector<std::string> 
+std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>
 read_sample_vcf(const std::string& vcf_filename_samples);
 
 MAT::Tree 

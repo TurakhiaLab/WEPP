@@ -6,21 +6,70 @@
 #include "util.hpp"
 
 //Get the names of samples prsent in samples.vcf
-std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples) {
-    std::vector<std::string> vcf_samples;
-
+std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> read_sample_vcf(const std::string& vcf_filename_samples) {
+    std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> vcf_samples;
     // Boost library used to stream the contents of the input VCF file
     boost::filesystem::ifstream fileHandler(vcf_filename_samples);
     std::string s;
+    bool header_found = false;
     while (getline(fileHandler, s)) {
         std::vector<std::string> words;
         MAT::string_split(s, words);
         if (words.size() > 1) {
             //Checking for header
             if (words[1] == "POS") {
+                header_found = true;
                 //Leave certain fields based on our VCF format
-                for (int j=9; j < (int)words.size(); j++)
-                    vcf_samples.emplace_back(words[j]);
+                for (int j = 9; j < (int)words.size(); j++)
+                    vcf_samples.emplace_back(std::make_pair(words[j], std::vector<MAT::Mutation>{}));
+            }
+            else if (header_found) {
+                std::vector<std::string> alleles;
+                //Checking for different alleles at a site
+                MAT::string_split(words[4], ',', alleles);
+                for (int j = 9; j < (int)words.size(); j++) {
+                    int idx = j - 9;
+                    MAT::Mutation m;
+                    m.chrom = words[0];
+                    m.position = std::stoi(words[1]);
+                    //Checking the mutating allele value within the allele sizes
+                    if (std::stoi(words[j]) > int(alleles.size())) {
+                        fprintf(stderr, "\n\nPosition: %d, idx = %d,\n", m.position, idx);
+                        fprintf(stderr, "Allele_id: %d, Alleles_size: %ld\n\n",std::stoi(words[j]), alleles.size());
+                    }
+                    m.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                    assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
+                    m.par_nuc = m.ref_nuc;
+                    // Alleles such as '.' should be treated as missing
+                    // data. if the word is numeric, it is an index to one
+                    // of the alleles
+                    if (isdigit(words[j][0])) {
+                        int allele_id = std::stoi(words[j]);
+                        if (allele_id > 0) {
+                            std::string allele = alleles[allele_id-1];
+                            if (allele[0] == 'N') {
+                                m.is_missing = true;
+                                m.mut_nuc = MAT::get_nuc_id('N');
+                            } 
+                            else {
+                                auto nuc = MAT::get_nuc_id(allele[0]);
+                                if (nuc == MAT::get_nuc_id('N')) {
+                                    m.is_missing = true;
+                                } 
+                                else {
+                                    m.is_missing = false;
+                                }
+                                m.mut_nuc = nuc;
+                            }
+                            vcf_samples[idx].second.emplace_back(m);
+                        }
+                    } 
+                    else {
+                        m.is_missing = true;
+                        m.mut_nuc = MAT::get_nuc_id('N');
+                        vcf_samples[idx].second.emplace_back(m);
+                    }
+                }
             }
         }
     }
