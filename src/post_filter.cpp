@@ -159,15 +159,13 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     fprintf(stderr, "%ld peaks selected for Freyja!\n\n", input.size());
     dump_barcode(arena, input);
 
-    if (std::system(
-            (std::string("bash -c \"") +
-                "source ~/miniforge3/etc/profile.d/conda.sh && " +
-                "conda activate freyja-env && " +
-                "cd ../Freyja && " +
-                "freyja demix " + arena.owned_dataset().variants_path() + " " + arena.owned_dataset().depth_path() + 
-                    " --barcodes data/usher_barcodes.csv --output my_output_latest.txt --eps 0.005" +
-            "\"").c_str()
-        ) != 0)
+    std::string command = "bash -c \""
+            "source " + CONDA_PATH + " && "
+            "conda activate freyja-env && "
+            "cd ./src/Freyja && "
+            "freyja demix cwap_variants.tsv cwap_depth.tsv --barcodes data/usher_barcodes.csv --output my_output_latest.txt --eps 0.005"
+            "\"";
+    if (std::system(command.c_str()) != 0)
     {
         std::cerr << "Failed to run freyja" << std::endl;
         return {};

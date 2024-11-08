@@ -13,21 +13,21 @@ public:
 
 class wepp_filter: public initial_filter {
     // optimization settings (no effect on final outpiut)
-    size_t max_cached_epp_size = 2048;
-    bool high_memory_cartesian_map = true;
+    size_t max_cached_epp_size = MAX_CACHED_EPP_SIZE;
+    bool high_memory_cartesian_map = HIGH_MEMORY_CARTESIAN_MAP;
     // a mutex corresponds to how many haplotypes?
-    int mutex_bin_size = 4096;
+    int mutex_bin_size = MUTEX_BIN_SIZE;
     // a thread will process about xx total chunks in its lifespan
-    int grain_size_factor = 4;
+    int grain_size_factor = GRAIN_SIZE_FACTOR;
 
     // affects final output
-    double read_dist_factor_threshold = (double) 0.5 / 100;
-    int max_peak_peak_mutation = 4;
-    int max_peak_nonpeak_mutation = 4;
-    int top_n = 10;
-    int max_peaks = 300;
+    double read_dist_factor_threshold = READ_DIST_FACTOR_THRESHOLD;
+    int max_peak_peak_mutation = MAX_PEAK_PEAK_MUTATION;
+    int max_peak_nonpeak_mutation = MAX_PEAK_NONPEAK_MUTATION;
+    int top_n = TOP_N;
+    int max_peaks = MAX_PEAKS;
     // for a given peak
-    int max_neighbors = 50;
+    int max_neighbors = MAX_NEIGHBORS_WEPP;
 
     // given a read index
     // what is its maximum parismony score?

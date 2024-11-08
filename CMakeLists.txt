@@ -79,7 +79,7 @@ else()
     )
 
     add_executable(closest_peak_clustering
-        src/Freyja/closest_peak_clustering.cpp
+        src/panman/closest_peak_clustering.cpp
     )
 endif()
 
