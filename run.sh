@@ -26,11 +26,11 @@ MAT="public-2024-11-05.all.masked.pb.gz"
 
 # Run C-WAP
 fastq_path=$PWD/$file_path
-cd ../C-WAP
+cd ./src/C-WAP
 source run.sh $fastq_path
 
 # Run Freyja
-cd ../SARS2-WBE/src/Freyja
+cd ../Freyja
 source run.sh
 
 # Run WEPP Pipeline
