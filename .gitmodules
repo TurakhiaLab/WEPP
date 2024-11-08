@@ -1,3 +1,6 @@
 [submodule "src/Freyja"]
 	path = src/Freyja
 	url = https://github.com/pgangwar-ucsd/Freyja.git
+[submodule "src/C-WAP"]
+	path = src/C-WAP
+	url = https://github.com/pgangwar-ucsd/C-WAP.git
