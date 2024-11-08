@@ -130,7 +130,7 @@ else()
         )
     
     add_executable(closest_peak_clustering
-        src/WBE/Freyja/closest_peak_clustering.cpp
+        src/Freyja/closest_peak_clustering.cpp
         )
 
     if(USHER_SERVER)

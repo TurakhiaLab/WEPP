@@ -15,10 +15,11 @@ file_prefix="H_as_nov_29"
 MAT="gisaidAndPublic.2021-11-15.masked.pb.gz"
 #REF_MAT="gisaidAndPublic.2022-05-01.masked.pb.gz"
 
-#cp ${file_path}/${file_prefix}_alignment.sam ../Freyja/${file_prefix}_alignment.sam
-#cd ../Freyja
-#source run.sh
-#cd -
+##cp ${file_path}/${file_prefix}_alignment.sam ../Freyja/${file_prefix}_alignment.sam
+cp ${file_path}/resorted.bam src/Freyja/
+cd src/Freyja
+source run.sh
+cd -
 
 
 #wbe analyzePeaks -T 1 -i ${MAT} -r ${MAT} -v ${file_prefix} -w ${file_prefix_cmp} -o ${file_path} -p ${file_path_cmp} -f NC_045512v2.fa 
