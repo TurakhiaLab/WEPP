@@ -9,12 +9,14 @@
 #include "pipeline.hpp"
 
 void detect_peaks(const dataset& d, bool is_initial) {
-    auto main = std::make_unique<wepp_filter>();
-    //auto main = std::make_unique<lineage_root_filter>();
+    std::unique_ptr<initial_filter> main;
+    if (FULL_TREE)
+        main = std::make_unique<wepp_filter>();
+    else
+        main = std::make_unique<lineage_root_filter>();
     
     auto post = std::make_unique<freyja_post_filter>();
-    //post->num_filter_rounds = 1;
-    post->num_filter_rounds = 10;
+    post->num_filter_rounds = MAX_NEIGHBOR_ITERATIONS;
 
     pipeline p{d, std::move(main), std::move(post)};
     
@@ -60,15 +62,16 @@ void pipeline::run_from_last_initial(bool is_full_run) {
         std::vector<std::pair<haplotype*, double>> full = post->iterative_filter(a, running);
         a.print_full_report(full);
         
-        //////////////////////////////////REMOVE when working with real data
-        std::vector<haplotype*> current;
-        current.reserve(full.size());
-        std::transform(full.begin(), full.end(), std::back_inserter(current),
-                   [](const std::pair<haplotype*, double>& pair) {
-                       return pair.first;
-                   });
-        a.print_mutation_distance(current);
-        ///////////////////////////////////////
+        if (SIMULATED_DATA)
+        {
+            std::vector<haplotype*> current;
+            current.reserve(full.size());
+            std::transform(full.begin(), full.end(), std::back_inserter(current),
+                       [](const std::pair<haplotype*, double>& pair) {
+                           return pair.first;
+                       });
+            a.print_mutation_distance(current);
+        }
 
         std::cout << "--- post filter took " << t.seconds() << " seconds " << std::endl;
 

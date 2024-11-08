@@ -10,8 +10,8 @@ class post_filter {
 public:
     int num_filter_rounds = 1;
     int freeze_round = 1;
-    int max_nbrs = 500;
-    int max_rad = 2;
+    int max_nbrs = MAX_NEIGHBORS_FREYJA;
+    int max_rad = MAX_NEIGHBOR_MUTATION;
 
     virtual std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) = 0;
 
