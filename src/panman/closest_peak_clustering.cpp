@@ -56,8 +56,8 @@ int main(int argc, char* argv[]) {
     float eps = std::stof(argv[1]);
 
     // Read the CSV file and get the vector of costMutations structs
-    std::string input_filename = "../Freyja/closest_peak_search.csv";
-    std::string output_filename = "../Freyja/peaks_clustered.csv";
+    std::string input_filename = "./closest_peak_search.csv";
+    std::string output_filename = "./peaks_clustered.csv";
     std::vector<struct costMutations> data = readCSV(input_filename);
     if (data.empty())
         return 1;

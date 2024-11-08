@@ -56,11 +56,11 @@ public:
     }
 
     std::string variants_path() const {
-        return "../Freyja/cwap_variants.tsv";
+        return "./src/Freyja/cwap_variants.tsv";
     }
 
     std::string depth_path() const {
-        return "../Freyja/cwap_depth.tsv";
+        return "./src/Freyja/cwap_depth.tsv";
     }
 
     const panmanUtils::Tree& mat() const {
