@@ -1,4 +1,4 @@
-name: usher
+name: SARS2-WBE
 channels:
   - defaults                                                                                                                                                                                                    
   - conda-forge
