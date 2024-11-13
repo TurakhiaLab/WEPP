@@ -1,7 +1,7 @@
 # Wastewater based Epidemiology using Phylogenetic Placement (WEPP)
 
 <div align="center">
-<img src="images/WBE_gif.gif" style="width:400px; height:400px; margin: 0px 0px -20px 0px;"/>
+<img src="images/WBE_gif.gif" style="margin: 0px 0px -20px 0px;"/>
 </div>
 
 **WEPP** is a novel phylogenetic method for detecting the SARS CoV-2 variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. We have two version of WEPP - one is based on MAT called WEPP and the other uses PANMAT called WEPP-PANMAT.  
