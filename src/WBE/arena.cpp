@@ -476,7 +476,8 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
     for (const auto &reference : comp_mut)
     {
-        auto sample_mutations = reference.second;
+        //auto sample_mutations = reference.second;
+        auto sample_mutations = get_mutations(this->mat, reference.first);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -558,7 +559,8 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         int min_dist = INT_MAX;
         for (const auto &reference : comp_mut)
         {   
-            auto sample_mutations = reference.second;
+            //auto sample_mutations = reference.second;
+            auto sample_mutations = get_mutations(this->mat, reference.first);
             auto mut_itr = sample_mutations.begin();
             while (mut_itr != sample_mutations.end())
             {
