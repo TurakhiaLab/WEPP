@@ -190,11 +190,7 @@ void analyze_peaks(const dataset& d) {
     std::sort(proportion_difference.begin(), proportion_difference.end());
     for (auto diff: proportion_difference)
         mse += (pow(diff, 2) / proportion_difference.size());
-    printf("MSE: %f\n", mse);
-    
-    for (size_t i = 0; i < proportion_difference.size() - 1; i++)
-        mssd += (pow(proportion_difference[i] - proportion_difference[i + 1], 2) / (proportion_difference.size() - 1));
-    printf("MSSD: %f\n", mssd);
+    fprintf(stderr, "MSE: %f\n", mse);
 }
 
 
