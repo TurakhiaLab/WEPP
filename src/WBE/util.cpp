@@ -150,8 +150,8 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
-    ("ref-mat,r", po::value<std::string>()->default_value(""),
-     "Reference mutation-annotated tree file")
+    ("cmp-mat,r", po::value<std::string>()->default_value(""),
+     "Comparison mutation-annotated tree file")
     ("output-directory,o", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
      ("comparison-directory,p", po::value<std::string>()->default_value("./"),

@@ -37,3 +37,6 @@ static constexpr bool FULL_RUN = true;
 
 // Update the path to local conda
 static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh"; 
+
+// Used for styding cluster trend in time series data
+static constexpr int CLUSTER_DIST = 2;

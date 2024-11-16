@@ -69,7 +69,7 @@ public:
     }
 
     std::string haplotype_growth_path() const {
-        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.txt";
+        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.csv";
     }
 
     const std::string& reference() const {
@@ -124,7 +124,7 @@ public:
        MAT::Tree T;
        T.root = NULL;
 
-       std::string mat_filename = this->comparison_directory() + this->options["ref-mat"].as<std::string>();
+       std::string mat_filename = this->comparison_directory() + this->options["cmp-mat"].as<std::string>();
        T = MAT::load_mutation_annotated_tree(mat_filename);
        T.uncondense_leaves();
        return T;

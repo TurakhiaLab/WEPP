@@ -1,12 +1,10 @@
 #include "analyze_peaks.hpp"
 
-static constexpr int NEIGHBOR_DIST = 2;
-
 void analyze_peaks(const dataset& d) {
     // Read files
-    std::vector<std::pair<std::string, double>> curr_hap_abundance, cmp_hap_abundance; 
-    read_haplotype_proportion(curr_hap_abundance, d.haplotype_proportion_path()); 
-    read_haplotype_proportion(cmp_hap_abundance, d.comparison_haplotype_proportion_path());
+    std::vector<std::tuple<std::string, double, std::vector<MAT::Mutation>>> curr_hap_abun_muts, cmp_hap_abun_muts; 
+    read_haplotype_proportion(curr_hap_abun_muts, d.haplotype_proportion_path()); 
+    read_haplotype_proportion(cmp_hap_abun_muts, d.comparison_haplotype_proportion_path());
     auto T_curr = d.mat(); 
     auto T_cmp = d.cmp_mat();
     
@@ -48,11 +46,9 @@ void analyze_peaks(const dataset& d) {
     fprintf(stderr, "Sites covered by ref_reads: %ld, cmp_reads: %ld\n", site_read_map_curr.size(), site_read_map_cmp.size());
 
     // Store mutation vectors of peaks
-    std::unordered_map<std::string, std::vector<MAT::Mutation>> curr_hap_mutations, cmp_hap_mutations;
-    std::vector<std::vector<std::string>> curr_hap_neighbors;
-    for (auto h_a: curr_hap_abundance) 
+    for (auto& h_a_m: curr_hap_abun_muts) 
     {
-        auto sample_mutations = get_mutations(T_curr, h_a.first);
+        auto sample_mutations = get_mutations(T_curr, std::get<0>(h_a_m));
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
         {
@@ -61,32 +57,12 @@ void analyze_peaks(const dataset& d) {
             else
                 mut_itr++;
         }
-        curr_hap_mutations.insert({h_a.first, sample_mutations});
-
-        // Update curr_hap_neighbors
-        bool found = false;
-        for (auto& h_n: curr_hap_neighbors) {
-            for (auto hap: h_n) {
-                auto cmp_mutations = curr_hap_mutations[hap];
-                if (mutation_distance(sample_mutations, cmp_mutations) <= NEIGHBOR_DIST)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) 
-            {
-                h_n.emplace_back(h_a.first);
-                break;
-            }
-        }
-        if (!found)
-            curr_hap_neighbors.emplace_back(std::vector<std::string>{h_a.first}); 
+        std::get<2>(h_a_m) = sample_mutations;
     }
 
-    for (auto h_a: cmp_hap_abundance) 
+    for (auto& h_a_m: cmp_hap_abun_muts) 
     {
-        auto sample_mutations = get_mutations(T_cmp, h_a.first);
+        auto sample_mutations = get_mutations(T_cmp, std::get<0>(h_a_m));
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
         {
@@ -95,99 +71,134 @@ void analyze_peaks(const dataset& d) {
             else
                 mut_itr++;
         }
-        cmp_hap_mutations.insert({h_a.first, sample_mutations});
+        std::get<2>(h_a_m) = sample_mutations;
     }
 
-    // Find neighboring cmp_peaks wrt curr_peaks
-    std::ofstream txt(d.haplotype_growth_path());
-    for (auto c_h_n: curr_hap_neighbors) 
+    // Create Clusters from curr_hap_mutations
+    std::vector<std::pair<std::vector<int>, double>> curr_cluster_proportions;
+    std::vector<bool> check_peaks(curr_hap_abun_muts.size(), true);
+    for (int i = 0; i < (int)curr_hap_abun_muts.size(); i++)
     {
-        std::set<std::string> curr_lineages, cmp_lineages;
-        std::vector<std::string> cmp_hap_considered;
-        double curr_abundance = 0.0, cmp_abundance = 0.0;
-        for (auto curr_hap: c_h_n)
+        if (check_peaks[i]) {
+            check_peaks[i] = false;
+            curr_cluster_proportions.emplace_back(std::make_pair(std::vector<int>{i}, std::get<1>(curr_hap_abun_muts[i])));
+            update_cluster(curr_hap_abun_muts, check_peaks, curr_cluster_proportions.back().first, curr_cluster_proportions.back().second);
+        }   
+    }
+    check_peaks.clear();
+
+    std::sort(curr_cluster_proportions.begin(), curr_cluster_proportions.end(),
+        [](const std::pair<std::vector<int>, double>& a, const std::pair<std::vector<int>, double>& b) {
+            return a.second > b.second; 
+        });
+
+
+    // Find neighboring cmp_peaks wrt curr_cluster
+    std::vector<std::tuple<int, std::vector<int>, double>> cmp_cluster_proportions;
+    check_peaks.resize(cmp_hap_abun_muts.size(), true); 
+    for (int i = 0; i < (int)cmp_hap_abun_muts.size(); i++) 
+    {
+        auto curr_mutations = std::get<2>(cmp_hap_abun_muts[i]);
+        for (size_t j = 0; j < curr_cluster_proportions.size(); j++)
         {
-            auto curr_mutations = curr_hap_mutations[curr_hap];
-            auto curr_abun_itr = std::find_if(curr_hap_abundance.begin(), curr_hap_abundance.end(),
-                           [curr_hap](const std::pair<std::string, double>& element) {
-                               return element.first == curr_hap;
-                           });
-            curr_abundance += curr_abun_itr->second; 
-
-            // Get curr_lineages 
-            for (auto anc : T_curr.rsearch(curr_hap, true))
+            for (const auto& idx: curr_cluster_proportions[j].first)
             {
-                const auto &clade = anc->clade_annotations[1];
-                if (clade != "")
+                auto ref_mutations = std::get<2>(curr_hap_abun_muts[idx]);
+                if (mutation_distance(curr_mutations, ref_mutations) <= CLUSTER_DIST)
                 {
-                    curr_lineages.insert(clade);
-                    break;
-                }
-            }
-
-            // Check neighbors in cmp_hap_abundance
-            for (auto cmp_h_a: cmp_hap_abundance) 
-            {
-                if (std::find(cmp_hap_considered.begin(), cmp_hap_considered.end(), cmp_h_a.first) != cmp_hap_considered.end())
-                    continue;
-                auto cmp_mutations = cmp_hap_mutations[cmp_h_a.first];
-                if (mutation_distance(curr_mutations, cmp_mutations) <= NEIGHBOR_DIST) {
-                    cmp_hap_considered.emplace_back(cmp_h_a.first);
-                    cmp_abundance += cmp_h_a.second;
-
-                    // Get cmp_lineages 
-                    for (auto anc : T_cmp.rsearch(cmp_h_a.first, true))
-                    {
-                        const auto &clade = anc->clade_annotations[1];
-                        if (clade != "")
-                        {
-                            cmp_lineages.insert(clade);
+                    check_peaks[i] = false;
+                    bool found = false;
+                    for (auto& i_c_p: cmp_cluster_proportions) {
+                        if (std::get<0>(i_c_p) == (int)j) {
+                            std::get<1>(i_c_p).emplace_back(i);
+                            std::get<2>(i_c_p) += std::get<1>(cmp_hap_abun_muts[i]);
+                            found = true;
                             break;
                         }
                     }
+                    if (!found)
+                        cmp_cluster_proportions.emplace_back(std::make_tuple(j, std::vector<int>{i}, std::get<1>(cmp_hap_abun_muts[i])));
+                    break;
                 }
             }
+            if (!check_peaks[i])
+                break;
         }
+    } 
 
-        if (cmp_abundance)
-        {
-            // Write lineage and abundances
-            txt << "(" + std::to_string(c_h_n.size()) + " Peaks - ";
-            for (auto it = curr_lineages.begin(); it != curr_lineages.end(); it++) 
-            {
-                if (it != curr_lineages.begin())
-                    txt << ",";
-                txt << *it;
-            }
-            txt << ")\t" + std::to_string(curr_abundance) + "\t->\t(" + std::to_string(cmp_hap_considered.size()) + " Peaks - ";
-            for (auto it = cmp_lineages.begin(); it != cmp_lineages.end(); it++) 
-            {
-                if (it != cmp_lineages.begin())
-                    txt << ",";
-                txt << *it;
-            }
-            txt << ")\t" + std::to_string(cmp_abundance) + "\n";
 
-            // Write peak names
-            for (size_t i = 0; i < c_h_n.size(); i++)
-            {
-                if (i)
-                    txt << ",";
-                txt << c_h_n[i];
-            }
-            txt << "\t->\t";
-            for (size_t i = 0; i < cmp_hap_considered.size(); i++)
-            {
-                if (i)
-                    txt << ",";
-                txt << cmp_hap_considered[i];
-            }
-            txt << "\n";
+    // Update local clusters
+    for (int i = 0; i < (int)cmp_hap_abun_muts.size(); i++) 
+    {
+        if (check_peaks[i]) {
+            check_peaks[i] = false;
+            cmp_cluster_proportions.emplace_back(std::make_tuple((1000 + cmp_cluster_proportions.size()), std::vector<int>{i}, std::get<1>(cmp_hap_abun_muts[i])));
+            update_cluster(cmp_hap_abun_muts, check_peaks, std::get<1>(cmp_cluster_proportions.back()), std::get<2>(cmp_cluster_proportions.back()));
         }
     }
+
+
+    // Dump the clusters found
+    std::ofstream txt(d.haplotype_growth_path());
+    std::vector<double> proportion_difference;
+    for (size_t i = 0; i < curr_cluster_proportions.size(); i ++) {
+        double prop_diff = 0.0;
+        std::string curr_cluster_nodes = "";
+        for (auto idx: curr_cluster_proportions[i].first) {
+            if (curr_cluster_nodes.size())
+                curr_cluster_nodes += "__";
+            curr_cluster_nodes += std::get<0>(curr_hap_abun_muts[idx]);
+        }
+        prop_diff = curr_cluster_proportions[i].second;
+        txt << std::to_string(curr_cluster_proportions[i].second) + "," + curr_cluster_nodes + ",";
+                    
+        bool found = false;
+        for (auto& i_c_p: cmp_cluster_proportions) {
+            if (std::get<0>(i_c_p) == (int)i) {
+                std::string cmp_cluster_nodes = "";
+                for (auto idx: std::get<1>(i_c_p)) {
+                    if (cmp_cluster_nodes.size())
+                        cmp_cluster_nodes += "__";
+                    cmp_cluster_nodes += std::get<0>(cmp_hap_abun_muts[idx]);
+                }
+                prop_diff -= std::get<2>(i_c_p);
+                txt << std::to_string(std::get<2>(i_c_p)) + "," + cmp_cluster_nodes + "\n";
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            txt << "0,\n";
+
+        proportion_difference.emplace_back(prop_diff);
+    }
+
+    for (auto& i_c_p: cmp_cluster_proportions) {
+        if (std::get<0>(i_c_p) >= 1000) {
+            std::string cmp_cluster_nodes = "";
+            for (auto idx: std::get<1>(i_c_p)) {
+                if (cmp_cluster_nodes.size())
+                    cmp_cluster_nodes += "__";
+                cmp_cluster_nodes += std::get<0>(cmp_hap_abun_muts[idx]);
+            }
+            proportion_difference.emplace_back(std::get<2>(i_c_p));
+            txt << "0,," + std::to_string(std::get<2>(i_c_p)) + "," + cmp_cluster_nodes + "\n";
+        }
+    }
+
+    double mse = 0.0, mssd = 0.0;
+    std::sort(proportion_difference.begin(), proportion_difference.end());
+    for (auto diff: proportion_difference)
+        mse += (pow(diff, 2) / proportion_difference.size());
+    printf("MSE: %f\n", mse);
+    
+    for (size_t i = 0; i < proportion_difference.size() - 1; i++)
+        mssd += (pow(proportion_difference[i] - proportion_difference[i + 1], 2) / (proportion_difference.size() - 1));
+    printf("MSSD: %f\n", mssd);
 }
 
-void read_haplotype_proportion(std::vector<std::pair<std::string, double>> &abundance, std::string haplotype_proportion_path)
+
+void read_haplotype_proportion(std::vector<std::tuple<std::string, double, std::vector<MAT::Mutation>>> &abundance, std::string haplotype_proportion_path)
 {
     std::ifstream csv(haplotype_proportion_path);
     std::string line;
@@ -203,6 +214,31 @@ void read_haplotype_proportion(std::vector<std::pair<std::string, double>> &abun
 
         double proportion = std::stod(proportion_str);
 
-        abundance.emplace_back(id, proportion);
+        abundance.emplace_back(std::make_tuple(id, proportion, std::vector<MAT::Mutation>()));
     }
+}
+
+
+void update_cluster(const std::vector<std::tuple<std::string, double, std::vector<MAT::Mutation>>>& curr_hap_abun_muts, std::vector<bool>& check_peaks, std::vector<int>& cluster_peaks, double& cluster_abundance)
+{
+    bool updated = false;
+    for (size_t i = 0; i < curr_hap_abun_muts.size(); i++)
+    {
+        if (check_peaks[i]) {
+            auto curr_mutations = std::get<2>(curr_hap_abun_muts[i]);
+            for (auto idx: cluster_peaks) {
+                auto cmp_mutations = std::get<2>(curr_hap_abun_muts[idx]);
+                if (mutation_distance(curr_mutations, cmp_mutations) <= CLUSTER_DIST)
+                {
+                    updated = true;
+                    check_peaks[i] = false;
+                    cluster_peaks.emplace_back(i);
+                    cluster_abundance += std::get<1>(curr_hap_abun_muts[i]);
+                    break;
+                }
+            }
+        }
+    }
+    if (updated)
+        update_cluster(curr_hap_abun_muts, check_peaks, cluster_peaks, cluster_abundance);
 }
