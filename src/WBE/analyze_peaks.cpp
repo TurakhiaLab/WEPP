@@ -186,11 +186,17 @@ void analyze_peaks(const dataset& d) {
         }
     }
 
-    double mse = 0.0, mssd = 0.0;
-    std::sort(proportion_difference.begin(), proportion_difference.end());
-    for (auto diff: proportion_difference)
-        mse += (pow(diff, 2) / proportion_difference.size());
-    fprintf(stderr, "MSE: %f\n", mse);
+    double mse_both = 0.0, mse_ref = 0.0;
+    for (size_t i = 0; i < proportion_difference.size(); i++) {
+        double curr_sd = pow(proportion_difference[i], 2);
+        if (i < curr_cluster_proportions.size())
+            mse_ref += curr_sd;
+        mse_both += curr_sd;
+    }
+    mse_ref /= curr_cluster_proportions.size();
+    mse_both /= proportion_difference.size();
+    fprintf(stderr, "MSE (Ref clusters): %f\n", mse_ref);
+    fprintf(stderr, "MSE (Both clusters): %f\n", mse_both);
 }
 
 
