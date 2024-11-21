@@ -44,10 +44,6 @@ public:
         return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
     }
 
-    std::string last_checkpoint_path() const {
-        return this->directory() + this->file_prefix() + "_last_checkpoint.txt";
-    }
-
     std::string haplotype_read_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
     }

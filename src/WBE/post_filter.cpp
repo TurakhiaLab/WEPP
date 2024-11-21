@@ -118,7 +118,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 
     std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
 
-    std::ofstream outfile("./src/Freyja/data/usher_barcodes.csv");
+    std::ofstream outfile(a.owned_dataset().directory() + "/barcodes.csv");
     for (const std::string &mut : mutations)
     {
         outfile << "," << mut;
@@ -147,7 +147,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                 "source " + CONDA_PATH + " && "
                 "conda activate freyja-env && "
                 "cd ./src/Freyja && "
-                "freyja demix cwap_variants.tsv cwap_depth.tsv --barcodes data/usher_barcodes.csv --output my_output_latest.txt --eps 0.005"
+                "freyja demix ../../" + arena.owned_dataset().directory() + "/cwap_variants.tsv ../../" + arena.owned_dataset().directory() + "/cwap_depth.tsv --barcodes ../../" + arena.owned_dataset().directory() + "/barcodes.csv --output ../../" + arena.owned_dataset().directory() + "/freyja_output_latest.txt --eps 0.005"
                 "\"";
     if (std::system(command.c_str()) != 0)
     {
@@ -157,7 +157,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 
     std::vector<std::pair<haplotype *, double>> freyja_nodes;
 
-    std::ifstream fin("./src/Freyja/my_output_latest.txt");
+    std::ifstream fin(arena.owned_dataset().directory() + "/freyja_output_latest.txt");
     std::string tmp;
     std::getline(fin, tmp);
     std::getline(fin, tmp);
