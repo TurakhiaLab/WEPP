@@ -15,7 +15,7 @@ This repository consists of the entire workflow, which only requires the followi
 1. git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git
 2. cd SARS2-WBE/install
 3. conda env create -f environment.yml
-4. conda activate SARS2-WBE
+4. conda activate usher
 5. cd ..
 6. mkdir build
 7. cd build
