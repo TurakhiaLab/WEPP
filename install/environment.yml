@@ -1,23 +1,22 @@
 name: usher
 channels:
-  - defaults                                                                                                                                                                                                    
   - conda-forge
   - bioconda
   - anaconda
 dependencies:
   - cxx-compiler
+  - gxx_linux-64=12.3.0
+  - gcc_linux-64=12.3.0
   - cmake=3.19.6
-  - protobuf=3.12.3                                                                                                                                                                                               
-  - make
+  - protobuf=3.12.3
+  - make=4.2.1
   - autoconf
   - boost-cpp
   - mafft
-  - minimap2
-  - samtools
-  - python
+  - python=3.8.17
   - git
   - wget
   - rsync
-  - openmpi
+  - openmpi=4.0.2
   - openssh
   - isa-l
