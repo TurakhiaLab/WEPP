@@ -41,16 +41,17 @@ std::vector<struct costMutations> readCSV(const std::string& filename) {
 
 int main(int argc, char* argv[]) {
     // Check if the command line argument for epsilon is provided
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <epsilon>" << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <epsilon> <file_path>" << std::endl;
         return 1;
     }
     // Get epsilon from the command line and convert it to float
     float eps = std::stof(argv[1]);
+    std::string file_path = argv[2];
 
     // Read the CSV file and get the vector of costMutations structs
-    std::string input_filename = "./closest_peak_search.csv";
-    std::string output_filename = "./peaks_clustered.csv";
+    std::string input_filename = file_path + "/closest_peak_search.csv";
+    std::string output_filename = file_path + "/peaks_clustered.csv";
     std::vector<struct costMutations> data = readCSV(input_filename);
     if (data.empty())
         return 1;
