@@ -4,7 +4,6 @@
 arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
 {
     this->raw_reads = ds.reads();
-    
     // (note that there is typically overallocation by condensation factor)
     // but shrink to fit may lead to pointer invalidation
     panmanUtils::Node* real_root = this->mat.root;
@@ -36,7 +35,6 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
         }
     }
     tbb::parallel_sort(muts.begin(), muts.end());
-
     bool has_any = parent == nullptr; // root always gets added
     std::vector<mutation> child_condensed_n_muts;
     for (const mutation& mut: muts) {
@@ -251,7 +249,7 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     return ret;
 }
 
- std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node) {
+ std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node, bool replace_N) {
     std::vector<mutation> sample_mutations;
     std::unordered_map<int, mutation> parent_n_mutations;
     // Checking all ancestors of a node
@@ -268,7 +266,7 @@ int arena::pan_tree_size(panmanUtils::Node *node)
                 sample_mutations.insert(sm_itr, mut);
             }
             else {
-                if (sm_itr->mut == NUC_GAP) {
+                if (((sm_itr->mut == NUC_GAP) || (replace_N && (sm_itr->mut == NUC_N))) && ((mut.mut != NUC_GAP) && ((!replace_N) || (mut.mut != NUC_N)))) {
                     if (parent_n_mutations.find(mut.pos) == parent_n_mutations.end())
                         parent_n_mutations[mut.pos] = mut;
                 }
@@ -279,15 +277,16 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     auto sm_itr = sample_mutations.begin();
     while (sm_itr != sample_mutations.end()) {
         //Update Gaps with their parent mutations
-        if (sm_itr->mut == NUC_GAP) {
+        if ((sm_itr->mut == NUC_GAP) || (replace_N && (sm_itr->mut == NUC_N))) {
             if (parent_n_mutations.find(sm_itr->pos) != parent_n_mutations.end()) {
                 const auto& par_mut = parent_n_mutations[sm_itr->pos];
                 if (par_mut.ref != par_mut.mut) {
                     sm_itr->mut = par_mut.mut;
                     sm_itr++;
                 }
-                else
+                else {
                     sm_itr = sample_mutations.erase(sm_itr);
+                }
             }
             else {
                 sm_itr = sample_mutations.erase(sm_itr);
@@ -297,8 +296,9 @@ int arena::pan_tree_size(panmanUtils::Node *node)
         else if (sm_itr->ref == sm_itr->mut) {
             sm_itr = sample_mutations.erase(sm_itr);
         }
-        else
+        else {
             sm_itr++;
+        }
     }
 
     tbb::parallel_sort(sample_mutations.begin(), sample_mutations.end());
@@ -723,7 +723,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     std::string csv_print_haplotypes, csv_print_reads;
 
     // Read residual_mutations
-    std::string file_path = "./src/Freyja/residual_mutations.txt";
+    std::string file_path = this->ds.directory() + "/residual_mutations.txt";
     std::ifstream file(file_path);  
     std::vector<std::tuple<int, char, float>> mutations; 
 
