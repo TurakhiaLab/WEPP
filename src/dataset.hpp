@@ -47,10 +47,6 @@ public:
         return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
     }
 
-    std::string last_checkpoint_path() const {
-        return this->directory() + this->file_prefix() + "_last_checkpoint.txt";
-    }
-
     std::string haplotype_read_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
@@ -96,27 +92,18 @@ public:
     }
 
     std::string haplotype_growth_path() const {
-        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.txt";
+        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.csv";
     }
 
     const std::string& reference() const {
+        // CONSENSUS Sequence is actually reference sequence in our PanMAT
         static std::optional<std::string> saved;
         if (!saved) {
             const panmanUtils::Tree& mat = this->mat();
             coord_converter converter{mat};
             std::string ref = converter.reference;
-
-            // the only time the reference is not the root
-            std::vector<mutation> root_muts;
-            root_muts.reserve(mat.root->nucMutation.size());
-            ::get_single_mutations(root_muts, ref, mat.root, converter, false);
-            for (const mutation& mut : root_muts) {
-                ref[mut.pos - 1] = char_from_nuc(mut.mut);
-            }
-
             saved.emplace(std::move(ref));
         }
-        
         return saved.value();
     }
 

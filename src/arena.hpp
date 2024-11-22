@@ -79,7 +79,6 @@ class arena {
     int pan_tree_size(panmanUtils::Node *node); 
     int build_range_tree(int parent, haplotype* curr, int start, int end);
 
-    // just here mutations
     void get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* n);
 
 
@@ -203,7 +202,7 @@ public:
     void get_residual_cooccuring_mutations(int window_size);
 
     // mutations from root to here
-    std::vector<mutation> get_mutations(const panmanUtils::Node* n);
+    std::vector<mutation> get_mutations(const panmanUtils::Node* n, bool replace_N=false);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
