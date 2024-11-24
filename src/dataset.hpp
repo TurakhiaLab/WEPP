@@ -39,8 +39,29 @@ public:
         return options["comparison-files-prefix"].as<std::string>();
     }
 
-    std::string ref_path() const {
-        return this->directory() + options["ref-fasta"].as<std::string>();
+    const std::vector<int>& masked_sites() const {
+        static std::vector<int> cached_mask; 
+        if (cached_mask.empty()) {
+            std::ifstream inputFile("./mask.bed");
+            if (!inputFile.is_open()) {
+                std::cerr << "Error: Unable to open mask.bed file." << std::endl;
+                return cached_mask; 
+            }
+
+            std::string line;
+            while (std::getline(inputFile, line)) {
+                std::istringstream lineStream(line);
+                std::string col1, col2;
+                int col3;
+
+                // Parse the line into columns
+                if (lineStream >> col1 >> col2 >> col3) {
+                    cached_mask.push_back(col3);
+                }
+            }
+            inputFile.close();
+        }
+        return cached_mask;
     }
 
     std::string first_checkpoint_path() const {

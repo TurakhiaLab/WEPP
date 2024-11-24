@@ -7,6 +7,7 @@
 
 #include "util.hpp"
 #include "panman_bridge.hpp"
+#include "config.hpp"
 
 constexpr bool IGNORE_N_MUTS = true;
 
@@ -109,36 +110,52 @@ get_single_mutations(std::vector<mutation>& ret, const std::string& ref, const p
 }
 
 // precondition, both mutation lists are sorted
-int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
-    int muts = 0, i = 0, j = 0;
+float mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
+    int dels = 0, subs = 0, i = 0, j = 0;
 
     while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
         if (i == (int) node1_mutations.size()) {                
             if (node2_mutations[j].mut != NUC_N) {
-                ++muts;
+                if (node2_mutations[j].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++j;
         }
         else if (j == (int) node2_mutations.size()) {
             if (node1_mutations[i].mut != NUC_N) {
-                ++muts;
+                if (node1_mutations[i].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++i;
         }
         else if (node1_mutations[i].pos < node2_mutations[j].pos) {
             if (node1_mutations[i].mut != NUC_N) {
-                ++muts;
+                if (node1_mutations[i].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++i;
         }
         else if (node1_mutations[i].pos > node2_mutations[j].pos) {
             if (node2_mutations[j].mut != NUC_N) {
-                ++muts;
+                if (node2_mutations[j].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++j;
         }
         else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
-            ++muts;
+            if (node1_mutations[i].mut == NUC_GAP || node2_mutations[j].mut == NUC_GAP)
+                ++dels;
+            else
+                ++subs;
+
             ++i; ++j;
         }
         else {
@@ -146,5 +163,5 @@ int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<
         }
     }
 
-    return muts;
+    return subs + (dels * DEL_SUBS_RATIO);
 }
