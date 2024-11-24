@@ -60,6 +60,7 @@ class arena {
     std::vector<haplotype> nodes;
     std::vector<multi_haplotype> ranged_nodes;
     std::vector<raw_read> raw_reads;
+    std::vector<int> masked_sites;
 
     /* stats */
     size_t read_distribution_bin_size;
@@ -149,20 +150,22 @@ public:
         return this->num_reads;
     }
 
-    std::unordered_set<int> site_read_map() const {
-        std::unordered_set<int> ret;
-        for (size_t i = 0; i < this->raw_reads.size(); i++)
-        {
-            const auto &rp = raw_reads[i];
-            std::vector<int> ambiguous_sites;
-            for (auto& mut: rp.mutations) {
-                if (mut.mut == NUC_N)
-                    ambiguous_sites.emplace_back(mut.pos);
-            }
+    const std::unordered_set<int>& site_read_map() const {
+        static std::unordered_set<int> ret;
+        if (ret.empty()) {
+            for (size_t i = 0; i < this->raw_reads.size(); i++)
+            {
+                const auto &rp = raw_reads[i];
+                std::vector<int> ambiguous_sites;
+                for (auto& mut: rp.mutations) {
+                    if (mut.mut == NUC_N)
+                        ambiguous_sites.emplace_back(mut.pos);
+                }
 
-            for (int j = rp.start; j <= rp.end; j++)
-                if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end())
-                    ret.insert(j);
+                for (int j = rp.start; j <= rp.end; j++)
+                    if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end() && std::find(masked_sites.begin(), masked_sites.end(), j) == masked_sites.end())
+                        ret.insert(j);
+            }
         }
         return ret;
     }
@@ -202,7 +205,7 @@ public:
     void get_residual_cooccuring_mutations(int window_size);
 
     // mutations from root to here
-    std::vector<mutation> get_mutations(const panmanUtils::Node* n, bool replace_N=false);
+    std::vector<mutation> get_mutations(const panmanUtils::Node* n, bool replace_GAP=false, bool replace_N=false);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);

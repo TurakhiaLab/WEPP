@@ -102,7 +102,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     {
         std::set<std::string> my_muts;
         // Replacing Deletions with their Parent Allele
-        auto hap_mutations = a.get_mutations(n->condensed_source, true);
+        auto hap_mutations = a.get_mutations(n->condensed_source, true, true);
         auto mut_itr = hap_mutations.begin();
         while (mut_itr != hap_mutations.end())
         {

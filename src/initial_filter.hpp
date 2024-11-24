@@ -32,7 +32,7 @@ class wepp_filter: public initial_filter {
     // given a read index
     // what is its maximum parismony score?
     // i.e max_parismony[i] = best parsimony of ith read
-    std::vector<int> max_parismony;
+    std::vector<float> max_parismony;
     // given a read index
     // how many epp positions does it map to
     // parsimony_multiplicity[i] = epps of ith read
@@ -68,9 +68,9 @@ class wepp_filter: public initial_filter {
 
     bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks, std::set<haplotype*> &nbrs);
 
-    double node_score(int parsimony, int epps, int degree)
+    double node_score(float parsimony, int epps, int degree)
     {
-        return (double) degree / ((1 + parsimony) * epps);
+        return (double) degree / ((1.0 + parsimony) * epps);
     }
 
 public:

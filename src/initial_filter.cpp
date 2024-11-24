@@ -44,11 +44,18 @@ mutation_reductions(std::vector<int> const &parent, std::vector<int> const &chil
 /* maps a single read to entire tree, caching aliveness */
 /* parent_locations is the positions where the parent has different mutations than the read */
 static void
-single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, int &max_val)
+single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, const std::vector<int>& parent_del_locations, multi_haplotype *curr, const raw_read& read, std::vector<multi_haplotype *> &max_nodes, float &max_val)
 {
     // positions where this node differs from the read */
-    std::vector<int> my_locations;
-    my_locations.reserve(parent_locations.size());
+    std::vector<int> my_sub_locations, my_del_locations, parent_locations;
+    my_sub_locations.reserve(parent_sub_locations.size());
+    my_del_locations.reserve(parent_del_locations.size());
+    parent_locations.reserve(parent_sub_locations.size() + parent_del_locations.size());
+    
+    for (const auto& vec : {std::ref(parent_sub_locations), std::ref(parent_del_locations)}) {
+        parent_locations.insert(parent_locations.end(), vec.get().begin(), vec.get().end());
+    }
+    tbb::parallel_sort(parent_locations.begin(), parent_locations.end());
 
     // go through all of this haplotypes mutations
     // and see if it increases or decreases overall mutations
@@ -69,30 +76,36 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
             auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
             uint8_t const read_nuc = it == read.mutations.end() || it->pos != j->pos ? j->ref : it->mut;
             if (read_nuc != NUC_N && read_nuc != j->mut && j->mut != NUC_N) {
-                my_locations.push_back(j->pos);
+                if (read_nuc == NUC_GAP || j->mut == NUC_GAP)
+                    my_del_locations.push_back(j->pos);
+                else
+                    my_sub_locations.push_back(j->pos);
             }
-            
             ++j;
         }
         else if (parent_first) {
-            my_locations.push_back(parent_locations[i]);
-
+            if (std::find(parent_del_locations.begin(), parent_del_locations.end(), parent_locations[i]) != parent_del_locations.end())
+                my_del_locations.push_back(parent_locations[i]);
+            else
+                my_sub_locations.push_back(parent_locations[i]);
             ++i;
         }
         else {
             auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
             uint8_t const read_nuc = it == read.mutations.end() || it->pos != j->pos ? j->ref : it->mut;
             if (read_nuc != NUC_N && read_nuc != j->mut && j->mut != NUC_N) {
-                my_locations.push_back(j->pos);
+                if (read_nuc == NUC_GAP || j->mut == NUC_GAP)
+                    my_del_locations.push_back(j->pos);
+                else
+                    my_sub_locations.push_back(j->pos);
             }
-            
             ++j;
             ++i;
         }
     }
 
     /* map self */
-    int parsimony = my_locations.size();
+    float parsimony = my_sub_locations.size() + (my_del_locations.size() * DEL_SUBS_RATIO);
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -105,7 +118,7 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 
     for (int child : curr->children)
     {
-        single_read_tree(arena, my_locations, &arena.ranged_haplotypes()[child], read, max_nodes, max_val);
+        single_read_tree(arena, my_sub_locations, my_del_locations, &arena.ranged_haplotypes()[child], read, max_nodes, max_val);
     }
 }
 
@@ -115,18 +128,21 @@ single_read_tree(arena& arena, const std::vector<int>& parent_locations, multi_h
 /* max indices correspond to the indices of the epp nodes */
 /* max_val corresponds to max parismony */
 static void 
-single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &max_indices, int &max_val)
+single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &max_indices, float &max_val)
 {
     std::vector<multi_haplotype *> max_nodes;
     multi_haplotype* root = arena.find_range_tree_for(read);
     
-    std::vector<int> root_mutations;
+    std::vector<int> root_subs, root_dels;
     for (const mutation& mut: read.mutations) {
         if (mut.mut != NUC_N) {
-            root_mutations.push_back(mut.pos);
+            if (mut.mut == NUC_GAP)
+                root_dels.push_back(mut.pos);
+            else
+                root_subs.push_back(mut.pos);
         }
     }
-    single_read_tree(arena, root_mutations, root, read, max_nodes, max_val);
+    single_read_tree(arena, root_subs, root_dels, root, read, max_nodes, max_val);
 
     for (multi_haplotype *rnode : max_nodes)
     {
@@ -165,7 +181,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                           for (size_t r = k.begin(); r != k.end(); ++r)
                           {
                               std::vector<haplotype *> max_indices;
-                              int max_val = INT32_MAX; /* really want minimum value */
+                              float max_val =  std::numeric_limits<float>::max(); /* really want minimum value */
 
                               single_read_tree(arena, reads[r], max_indices, max_val);
 
@@ -273,7 +289,7 @@ wepp_filter::find_correspondents(arena& arena, haplotype* hap)
                               {
                                   /* recompute to see if correspondent */
                                   const raw_read &r = arena.reads()[read];
-                                  int parsimony = hap->mutation_distance(r);
+                                  float parsimony = hap->mutation_distance(r);
                                   if (parsimony == max_parismony[read])
                                   {
                                       tbb::queuing_mutex::scoped_lock lock{my_mutex};
@@ -301,7 +317,7 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     else
     {
         /* recalculate on (almost) entire tree, generally the most optimal */
-        int max_val = INT32_MAX;
+        float max_val =  std::numeric_limits<float>::max();;
         single_read_tree(arena, arena.reads()[read_index], recalcuated, max_val);
         std::sort(recalcuated.begin(), recalcuated.end());
         epps = &recalcuated;
@@ -609,7 +625,7 @@ random_nodes_filter::filter(arena& arena)
 
     double average_dist = 0;
     for (haplotype* hap: other) {
-        int min_dist = INT_MAX;
+        float min_dist = std::numeric_limits<float>::max();;
         for (haplotype* hap2: initial) {
             min_dist = std::min(min_dist, hap->mutation_distance(hap2));
         }

@@ -32,7 +32,7 @@ public:
                 }
             );
 
-            //arena.print_mutation_distance(this_round);
+            arena.print_mutation_distance(this_round);
 
             std::sort(this_round.begin(), this_round.end());
             if (i == num_filter_rounds - 1 || 

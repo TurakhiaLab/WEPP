@@ -3,7 +3,21 @@
 
 arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
 {
+    // Masking mutations on reads
+    this->masked_sites = ds.masked_sites();
     this->raw_reads = ds.reads();
+    for (auto& rd: this->raw_reads)
+    {
+        auto mut_itr = rd.mutations.begin();
+        while (mut_itr != rd.mutations.end())
+        {
+            if (std::find(this->masked_sites.begin(), masked_sites.end(), mut_itr->pos) != this->masked_sites.end())
+                mut_itr = rd.mutations.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+    }
+
     // (note that there is typically overallocation by condensation factor)
     // but shrink to fit may lead to pointer invalidation
     panmanUtils::Node* real_root = this->mat.root;
@@ -249,7 +263,7 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     return ret;
 }
 
- std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node, bool replace_N) {
+std::vector<mutation> arena::get_mutations(const panmanUtils::Node* node, bool replace_GAP, bool replace_N) {
     std::vector<mutation> sample_mutations;
     std::unordered_map<int, mutation> parent_n_mutations;
     // Checking all ancestors of a node
@@ -266,7 +280,7 @@ int arena::pan_tree_size(panmanUtils::Node *node)
                 sample_mutations.insert(sm_itr, mut);
             }
             else {
-                if (((sm_itr->mut == NUC_GAP) || (replace_N && (sm_itr->mut == NUC_N))) && ((mut.mut != NUC_GAP) && ((!replace_N) || (mut.mut != NUC_N)))) {
+                if (((replace_GAP && (sm_itr->mut == NUC_GAP)) || (replace_N && (sm_itr->mut == NUC_N))) && (((!replace_GAP) || (mut.mut != NUC_GAP)) && ((!replace_N) || (mut.mut != NUC_N)))) {
                     if (parent_n_mutations.find(mut.pos) == parent_n_mutations.end())
                         parent_n_mutations[mut.pos] = mut;
                 }
@@ -277,7 +291,7 @@ int arena::pan_tree_size(panmanUtils::Node *node)
     auto sm_itr = sample_mutations.begin();
     while (sm_itr != sample_mutations.end()) {
         //Update Gaps with their parent mutations
-        if ((sm_itr->mut == NUC_GAP) || (replace_N && (sm_itr->mut == NUC_N))) {
+        if ((replace_GAP && (sm_itr->mut == NUC_GAP)) || (replace_N && (sm_itr->mut == NUC_N))) {
             if (parent_n_mutations.find(sm_itr->pos) != parent_n_mutations.end()) {
                 const auto& par_mut = parent_n_mutations[sm_itr->pos];
                 if (par_mut.ref != par_mut.mut) {
@@ -504,6 +518,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     std::vector<std::vector<mutation>> selected_mutations;
     for (const auto &pn : selected) {
         auto node_mutations = get_mutations(pn->condensed_source);
+        
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -519,6 +534,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     for (const std::string &reference : comp)
     {
         std::vector<mutation>sample_mutations = get_mutations(this->mat.allNodes.at(reference));
+
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -562,6 +578,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     std::vector<std::vector<mutation>> comp_mutations;
     for (const std::string &reference : comp) {
         auto sample_mutations = get_mutations(this->mat.allNodes.at(reference));
+        
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -578,6 +595,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     {
         // Getting node_mutations from the Tree
         auto node_mutations = get_mutations(pn.first->condensed_source);
+        
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -676,9 +694,9 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
         for (size_t i = range.begin(); i < range.end(); ++i) {
             //Find EPPs for every read
             std::vector<haplotype*> epps;
-            int min_dist = std::numeric_limits<int>::max();
+            float min_dist = std::numeric_limits<float>::max();
             for (const auto& curr_node: abundance) {
-                int curr_dist = curr_node.first->mutation_distance(reads[i]);
+                float curr_dist = curr_node.first->mutation_distance(reads[i]);
                 if (curr_dist <= min_dist) {
                     if (curr_dist < min_dist) {
                         min_dist = curr_dist;
@@ -835,9 +853,9 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
                 {
                     //Find EPPs for every read
                     std::vector<haplotype* > epps;
-                    int min_dist = std::numeric_limits<int>::max();
+                    float min_dist = std::numeric_limits<float>::max();
                     for (const auto& curr_node_abun: abundance) {
-                        int curr_dist = curr_node_abun.first->mutation_distance(rp);
+                        float curr_dist = curr_node_abun.first->mutation_distance(rp);
                         if (curr_dist <= min_dist) {
                             if (curr_dist < min_dist) {
                                 min_dist = curr_dist;
