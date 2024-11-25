@@ -32,27 +32,8 @@ struct score_comparator {
             return effective_left > effective_right;
         }
         else {
-            return left > right;
+            return left->id > right->id;
         }
-    }
-};
-
-/* used to sort nodes by their mutation list */
-struct mutation_comparator {
-    bool operator() (haplotype* left, haplotype* right) const {
-        if (left->stack_muts.size() != right->stack_muts.size()) {
-            return left->stack_muts.size() < right->stack_muts.size();
-        }  
-        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
-            if (left->stack_muts[i].pos != right->stack_muts[i].pos) {
-                return left->stack_muts[i].pos < right->stack_muts[i].pos;
-            }
-            else if (left->stack_muts[i].mut != right->stack_muts[i].mut) {
-                return left->stack_muts[i].mut < right->stack_muts[i].mut;
-            }
-        }
-
-        return false;
     }
 };
 
@@ -163,7 +144,7 @@ public:
                 }
 
                 for (int j = rp.start; j <= rp.end; j++)
-                    if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end() && std::find(masked_sites.begin(), masked_sites.end(), j) == masked_sites.end())
+                    if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end() && std::find(this->masked_sites.begin(), this->masked_sites.end(), j) == this->masked_sites.end())
                         ret.insert(j);
             }
         }
