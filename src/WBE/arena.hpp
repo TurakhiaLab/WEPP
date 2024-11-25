@@ -29,29 +29,11 @@ struct score_comparator {
     }
 };
 
-/* used to sort nodes by their mutation list */
-struct mutation_comparator {
-    bool operator() (haplotype* left, haplotype* right) const {
-        if (left->stack_muts.size() != right->stack_muts.size()) {
-            return left->stack_muts.size() < right->stack_muts.size();
-        }  
-        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
-            if (left->stack_muts[i].position != right->stack_muts[i].position) {
-                return left->stack_muts[i].position < right->stack_muts[i].position;
-            }
-            else if (left->stack_muts[i].mut_nuc != right->stack_muts[i].mut_nuc) {
-                return left->stack_muts[i].mut_nuc < right->stack_muts[i].mut_nuc;
-            }
-        }
-
-        return false;
-    }
-};
-
 class arena {
     std::vector<haplotype> nodes;
     std::vector<multi_haplotype> ranged_nodes;
     std::vector<raw_read> raw_reads;
+    std::vector<int> masked_sites;
 
     /* stats */
     size_t read_distribution_bin_size;
@@ -68,12 +50,27 @@ class arena {
     haplotype* from_mat(haplotype* parent, MAT::Node* node);
     int mat_tree_size(MAT::Node *node); 
     int build_range_tree(int parent, haplotype* curr, int start, int end);
+
 public:
     arena(const dataset& ds) : ds{ds} {
-        this->raw_reads = ds.reads();
         this->mat = ds.mat();
         
-        MAT::Tree condensed = create_condensed_tree(this->mat.root, this->raw_reads, this->condensed_node_mappings);
+        // Masking mutations on reads
+        this->masked_sites = ds.masked_sites();
+        this->raw_reads = ds.reads();
+        for (auto& rd: this->raw_reads)
+        {
+            auto mut_itr = rd.mutations.begin();
+            while (mut_itr != rd.mutations.end())
+            {
+                if (std::find(this->masked_sites.begin(), this->masked_sites.end(), mut_itr->position) != this->masked_sites.end())
+                    mut_itr = rd.mutations.erase(mut_itr);
+                else
+                    mut_itr++;
+            }
+        }
+        
+        MAT::Tree condensed = create_condensed_tree(this->mat.root, this->site_read_map(), this->condensed_node_mappings);
 
         // create vanilla nodes
         this->nodes.reserve(mat_tree_size(condensed.root));
@@ -142,6 +139,26 @@ public:
 
     const size_t num_reads_pre_merge() const {
         return this->num_reads;
+    }
+
+    const std::unordered_set<int>& site_read_map() const {
+        static std::unordered_set<int> ret;
+        if (ret.empty()) {
+            for (size_t i = 0; i < this->raw_reads.size(); i++)
+            {
+                const auto &rp = raw_reads[i];
+                std::vector<int> ambiguous_sites;
+                for (auto& mut: rp.mutations) {
+                    if (mut.mut_nuc == 0b1111)
+                        ambiguous_sites.emplace_back(mut.position);
+                }
+
+                for (int j = rp.start; j <= rp.end; j++)
+                    if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end() && std::find(this->masked_sites.begin(), this->masked_sites.end(), j) == this->masked_sites.end())
+                        ret.insert(j);
+            }
+        }
+        return ret;
     }
 
     const std::array<int, NUM_RANGE_BINS>& read_counts() const {

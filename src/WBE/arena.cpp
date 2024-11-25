@@ -454,22 +454,7 @@ void arena::get_residual_cooccuring_mutations(int window_size)
 
 void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
-    {
-        const auto &rp = raw_reads[i];
-        std::unordered_set<int> unknown_sites;
-        for (const auto& mut: rp.mutations) {
-            if (mut.mut_nuc == 0b1111)
-                unknown_sites.insert(mut.position);
-        }
-        for (int j = rp.start; j <= rp.end; j++) {
-            if (unknown_sites.find(j) == unknown_sites.end())
-                site_read_map.insert(j);
-        }
-        unknown_sites.clear();
-    }
-
+    std::unordered_set<int> site_read_map = this->site_read_map();
     double average_dist = 0.0;
     std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>  comp_mut = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp_mut.size(), selected.size());
@@ -521,22 +506,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
 void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected)
 {
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < this->raw_reads.size(); i++)
-    {
-        const auto &rp = raw_reads[i];
-        std::unordered_set<int> unknown_sites;
-        for (const auto& mut: rp.mutations) {
-            if (mut.mut_nuc == 0b1111)
-                unknown_sites.insert(mut.position);
-        }
-        for (int j = rp.start; j <= rp.end; j++) {
-            if (unknown_sites.find(j) == unknown_sites.end())
-                site_read_map.insert(j);
-        }
-        unknown_sites.clear();
-    }
-    
+    std::unordered_set<int> site_read_map = this->site_read_map();
     double average_dist = 0.0;
     std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>  comp_mut = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp_mut.size(), selected.size());

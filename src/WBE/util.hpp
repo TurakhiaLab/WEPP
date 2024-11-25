@@ -13,7 +13,7 @@ std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>
 read_sample_vcf(const std::string& vcf_filename_samples);
 
 MAT::Tree 
-create_condensed_tree(MAT::Node* ref_root, const std::vector<raw_read> &read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings);
+create_condensed_tree(MAT::Node* ref_root, const std::unordered_set<int>&site_read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings);
 
 boost::program_options::variables_map 
 parseWBEcommand(boost::program_options::parsed_options parsed);

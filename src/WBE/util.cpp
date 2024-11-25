@@ -77,23 +77,7 @@ std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> read_sample_vcf(
     return vcf_samples;
 }
 
-MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::vector<raw_read> &read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
-    //MAP of site_read
-    std::unordered_set<int> site_read_map;
-    for (size_t i = 0; i < read_map.size(); i++) {
-        auto rp = read_map[i];
-        std::unordered_set<int> unknown_sites;
-        for (const auto& mut: rp.mutations) {
-            if (mut.mut_nuc == 0b1111)
-                unknown_sites.insert(mut.position);
-        }
-        for (int j = rp.start; j <= rp.end; j++) {
-            if (unknown_sites.find(j) == unknown_sites.end())
-                site_read_map.insert(j);
-        }
-        unknown_sites.clear();
-    }
-
+MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::unordered_set<int>& site_read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
     //REMOVE sites not covered by reads
     std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
 
