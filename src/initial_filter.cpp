@@ -243,7 +243,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                 bins_active += 1;
             }
             double const proportion = (double) haps[i]->mapped_read_counts[j] / arena.read_counts()[j];
-            if (proportion > read_dist_factor_threshold)
+            if (proportion > READ_DIST_FACTOR_THRESHOLD)
             {
                 divergence += 1;
             }
@@ -387,59 +387,33 @@ wepp_filter::singular_step(arena& arena, haplotype* hap)
 }
 
 void
-wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*>& peaks, std::set<haplotype*>& nbrs)
+wepp_filter::clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*> &peaks)
 {
     /* 1. add to peaks */    
     peaks.insert(consideration.begin(), consideration.end());
 
-    std::vector<haplotype*> added;
-    /* 2. find candidates within radius (taking only top n for each pivot) */
-    /* buffer the selected neighbors into added */
+    /* 2. for all nodes within small radius, forcefuly remove all */
     for (haplotype *pivot : consideration)
     {
         std::set<haplotype*, score_comparator> 
-            multisource_radius = arena.highest_scoring_neighbors(pivot, false, max_peak_nonpeak_mutation, INT_MAX);
-
-        int i = 0;
-        for (haplotype *node : multisource_radius)
-        {
-            bool const found = peaks.find(node) != peaks.end() || nbrs.find(node) != nbrs.end();
-            if (!found)
-            {
-                node->mapped = true;
-                added.emplace_back(node);
-                if (++i == max_neighbors)
-                {
-                    break;
-                }
-            }
-        }
-    }
-
-    /* 3. for all nodes within small radius, forcefuly remove even if more than 100 */
-    for (haplotype *pivot : consideration)
-    {
-        std::set<haplotype*, score_comparator> 
-            multisource_radius = arena.highest_scoring_neighbors(pivot, false, max_peak_peak_mutation, INT_MAX);
+            multisource_radius = arena.highest_scoring_neighbors(pivot, false, MAX_PEAK_PEAK_MUTATION, INT_MAX);
 
         for (haplotype *node : multisource_radius)
         {
             node->mapped = true;
         }
     }
-
-    nbrs.insert(added.begin(), added.end());
 }
 
 bool
-wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks, std::set<haplotype*> &nbrs)
+wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks)
 {
     assert(!current.empty() && !remaining_reads.empty());
 
     /* to get exactly same behavior as before, have a single considering set */
     std::vector<haplotype *> consideration;
 
-    /* get top_n (under some special constraints) */
+    /* get TOP_N (under some special constraints) */
     auto it = current.begin();
     double const min_score = (*it)->full_score();
 
@@ -457,8 +431,8 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
     for (int i = 0;
          it != current.end() &&
          abs((*it)->full_score() - min_score) < SCORE_EPSILON &&
-         consideration.size() < (size_t) top_n &&
-         consideration.size() + peaks.size() < (size_t) max_peaks;
+         consideration.size() < (size_t) TOP_N &&
+         consideration.size() + peaks.size() < (size_t) MAX_PEAKS;
          ++i, ++it)
     {
         bool valid = true;
@@ -479,7 +453,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
     }
 
     /* clear neighbors of selected peaks (marking them as mapped as well) */
-    this->clear_neighbors(arena, consideration, peaks, nbrs);
+    this->clear_neighbors(arena, consideration, peaks);
 
     for (haplotype *&node : consideration)
     {
@@ -496,7 +470,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         current.end());
     tbb::parallel_sort(current.begin(), current.end(), score_comparator());
 
-    return peaks.size() >= (size_t) max_peaks || remaining_reads.empty() || current.empty();
+    return peaks.size() >= (size_t) MAX_PEAKS || remaining_reads.empty() || current.empty();
 }
 
 std::vector<haplotype*> 
@@ -513,11 +487,42 @@ wepp_filter::filter(arena& arena)
     
     // iterative removal 
     std::set<haplotype*> peaks, nbrs;
-    while (!step(arena, initial, peaks, nbrs)) { }
+    while (!step(arena, initial, peaks)) { }
     
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
-    res.insert(res.end(), nbrs.begin(), nbrs.end());
     
+    // adding neighbors of peaks
+    for (int k = 0; k < 5; k++) {
+        std::set<haplotype*> curr_neighbors;
+        arena.recover_haplotype_state();
+
+        for (haplotype *pivot : peaks)
+        {
+            std::set<haplotype*, score_comparator> 
+                multisource_radius = arena.highest_scoring_neighbors(pivot, false, (MAX_PEAK_PEAK_MUTATION + k), INT_MAX);
+
+            int i = 0;
+            for (haplotype *node : multisource_radius)
+            {
+                bool const found = peaks.find(node) != peaks.end() || curr_neighbors.find(node) != curr_neighbors.end();
+                if (!found)
+                {
+                    node->mapped = true;
+                    curr_neighbors.insert(node);
+                    if (++i == MAX_NEIGHBORS_WEPP)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (abs(FREYJA_PEAKS_LIMIT - (int)curr_neighbors.size()) < abs(FREYJA_PEAKS_LIMIT - (int)nbrs.size())) {
+            nbrs = curr_neighbors;
+        }
+    }
+    
+    res.insert(res.end(), nbrs.begin(), nbrs.end());
     return res;
 }
 

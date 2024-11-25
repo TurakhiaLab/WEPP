@@ -20,15 +20,6 @@ class wepp_filter: public initial_filter {
     // a thread will process about xx total chunks in its lifespan
     int grain_size_factor = GRAIN_SIZE_FACTOR;
 
-    // affects final output
-    double read_dist_factor_threshold = READ_DIST_FACTOR_THRESHOLD;
-    int max_peak_peak_mutation = MAX_PEAK_PEAK_MUTATION;
-    int max_peak_nonpeak_mutation = MAX_PEAK_NONPEAK_MUTATION;
-    int top_n = TOP_N;
-    int max_peaks = MAX_PEAKS;
-    // for a given peak
-    int max_neighbors = MAX_NEIGHBORS_WEPP;
-
     // given a read index
     // what is its maximum parismony score?
     // i.e max_parismony[i] = best parsimony of ith read
@@ -62,11 +53,11 @@ class wepp_filter: public initial_filter {
     void singular_step(arena &arena, haplotype *hap);
 
     bool valid_two_tops(haplotype *a, haplotype *b) {
-         return a->mutation_distance(b) > max_peak_peak_mutation;
+         return a->mutation_distance(b) > MAX_PEAK_PEAK_MUTATION;
     }
-    void clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*>& peaks, std::set<haplotype*>& nbrs);
+    void clear_neighbors(arena& arena, const std::vector<haplotype*>& consideration, std::set<haplotype*> &peaks);
 
-    bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks, std::set<haplotype*> &nbrs);
+    bool step(arena& arena, std::vector<haplotype*>& current, std::set<haplotype*> &peaks);
 
     double node_score(float parsimony, int epps, int degree)
     {

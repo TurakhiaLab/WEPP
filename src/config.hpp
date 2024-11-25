@@ -19,8 +19,8 @@ static constexpr int MUTEX_BIN_SIZE = 4096;
 static constexpr int GRAIN_SIZE_FACTOR = 4;
 
 static constexpr double READ_DIST_FACTOR_THRESHOLD = (double) 0.5 / 100;
-static constexpr int MAX_PEAK_PEAK_MUTATION = 6;
-static constexpr int MAX_PEAK_NONPEAK_MUTATION = 6;
+static constexpr int MAX_PEAK_PEAK_MUTATION = 2;
+static constexpr int FREYJA_PEAKS_LIMIT = 5000;
 static constexpr int TOP_N = 10;
 static constexpr int MAX_PEAKS = 500;
 static constexpr int MAX_NEIGHBORS_WEPP = 50;
