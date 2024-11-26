@@ -517,7 +517,7 @@ wepp_filter::filter(arena& arena)
             }
         }
 
-        if (abs(FREYJA_PEAKS_LIMIT - (int)curr_neighbors.size()) < abs(FREYJA_PEAKS_LIMIT - (int)nbrs.size())) {
+        if (abs(FREYJA_PEAKS_LIMIT - ((int)curr_neighbors.size() + (int)peaks.size())) < abs(FREYJA_PEAKS_LIMIT - ((int)nbrs.size() + (int)peaks.size()))) {
             nbrs = curr_neighbors;
         }
     }
