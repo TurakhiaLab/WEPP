@@ -9,8 +9,6 @@
 #include "panman_bridge.hpp"
 #include "config.hpp"
 
-constexpr bool IGNORE_N_MUTS = true;
-
 //Get the names of samples prsent in samples.vcf
 std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples) {
     std::vector<std::string> vcf_samples;

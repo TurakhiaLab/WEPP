@@ -2,6 +2,8 @@
 
 static constexpr float DEL_SUBS_RATIO = 1;
 
+constexpr bool IGNORE_N_MUTS = true;
+
 static constexpr int NUM_RANGE_BINS = 50;
 static constexpr int NUM_RANGE_TREES = 25;
 static constexpr double SCORE_EPSILON = 1e-9;
