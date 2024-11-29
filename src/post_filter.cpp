@@ -150,7 +150,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                 else if ((deletions[i] - deletions[i - 1]) > 1) 
                 {
                     // Not considering deletions smaller than 3
-                    if (((deletions[i - 1] - start) >= 2) && ((deletions[i - 1] - start) <= 20))
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
                     {
                         std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                         for (int j = start; j <= deletions[i - 1]; j++) 
@@ -176,7 +176,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                 }
             }
             // Not considering deletions smaller than 3
-            if (((deletions.back() - start) >= 2) && ((deletions.back() - start) <= 20))
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
             {
                 std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                 for (int j = start; j <= deletions.back(); j++) 
@@ -233,7 +233,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                 else if ((deletions[i] - deletions[i - 1]) > 1) 
                 {
                     // Not considering deletions smaller than 3
-                    if (((deletions[i - 1] - start) >= 2) && ((deletions[i - 1] - start) <= 20))
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
                     {
                         std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                         for (int j = start; j <= deletions[i - 1]; j++) 
@@ -246,7 +246,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                 }
             }
             // Not considering deletions smaller than 3
-            if (((deletions.back() - start) >= 2) && ((deletions.back() - start) <= 20))
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
             {
                 std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                 for (int j = start; j <= deletions.back(); j++) 

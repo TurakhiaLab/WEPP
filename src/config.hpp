@@ -1,8 +1,10 @@
 #pragma once
 
+constexpr bool IGNORE_N_MUTS = true;
 static constexpr float DEL_SUBS_RATIO = 1;
 
-constexpr bool IGNORE_N_MUTS = true;
+static constexpr int MIN_ALLOWED_DEL = 3;
+static constexpr int MAX_ALLOWED_DEL = 10;
 
 static constexpr int NUM_RANGE_BINS = 50;
 static constexpr int NUM_RANGE_TREES = 25;
