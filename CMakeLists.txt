@@ -38,7 +38,7 @@ add_definitions(${CAPNP_DEFINITIONS})
 file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
     
 # Include JSONCPP
-include(${CMAKE_TOOLCHAIN_FILE})
+list(APPEND CMAKE_PREFIX_PATH "/home1/pranavgangwar/miniconda3/envs/usher/lib/cmake/jsoncpp")
 find_package(jsoncpp CONFIG REQUIRED)
 
 file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panman.hpp")
