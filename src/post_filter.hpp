@@ -5,6 +5,7 @@
 
 #include "haplotype.hpp"
 #include "arena.hpp"
+#include "config.hpp"
 
 class post_filter {
 public:
