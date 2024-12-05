@@ -104,8 +104,56 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
         }
     }
 
-    /* map self */
-    float parsimony = my_sub_locations.size() + (my_del_locations.size() * DEL_SUBS_RATIO);
+    // Account Deletions
+    int dels = 0;
+    if (my_del_locations.size())
+    {
+        int start = my_del_locations.front();
+        for (size_t i = 0; i < my_del_locations.size(); i++)
+        {
+            if (!i) 
+            {
+                start = my_del_locations.front();
+            }
+            else if ((my_del_locations[i] - my_del_locations[i - 1]) > 1) 
+            {
+                dels += std::ceil((double)(my_del_locations[i - 1] - start + 1) / 3);
+                start = my_del_locations[i];
+            }
+        }
+        dels += std::ceil((double)(my_del_locations.back() - start + 1) / 3);
+    }
+
+    
+     assert(curr->root->mutation_distance(read) == my_sub_locations.size() && "curr->root->mutation_distance(read) and my_sub_locations.size() are unequal");
+    /*
+    ///////////////REMOVE
+    if ((read.read == "USA/NJ-PHEL-V23011850/2023|OR286177.1|2023-06-09_amplicon_152-300/2_READ_29129_29277_1") && (curr->root->id == "USA/CA-CDC-LC0024445/2021|MW780625.1|2021-03-01")) {
+        auto ref_mut_dist = curr->root->mutation_distance(read);
+        if (ref_mut_dist != my_sub_locations.size())
+            printf("READ: %s, Node: %s, Ref_dist: %f, cal_dist: %ld\n", read.read.c_str(), curr->root->id.c_str(), ref_mut_dist, my_sub_locations.size());
+        
+        printf("\nRead muts:");
+        for (auto mut: read.mutations)
+            printf(" %s", mut.get_string().c_str());
+        
+        printf("\n\nSeq muts: ");
+        for (auto mut: curr->root->get_mutations(read.start, read.end))
+            printf(" %s", mut.get_string().c_str());
+        
+        printf("\n\nParent muts: ");
+        for (auto pos: parent_locations)
+            printf(" %d", pos);
+        
+        printf("\n\nDiff muts: ");
+        for (auto pos: my_sub_locations)
+            printf(" %d", pos);
+        printf("\n");
+    }
+    */
+
+
+    float parsimony = my_sub_locations.size() + (dels * DEL_SUBS_RATIO);
     if (parsimony < max_val)
     {
         max_val = parsimony;
@@ -484,13 +532,18 @@ wepp_filter::filter(arena& arena)
 
     // cartesian map
     cartesian_map(arena, initial, arena.reads());
-    
+
+    std::vector<haplotype*> res;
+
+    ////////////////REMOVE
+    /*
     // iterative removal 
     std::set<haplotype*> peaks, nbrs;
     while (!step(arena, initial, peaks)) { }
     
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
-    
+    arena.print_mutation_distance(res);
+
     // adding neighbors of peaks
     for (int k = 0; k < 5; k++) {
         std::set<haplotype*> curr_neighbors;
@@ -523,6 +576,8 @@ wepp_filter::filter(arena& arena)
     }
     
     res.insert(res.end(), nbrs.begin(), nbrs.end());
+    */
+
     return res;
 }
 

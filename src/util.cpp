@@ -110,12 +110,14 @@ get_single_mutations(std::vector<mutation>& ret, const std::string& ref, const p
 // precondition, both mutation lists are sorted
 float mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
     int dels = 0, subs = 0, i = 0, j = 0;
+    std::vector<int> deletions;
 
     while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
         if (i == (int) node1_mutations.size()) {                
             if (node2_mutations[j].mut != NUC_N) {
                 if (node2_mutations[j].mut == NUC_GAP)
-                    ++dels;
+                    deletions.emplace_back(j);
+                    //++dels;
                 else
                     ++subs;
             }
@@ -124,7 +126,8 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
         else if (j == (int) node2_mutations.size()) {
             if (node1_mutations[i].mut != NUC_N) {
                 if (node1_mutations[i].mut == NUC_GAP)
-                    ++dels;
+                    deletions.emplace_back(i);
+                    //++dels;
                 else
                     ++subs;
             }
@@ -133,7 +136,8 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
         else if (node1_mutations[i].pos < node2_mutations[j].pos) {
             if (node1_mutations[i].mut != NUC_N) {
                 if (node1_mutations[i].mut == NUC_GAP)
-                    ++dels;
+                    deletions.emplace_back(i);
+                    //++dels;
                 else
                     ++subs;
             }
@@ -142,7 +146,8 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
         else if (node1_mutations[i].pos > node2_mutations[j].pos) {
             if (node2_mutations[j].mut != NUC_N) {
                 if (node2_mutations[j].mut == NUC_GAP)
-                    ++dels;
+                    deletions.emplace_back(j);
+                    //++dels;
                 else
                     ++subs;
             }
@@ -150,7 +155,8 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
         }
         else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
             if (node1_mutations[i].mut == NUC_GAP || node2_mutations[j].mut == NUC_GAP)
-                ++dels;
+                deletions.emplace_back(i);
+                //++dels;
             else
                 ++subs;
 
@@ -159,6 +165,26 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
         else {
             ++i; ++j;
         }
+    }
+
+    
+    // Account Deletions
+    if (deletions.size())
+    {
+        int start = deletions.front();
+        for (size_t i = 0; i < deletions.size(); i++)
+        {
+            if (!i) 
+            {
+                start = deletions.front();
+            }
+            else if ((deletions[i] - deletions[i - 1]) > 1) 
+            {
+                dels += std::ceil((double)(deletions[i - 1] - start + 1) / 3);
+                start = deletions[i];
+            }
+        }
+        dels += std::ceil((double)(deletions.back() - start + 1) / 3);
     }
 
     return subs + (dels * DEL_SUBS_RATIO);

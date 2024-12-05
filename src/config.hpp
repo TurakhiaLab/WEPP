@@ -26,7 +26,7 @@ static constexpr double READ_DIST_FACTOR_THRESHOLD = (double) 0.5 / 100;
 static constexpr int MAX_PEAK_PEAK_MUTATION = 2;
 static constexpr int FREYJA_PEAKS_LIMIT = 5000;
 static constexpr int TOP_N = 10;
-static constexpr int MAX_PEAKS = 500;
+static constexpr int MAX_PEAKS = 300;
 static constexpr int MAX_NEIGHBORS_WEPP = 50;
 
 static constexpr int MAX_NEIGHBORS_FREYJA = 500;
