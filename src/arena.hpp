@@ -58,7 +58,7 @@ class arena {
     std::unordered_map<haplotype *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
 
     haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping, const std::vector<mutation>& condensed_n_muts);
-    int pan_tree_size(panmanUtils::Node *node); 
+    int pan_tree_size(panmanUtils::Node *node);
     int build_range_tree(int parent, haplotype* curr, int start, int end);
 
     void get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* n);

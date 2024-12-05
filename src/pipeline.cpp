@@ -36,7 +36,6 @@ void pipeline::run_initial() {
 
         timer t;
         running = main->filter(a);
-        // a.print_mutation_distance(running);
         std::cout << "--- initial filter took " << t.seconds() << " seconds " << std::endl << std::endl;
     }
 
