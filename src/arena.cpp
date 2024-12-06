@@ -18,20 +18,6 @@ arena::arena(const dataset &ds) : ds{ds}, mat{ds.mat()}, coord{ds.mat()}
         }
     }
 
-
-    ////////////REMOVE
-    for (auto& rd: this->raw_reads)
-    {
-        auto mut_itr = rd.mutations.begin();
-        while (mut_itr != rd.mutations.end())
-        {
-            if (mut_itr->mut == NUC_GAP)
-                mut_itr = rd.mutations.erase(mut_itr);
-            else
-                mut_itr++;
-        }
-    }
-
     // (note that there is typically overallocation by condensation factor)
     // but shrink to fit may lead to pointer invalidation
     panmanUtils::Node* real_root = this->mat.root;
@@ -63,17 +49,6 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
         }
     }
     tbb::parallel_sort(muts.begin(), muts.end());
-
-    ////////////REMOVE
-    auto mut_itr = muts.begin();
-    while (mut_itr != muts.end())
-    {
-        if (mut_itr->mut == NUC_GAP)
-            mut_itr = muts.erase(mut_itr);
-        else
-            mut_itr++;
-    }
-
 
     bool has_any = parent == nullptr; // root always gets added
     std::vector<mutation> child_condensed_n_muts;
