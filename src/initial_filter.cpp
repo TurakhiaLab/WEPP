@@ -505,17 +505,12 @@ wepp_filter::filter(arena& arena)
     // cartesian map
     cartesian_map(arena, initial, arena.reads());
 
-    std::vector<haplotype*> res;
-
-    ////////////////REMOVE
-    /*
     // iterative removal 
     std::set<haplotype*> peaks, nbrs;
     while (!step(arena, initial, peaks)) { }
     
     std::vector<haplotype*> res(peaks.begin(), peaks.end());
-    arena.print_mutation_distance(res);
-
+    
     // adding neighbors of peaks
     for (int k = 0; k < 5; k++) {
         std::set<haplotype*> curr_neighbors;
@@ -548,8 +543,6 @@ wepp_filter::filter(arena& arena)
     }
     
     res.insert(res.end(), nbrs.begin(), nbrs.end());
-    */
-
     return res;
 }
 
