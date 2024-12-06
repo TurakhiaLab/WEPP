@@ -3,10 +3,9 @@ cmake_minimum_required (VERSION 3.8)
 project(wbe)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -ggdb3 -Wno-unused-function  -Wno-deprecated-declarations -lboost_filesystem -lboost_system -lboost_program_options") 
-set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address -O0 -ggdb3 -fno-eliminate-unused-debug-symbols -UNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3 -g")
+set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address -O0 -ggdb3 -fno-eliminate-unused-debug-symbols")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
-
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 include(${TBB_DIR}/cmake/TBBBuild.cmake)
