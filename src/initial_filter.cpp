@@ -104,6 +104,7 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
         }
     }
 
+
     // Account Deletions
     int dels = 0;
     if (my_del_locations.size())
@@ -123,35 +124,6 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
         }
         dels += std::ceil((double)(my_del_locations.back() - start + 1) / 3);
     }
-
-    
-     assert(curr->root->mutation_distance(read) == my_sub_locations.size() && "curr->root->mutation_distance(read) and my_sub_locations.size() are unequal");
-    /*
-    ///////////////REMOVE
-    if ((read.read == "USA/NJ-PHEL-V23011850/2023|OR286177.1|2023-06-09_amplicon_152-300/2_READ_29129_29277_1") && (curr->root->id == "USA/CA-CDC-LC0024445/2021|MW780625.1|2021-03-01")) {
-        auto ref_mut_dist = curr->root->mutation_distance(read);
-        if (ref_mut_dist != my_sub_locations.size())
-            printf("READ: %s, Node: %s, Ref_dist: %f, cal_dist: %ld\n", read.read.c_str(), curr->root->id.c_str(), ref_mut_dist, my_sub_locations.size());
-        
-        printf("\nRead muts:");
-        for (auto mut: read.mutations)
-            printf(" %s", mut.get_string().c_str());
-        
-        printf("\n\nSeq muts: ");
-        for (auto mut: curr->root->get_mutations(read.start, read.end))
-            printf(" %s", mut.get_string().c_str());
-        
-        printf("\n\nParent muts: ");
-        for (auto pos: parent_locations)
-            printf(" %d", pos);
-        
-        printf("\n\nDiff muts: ");
-        for (auto pos: my_sub_locations)
-            printf(" %d", pos);
-        printf("\n");
-    }
-    */
-
 
     float parsimony = my_sub_locations.size() + (dels * DEL_SUBS_RATIO);
     if (parsimony < max_val)

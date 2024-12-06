@@ -90,7 +90,7 @@ struct haplotype {
         }
         
         // Store Ns in muts_in_range
-        auto n_it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, INT_MIN),
+        auto n_it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, start),
             [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                 return range.second < value.first; 
         });
@@ -135,7 +135,7 @@ struct haplotype {
         }
         
         // Store Ns in muts_in_range
-        auto n_it = std::lower_bound(stack_n_muts.begin(), stack_n_muts.end(), std::make_pair(start, INT_MIN),
+        auto n_it = std::lower_bound(stack_n_muts.begin(), stack_n_muts.end(), std::make_pair(start, start),
             [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                 return range.second < value.first; 
         });
