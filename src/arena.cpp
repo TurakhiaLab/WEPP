@@ -164,10 +164,12 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
                 for (const auto& pos: break_mutations) 
                 {
                     end_point = pos - 1;
-                    ret->stack_n_muts.push_back({start_point, end_point});
+                    if (end_point >= start_point)
+                        ret->stack_n_muts.push_back({start_point, end_point});
                     start_point = pos + 1;
                 }
-                ret->stack_n_muts.push_back({start_point, coords.second});
+                if (coords.second >= start_point)
+                    ret->stack_n_muts.push_back({start_point, coords.second});
             }
         }
     }
@@ -175,17 +177,20 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
     /* maybe rewinded mutation back to original */
     for (const mutation &mut : muts)
     {
-        if ((site_read_map.find(mut.pos) != site_read_map.end()) && (mut.ref != mut.mut))
+        if ((site_read_map.find(mut.pos) != site_read_map.end()))
         { 
+            ret->muts.push_back(mut);
+
             if (mut.mut != NUC_N)
             {
-                ret->stack_muts.push_back(mut);
-                ret->muts.push_back(mut);
+                if (mut.ref != mut.mut) {
+                    ret->stack_muts.push_back(mut);
+                }
             }
             else 
             {   
                 // Update stack_n_muts
-                auto it = std::lower_bound(ret->stack_n_muts.begin(), ret->stack_n_muts.end(), std::make_pair(mut.pos, INT_MIN),
+                auto it = std::lower_bound(ret->stack_n_muts.begin(), ret->stack_n_muts.end(), std::make_pair(mut.pos, mut.pos),
                     [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                         return range.second < value.first; 
                 });
@@ -235,7 +240,7 @@ arena::from_pan(haplotype *parent, panmanUtils::Node *node, const std::unordered
                 }
 
                 // Update n_muts
-                it = std::lower_bound(ret->n_muts.begin(), ret->n_muts.end(), std::make_pair(mut.pos, INT_MIN),
+                it = std::lower_bound(ret->n_muts.begin(), ret->n_muts.end(), std::make_pair(mut.pos, mut.pos),
                     [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                         return range.second < value.first; 
                 });
