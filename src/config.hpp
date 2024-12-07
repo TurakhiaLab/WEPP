@@ -1,7 +1,7 @@
 #pragma once
 
 constexpr bool IGNORE_N_MUTS = true;
-static constexpr float DEL_SUBS_RATIO = 1;
+static constexpr float DEL_SUBS_RATIO = 2;
 
 static constexpr int MIN_ALLOWED_DEL = 3;
 static constexpr int MAX_ALLOWED_DEL = 10;
