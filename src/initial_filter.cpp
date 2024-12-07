@@ -104,28 +104,7 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
         }
     }
 
-
-    // Account Deletions
-    int dels = 0;
-    if (my_del_locations.size())
-    {
-        int start = my_del_locations.front();
-        for (size_t i = 0; i < my_del_locations.size(); i++)
-        {
-            if (!i) 
-            {
-                start = my_del_locations.front();
-            }
-            else if ((my_del_locations[i] - my_del_locations[i - 1]) > 1) 
-            {
-                dels += std::ceil((double)(my_del_locations[i - 1] - start + 1) / 3);
-                start = my_del_locations[i];
-            }
-        }
-        dels += std::ceil((double)(my_del_locations.back() - start + 1) / 3);
-    }
-
-    float parsimony = my_sub_locations.size() + (dels * DEL_SUBS_RATIO);
+    float parsimony = my_sub_locations.size() + (my_del_locations.size() * DEL_SUBS_RATIO);
     if (parsimony < max_val)
     {
         max_val = parsimony;
