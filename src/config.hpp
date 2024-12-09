@@ -23,14 +23,14 @@ static constexpr int MUTEX_BIN_SIZE = 4096;
 static constexpr int GRAIN_SIZE_FACTOR = 4;
 
 static constexpr double READ_DIST_FACTOR_THRESHOLD = (double) 0.5 / 100;
-static constexpr int MAX_PEAK_PEAK_MUTATION = 2;
+static constexpr int MAX_PEAK_PEAK_MUTATION = 3;
 static constexpr int FREYJA_PEAKS_LIMIT = 5000;
 static constexpr int TOP_N = 10;
 static constexpr int MAX_PEAKS = 300;
 static constexpr int MAX_NEIGHBORS_WEPP = 50;
 
 static constexpr int MAX_NEIGHBORS_FREYJA = 500;
-static constexpr int MAX_NEIGHBOR_MUTATION = 2;
+static constexpr int MAX_NEIGHBOR_MUTATION = 3;
 // Update this to switch between Freyja and WEPP
 static constexpr int MAX_NEIGHBOR_ITERATIONS = 10;
 static constexpr bool FULL_TREE = true;
