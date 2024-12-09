@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
                 int curr_dist = 0;
                 for (size_t k = 0; k < curr_mutations.size(); k++) {
                     if (curr_mutations[k] != cmp_mutations[k])
-                        curr_dist++;
+                        curr_dist += std::max(curr_mutations[k], cmp_mutations[k]);
                 }
                 if (curr_dist < min_dist) {
                     min_dist = curr_dist;
