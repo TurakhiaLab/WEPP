@@ -22,7 +22,10 @@ public:
         std::set<haplotype*> frozen, last_round;
         for (int i = 0; i < num_filter_rounds; ++i) {
             std::vector<haplotype *> full_input = input;
-            full_input.insert(full_input.end(), frozen.begin(), frozen.end());
+            for (auto hap: frozen) {
+                if (std::find(full_input.begin(), full_input.end(), hap) == full_input.end())
+                    full_input.emplace_back(hap);
+            }
 
             std::vector<std::pair<haplotype*, double>> filtered = this->filter(arena, full_input); 
 
@@ -33,7 +36,8 @@ public:
                 }
             );
 
-            //arena.print_mutation_distance(this_round);
+            //arena.print_full_report(filtered);
+            arena.print_mutation_distance(this_round);
 
             std::sort(this_round.begin(), this_round.end());
             if (i == num_filter_rounds - 1 || 
@@ -44,7 +48,7 @@ public:
 
             // common should go into frozen
             if (i >= freeze_round) {
-            std::set_intersection(this_round.begin(), this_round.end(), last_round.begin(), last_round.end(),
+                std::set_intersection(this_round.begin(), this_round.end(), last_round.begin(), last_round.end(),
                                   std::inserter(frozen, frozen.end()));
             }
             last_round = std::set<haplotype *>(this_round.begin(), this_round.end());
