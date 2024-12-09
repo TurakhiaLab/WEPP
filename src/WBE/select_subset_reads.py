@@ -21,7 +21,7 @@ with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
 
 # Shuffle the remaining lines and select 1M
 random.shuffle(remaining_lines)
-selected_lines = remaining_lines[:1000000]
+selected_lines = remaining_lines[:100]
 
 # Write the selected lines to the output file
 with open(output_file, 'a') as outfile:
