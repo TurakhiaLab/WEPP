@@ -47,7 +47,7 @@ void pipeline::run_initial() {
 
 void pipeline::run_from_last_initial(bool is_full_run) {
     std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path());
-    //a.print_mutation_distance(running);
+    a.print_mutation_distance(running);
     {
         std::cout << "----- [running post filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;

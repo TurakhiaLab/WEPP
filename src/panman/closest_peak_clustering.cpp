@@ -64,7 +64,8 @@ int main(int argc, char* argv[]) {
         return 1;
 
     // Create indices vector and sort it
-    std::vector<int> indices(data.size()), closest_indices(data.size());
+    std::vector<int> indices(data.size());
+    std::vector<std::vector<int>> closest_indices(data.size());
     for (size_t i = 0; i < data.size(); ++i) {
         indices[i] = i;
     }
@@ -83,7 +84,7 @@ int main(int argc, char* argv[]) {
             auto curr_data = data[idx];
             auto curr_mutations = curr_data.mutations;
             int min_dist = INT_MAX;
-            int closest_j = INT_MAX;
+            std::vector<int> closest_j;
             for (size_t j = i+1; j < indices.size(); j++) 
             {
                 int jdx = indices[j];
@@ -96,7 +97,11 @@ int main(int argc, char* argv[]) {
                 }
                 if (curr_dist < min_dist) {
                     min_dist = curr_dist;
-                    closest_j = jdx;
+                    closest_j.clear();
+                    closest_j.emplace_back(jdx);
+                }
+                else if (curr_dist == min_dist) {
+                    closest_j.emplace_back(jdx);
                 }
             }
             {
@@ -111,8 +116,10 @@ int main(int argc, char* argv[]) {
     {
         int idx = indices[i];
         if ((data[idx].cost < eps) && (i+1 < indices.size())) {
-            int jdx = closest_indices[i];
-            data[jdx].cost += data[idx].cost;
+            double inc_cost = data[idx].cost / (double) closest_indices[i].size();
+            for (int jdx: closest_indices[i]) {
+                data[jdx].cost += inc_cost;
+            }
             data[idx].cost = 0;
         }
     }
