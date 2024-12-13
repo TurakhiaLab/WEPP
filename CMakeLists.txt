@@ -16,10 +16,24 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQ
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
-if(DEFINED Protobuf_PATH) 
-    find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
+# Explicitly set paths to Protobuf components
+set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include")
+set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.so")
+set(Protobuf_PROTOC_EXECUTABLE "$ENV{CONDA_PREFIX}/bin/protoc")
+
+# Pass these paths to find_package
+set(Protobuf_DIR "$ENV{CONDA_PREFIX}/lib/cmake/protobuf")
+
+# Find Protobuf
+find_package(Protobuf REQUIRED)
+
+# Print the paths that CMake resolved for Protobuf
+if(Protobuf_FOUND)
+    message(STATUS "Protobuf found: ${Protobuf_INCLUDE_DIRS}")
+    message(STATUS "Protobuf libraries: ${Protobuf_LIBRARIES}")
+    message(STATUS "Protobuf compiler: ${Protobuf_PROTOC_EXECUTABLE}")
 else()
-    find_package(Protobuf REQUIRED) 
+    message(FATAL_ERROR "Protobuf not found!")
 endif()
 
 include_directories(${Protobuf_INCLUDE_DIRS})
@@ -38,7 +52,7 @@ add_definitions(${CAPNP_DEFINITIONS})
 file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
     
 # Include JSONCPP
-include(${CMAKE_TOOLCHAIN_FILE})
+set(CMAKE_PREFIX_PATH "$ENV{CONDA_PREFIX}/envs/usher")
 find_package(jsoncpp CONFIG REQUIRED)
 
 file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/panman/panman.hpp")

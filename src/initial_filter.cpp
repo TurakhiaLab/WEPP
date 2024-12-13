@@ -537,10 +537,10 @@ lineage_root_filter::filter(arena& arena)
             [&](haplotype* hap) {
                 bool is_root = false;
                 for (panmanUtils::Node* node: arena.source_nodes(hap)) {
-                    if (node->annotations.size() >= 2 &&
-                        node->annotations[1] != "" && 
-                        node->annotations[1].rfind("misc", 0) == std::string::npos &&
-                        node->annotations[1].rfind("proposed", 0) == std::string::npos) {
+                    if (!node->annotations.empty() &&
+                        node->annotations.front() != "" && 
+                        node->annotations.front().rfind("misc", 0) == std::string::npos &&
+                        node->annotations.front().rfind("proposed", 0) == std::string::npos) {
                         is_root = true;
                         break;
                     }
@@ -550,43 +550,6 @@ lineage_root_filter::filter(arena& arena)
         ),
         initial.end()
     );
-
-    /*
-    std::set<haplotype*> found(initial.begin(), initial.end());
-    size_t mut_distance = 0;
-    size_t count = 0;
-    for (haplotype* hap: initial) {
-        haplotype* par = hap->parent;
-        while (par && found.find(par) == found.end()) {
-            par = par->parent;
-        }
-
-        if (par) {
-            mut_distance += hap->mutation_distance(par);
-            ++count;
-        }
-    }
-
-    std::cout << " Count " << ((double) mut_distance / count) << std::endl;
-
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine rng(seed);
-    std::vector<haplotype*> other = arena.haplotype_pointers();
-    std::shuffle(other.begin(), other.end(), rng);
-    other.erase(other.begin() + 10, other.end());
-
-    double average_dist = 0;
-    for (haplotype* hap: other) {
-        int min_dist = INT_MAX;
-        for (haplotype* hap2: initial) {
-            min_dist = std::min(min_dist, hap->mutation_distance(hap2));
-        }
-
-        average_dist += (double) min_dist / other.size();
-    }
-
-    std::cout << "Distance " << average_dist << std::endl;
-    */
 
     return initial;
 }
