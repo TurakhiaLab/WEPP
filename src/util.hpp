@@ -21,3 +21,5 @@ void
 get_single_mutations(std::vector<mutation>& mutations, const std::string& ref, const panmanUtils::Node* node, const coord_converter &coord);
 
 float mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations);
+
+std::vector<mutation> mutation_distance_vector(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations);
