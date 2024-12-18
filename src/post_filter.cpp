@@ -152,13 +152,12 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                     // Not considering deletions smaller than 3
                     if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
                     {
-                        std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                         for (int j = start; j <= deletions[i - 1]; j++) 
                         {
-                            build += ref[j - 1];
+                            std::string build = ref[j - 1] + std::to_string(j) + "-";
+                            mutations.insert(build);
+                            my_muts.insert(std::move(build));
                         }
-                        mutations.insert(build);
-                        my_muts.insert(std::move(build));
                     }
                     // Replace deletions with parent allele
                     else 
@@ -178,13 +177,12 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
             // Not considering deletions smaller than 3
             if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
             {
-                std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                 for (int j = start; j <= deletions.back(); j++) 
                 {
-                    build += ref[j - 1];
+                    std::string build = ref[j - 1] + std::to_string(j) + "-";
+                    mutations.insert(build);
+                    my_muts.insert(std::move(build));
                 }
-                mutations.insert(build);
-                my_muts.insert(std::move(build));
             }
             // Replace deletions with parent allele
             else 
@@ -235,12 +233,11 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
                     // Not considering deletions smaller than 3
                     if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
                     {
-                        std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                         for (int j = start; j <= deletions[i - 1]; j++) 
                         {
-                            build += ref[j - 1];
+                            std::string build = ref[j - 1] + std::to_string(j) + "-";
+                            mutations.insert(build);
                         }
-                        mutations.insert(build);
                     }
                     start = deletions[i];
                 }
@@ -248,12 +245,11 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
             // Not considering deletions smaller than 3
             if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
             {
-                std::string build = ref[start - 2] + std::to_string(start - 1) + "-";
                 for (int j = start; j <= deletions.back(); j++) 
                 {
-                    build += ref[j - 1];
+                    std::string build = ref[j - 1] + std::to_string(j) + "-";
+                    mutations.insert(build);
                 }
-                mutations.insert(build);
             }
         }
     }

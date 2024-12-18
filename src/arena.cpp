@@ -516,15 +516,16 @@ std::set<haplotype *, score_comparator> arena::highest_scoring_neighbors(haploty
 void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 {
     std::unordered_set<int> site_read_map = this->site_read_map();
-
+    auto ref = this->reference();
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
 
     std::vector<std::vector<mutation>> selected_mutations;
     for (const auto &pn : selected) {
-        auto node_mutations = get_mutations(pn->condensed_source, true, true);
-        
+        std::vector<mutation> final_node_mutations;
+        auto node_mutations = get_mutations(pn->condensed_source, false, true);
+        auto node_mutations_no_del = get_mutations(pn->condensed_source, true, true);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -534,13 +535,96 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
             else
                 mut_itr++;
         }
-       selected_mutations.emplace_back(node_mutations);
+        mut_itr = node_mutations_no_del.begin();
+        while (mut_itr != node_mutations_no_del.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = node_mutations_no_del.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        std::vector<int> deletions;
+        for (const mutation& m : node_mutations)
+        {
+            if (m.is_del())
+            {
+                deletions.emplace_back(m.pos);
+            }
+            else 
+            {
+                final_node_mutations.emplace_back(m);
+            }
+        }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            mutation m;
+                            m.pos = j;
+                            m.ref = nuc_from_char(ref[j - 1]);
+                            m.mut = NUC_GAP;
+                            final_node_mutations.emplace_back(m);
+                        }
+                    }
+                    // Replace deletions with parent allele
+                    else 
+                    {
+                        for (const auto& m: node_mutations_no_del)
+                        {
+                            if ((m.pos >= start) && (m.pos <= deletions[i - 1])) {
+                                final_node_mutations.emplace_back(m);
+                            }
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    mutation m;
+                    m.pos = j;
+                    m.ref = nuc_from_char(ref[j - 1]);
+                    m.mut = NUC_GAP;
+                    final_node_mutations.emplace_back(m);
+                }
+            }
+            // Replace deletions with parent allele
+            else 
+            {
+                for (const auto& m: node_mutations_no_del)
+                {
+                    if ((m.pos >= start) && (m.pos <= deletions.back())) {
+                        final_node_mutations.emplace_back(m);
+                    }
+                }
+            }
+        }
+       tbb::parallel_sort(final_node_mutations.begin(), final_node_mutations.end());
+       selected_mutations.emplace_back(final_node_mutations);
     }
 
     for (const std::string &reference : comp)
     {
-        std::vector<mutation>sample_mutations = get_mutations(this->mat.allNodes.at(reference), true, true);
-
+        std::vector<mutation> final_sample_mutations;
+        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        std::vector<mutation> sample_mutations_no_del = get_mutations(this->mat.allNodes.at(reference), true, true);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -550,6 +634,88 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
             else
                 mut_itr++;
         }
+        mut_itr = sample_mutations_no_del.begin();
+        while (mut_itr != sample_mutations_no_del.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = sample_mutations_no_del.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        std::vector<int> deletions;
+        for (const mutation& m : sample_mutations)
+        {
+            if (m.is_del())
+            {
+                deletions.emplace_back(m.pos);
+            }
+            else 
+            {
+                final_sample_mutations.emplace_back(m);
+            }
+        }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            mutation m;
+                            m.pos = j;
+                            m.ref = nuc_from_char(ref[j - 1]);
+                            m.mut = NUC_GAP;
+                            final_sample_mutations.emplace_back(m);
+                        }
+                    }
+                    // Replace deletions with parent allele
+                    else 
+                    {
+                        for (const auto& m: sample_mutations_no_del)
+                        {
+                            if ((m.pos >= start) && (m.pos <= deletions[i - 1])) {
+                                final_sample_mutations.emplace_back(m);
+                            }
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    mutation m;
+                    m.pos = j;
+                    m.ref = nuc_from_char(ref[j - 1]);
+                    m.mut = NUC_GAP;
+                    final_sample_mutations.emplace_back(m);
+                }
+            }
+            // Replace deletions with parent allele
+            else 
+            {
+                for (const auto& m: sample_mutations_no_del)
+                {
+                    if ((m.pos >= start) && (m.pos <= deletions.back())) {
+                        final_sample_mutations.emplace_back(m);
+                    }
+                }
+            }
+        }
+        tbb::parallel_sort(final_sample_mutations.begin(), final_sample_mutations.end());
 
         std::string best_node = "";
         int min_dist = INT_MAX;
@@ -557,7 +723,7 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
         {
             const auto& pn = selected[i];
             auto node_mutations = selected_mutations[i];
-            int curr_dist = mutation_distance(sample_mutations, node_mutations);
+            int curr_dist = mutation_distance(final_sample_mutations, node_mutations);
             if (curr_dist < min_dist)
             {
                 min_dist = curr_dist;
@@ -567,7 +733,6 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 
         average_dist += (double)min_dist / comp.size();
         printf("* dist: %02d true_node: %s pred_node: %s \n", min_dist, reference.c_str(), best_node.c_str());
-
     }
 
     printf("average mutation_distance: %0.3f\n", average_dist);
@@ -576,15 +741,16 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
 void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotype *, double>> &selected)
 {
     std::unordered_set<int> site_read_map = this->site_read_map();
-
+    auto ref = this->reference();
     double average_dist = 0.0;
     std::vector<std::string> comp = this->ds.true_haplotypes();
     printf("--- ground truth %zu haps; predicted %zu haps\n", comp.size(), selected.size());
 
     std::vector<std::vector<mutation>> comp_mutations;
     for (const std::string &reference : comp) {
-        auto sample_mutations = get_mutations(this->mat.allNodes.at(reference), true, true);
-        
+        std::vector<mutation> final_sample_mutations;
+        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        std::vector<mutation> sample_mutations_no_del = get_mutations(this->mat.allNodes.at(reference), true, true);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
         while (mut_itr != sample_mutations.end())
@@ -594,14 +760,96 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
             else
                 mut_itr++;
         }
-       comp_mutations.emplace_back(sample_mutations);
+        mut_itr = sample_mutations_no_del.begin();
+        while (mut_itr != sample_mutations_no_del.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = sample_mutations_no_del.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        std::vector<int> deletions;
+        for (const mutation& m : sample_mutations)
+        {
+            if (m.is_del())
+            {
+                deletions.emplace_back(m.pos);
+            }
+            else 
+            {
+                final_sample_mutations.emplace_back(m);
+            }
+        }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            mutation m;
+                            m.pos = j;
+                            m.ref = nuc_from_char(ref[j - 1]);
+                            m.mut = NUC_GAP;
+                            final_sample_mutations.emplace_back(m);
+                        }
+                    }
+                    // Replace deletions with parent allele
+                    else 
+                    {
+                        for (const auto& m: sample_mutations_no_del)
+                        {
+                            if ((m.pos >= start) && (m.pos <= deletions[i - 1])) {
+                                final_sample_mutations.emplace_back(m);
+                            }
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    mutation m;
+                    m.pos = j;
+                    m.ref = nuc_from_char(ref[j - 1]);
+                    m.mut = NUC_GAP;
+                    final_sample_mutations.emplace_back(m);
+                }
+            }
+            // Replace deletions with parent allele
+            else 
+            {
+                for (const auto& m: sample_mutations_no_del)
+                {
+                    if ((m.pos >= start) && (m.pos <= deletions.back())) {
+                        final_sample_mutations.emplace_back(m);
+                    }
+                }
+            }
+        }
+        tbb::parallel_sort(final_sample_mutations.begin(), final_sample_mutations.end());
+        comp_mutations.emplace_back(final_sample_mutations);
     }
     
     for (const auto &pn : selected)
     {
-        // Getting node_mutations from the Tree
-        auto node_mutations = get_mutations(pn.first->condensed_source, true, true);
-        
+        std::vector<mutation> final_node_mutations;
+        auto node_mutations = get_mutations(pn.first->condensed_source, false, true);
+        auto node_mutations_no_del = get_mutations(pn.first->condensed_source, true, true);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
         while (mut_itr != node_mutations.end())
@@ -611,6 +859,88 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
             else
                 mut_itr++;
         }
+        mut_itr = node_mutations_no_del.begin();
+        while (mut_itr != node_mutations_no_del.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = node_mutations_no_del.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+        std::vector<int> deletions;
+        for (const mutation& m : node_mutations)
+        {
+            if (m.is_del())
+            {
+                deletions.emplace_back(m.pos);
+            }
+            else 
+            {
+                final_node_mutations.emplace_back(m);
+            }
+        }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            mutation m;
+                            m.pos = j;
+                            m.ref = nuc_from_char(ref[j - 1]);
+                            m.mut = NUC_GAP;
+                            final_node_mutations.emplace_back(m);
+                        }
+                    }
+                    // Replace deletions with parent allele
+                    else 
+                    {
+                        for (const auto& m: node_mutations_no_del)
+                        {
+                            if ((m.pos >= start) && (m.pos <= deletions[i - 1])) {
+                                final_node_mutations.emplace_back(m);
+                            }
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    mutation m;
+                    m.pos = j;
+                    m.ref = nuc_from_char(ref[j - 1]);
+                    m.mut = NUC_GAP;
+                    final_node_mutations.emplace_back(m);
+                }
+            }
+            // Replace deletions with parent allele
+            else 
+            {
+                for (const auto& m: node_mutations_no_del)
+                {
+                    if ((m.pos >= start) && (m.pos <= deletions.back())) {
+                        final_node_mutations.emplace_back(m);
+                    }
+                }
+            }
+        }
+        tbb::parallel_sort(final_node_mutations.begin(), final_node_mutations.end());
 
         std::string best_node = "";
         int min_dist = INT_MAX;
@@ -618,7 +948,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         {
             auto reference = comp[i];
             auto sample_mutations = comp_mutations[i];
-            int curr_dist = mutation_distance(sample_mutations, node_mutations);
+            int curr_dist = mutation_distance(sample_mutations, final_node_mutations);
             if (curr_dist < min_dist)
             {
                 min_dist = curr_dist;

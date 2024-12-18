@@ -10,12 +10,17 @@
 // Define a structure to hold abs_value (float) and a boolean vector
 struct costMutations {
     double cost;                
-    std::vector<int> mutations; 
+    std::vector<int> mutation_idx; 
+};
+
+struct Mutation {
+    int pos;
+    char mut;
 };
 
 // Function to read CSV file and return a vector of costMutations structs
-std::vector<struct costMutations> readCSV(const std::string& filename) {
-    std::vector<struct costMutations> cost_mutations;
+std::vector<costMutations> readCSV(const std::string& filename, std::vector<Mutation>& mutation_list) {
+    std::vector<costMutations> cost_mutations;
     std::ifstream file(filename);
 
     if (!file.is_open()) {
@@ -24,18 +29,40 @@ std::vector<struct costMutations> readCSV(const std::string& filename) {
     }
 
     std::string line;
+    // Read the header line
+    if (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string token;
+
+        // Skip the first empty column
+        std::getline(ss, token, ',');
+
+        // Read the mutation headers
+        while (std::getline(ss, token, ',')) {
+            Mutation mut;
+            mut.pos = std::stoi(token.substr(1, token.size() - 2));
+            mut.mut = token.back();
+            mutation_list.emplace_back(mut);
+        }
+    }
+
+    // Process the remaining lines
     while (std::getline(file, line)) {
         std::stringstream ss(line);
         std::string token;
-        struct costMutations entry;
+        costMutations entry;
 
         // Read the first value (abs_value) as a float
         std::getline(ss, token, ',');
         entry.cost = std::stod(token);
 
         // Read the rest of the tokens as boolean values
+        int idx = 0; 
         while (std::getline(ss, token, ',')) {
-            entry.mutations.emplace_back(std::stoi(token));
+            if (std::stoi(token) != 0) { 
+                entry.mutation_idx.emplace_back(idx);
+            }
+            idx++;
         }
 
         // Add the entry to the vector of costMutations structs
@@ -44,6 +71,38 @@ std::vector<struct costMutations> readCSV(const std::string& filename) {
 
     file.close();
     return cost_mutations;
+}
+
+int mutation_distance(const std::vector<Mutation>& node1_mutations, const std::vector<Mutation>& node2_mutations) {
+    int muts = 0, i = 0, j = 0;
+
+    while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
+        if (i == (int) node1_mutations.size()) {                
+            ++muts;
+            ++j;
+        }
+        else if (j == (int) node2_mutations.size()) {
+            ++muts;
+            ++i;
+        }
+        else if (node1_mutations[i].pos < node2_mutations[j].pos) {
+            ++muts;
+            ++i;
+        }
+        else if (node1_mutations[i].pos > node2_mutations[j].pos) {
+            ++muts;
+            ++j;
+        }
+        else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut) {
+            ++muts;
+            ++i; ++j;
+        }
+        else {
+            ++i; ++j;
+        }
+    }
+    
+    return muts;
 }
 
 int main(int argc, char* argv[]) {
@@ -59,7 +118,8 @@ int main(int argc, char* argv[]) {
     // Read the CSV file and get the vector of costMutations structs
     std::string input_filename = file_path + "/closest_peak_search.csv";
     std::string output_filename = file_path + "/peaks_clustered.csv";
-    std::vector<struct costMutations> data = readCSV(input_filename);
+    std::vector<Mutation> mutation_list;
+    std::vector<costMutations> data = readCSV(input_filename, mutation_list);
     if (data.empty())
         return 1;
 
@@ -82,19 +142,19 @@ int main(int argc, char* argv[]) {
         { 
             int idx = indices[i];
             auto curr_data = data[idx];
-            auto curr_mutations = curr_data.mutations;
+            std::vector<Mutation> curr_mutations;
+            for (int idx: curr_data.mutation_idx)
+                curr_mutations.emplace_back(mutation_list[idx]);
             int min_dist = INT_MAX;
             std::vector<int> closest_j;
             for (size_t j = i+1; j < indices.size(); j++) 
             {
                 int jdx = indices[j];
                 auto cmp_data = data[jdx];
-                auto cmp_mutations = cmp_data.mutations;
-                int curr_dist = 0;
-                for (size_t k = 0; k < curr_mutations.size(); k++) {
-                    if (curr_mutations[k] != cmp_mutations[k])
-                        curr_dist += std::max(curr_mutations[k], cmp_mutations[k]);
-                }
+                std::vector<Mutation> cmp_mutations;
+                for (int idx: cmp_data.mutation_idx)
+                    cmp_mutations.emplace_back(mutation_list[idx]);
+                int curr_dist = mutation_distance(curr_mutations, cmp_mutations);
                 if (curr_dist < min_dist) {
                     min_dist = curr_dist;
                     closest_j.clear();

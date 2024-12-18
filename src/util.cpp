@@ -163,3 +163,50 @@ float mutation_distance(std::vector<mutation> const& node1_mutations, std::vecto
     
     return subs + (dels * DEL_SUBS_RATIO);
 }
+
+std::vector<mutation> mutation_distance_vector(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
+    int i = 0, j = 0;
+    std::vector<mutation> mutations;
+
+    while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
+        if (i == (int) node1_mutations.size()) {                
+            if (node2_mutations[j].mut != NUC_N) {
+                mutations.emplace_back(node2_mutations[j]);
+            }
+            ++j;
+        }
+        else if (j == (int) node2_mutations.size()) {
+            if (node1_mutations[i].mut != NUC_N) {
+                mutations.emplace_back(node1_mutations[i]);
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos < node2_mutations[j].pos) {
+            if (node1_mutations[i].mut != NUC_N) {
+                mutations.emplace_back(node1_mutations[i]);
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos > node2_mutations[j].pos) {
+            if (node2_mutations[j].mut != NUC_N) {
+                mutations.emplace_back(node2_mutations[j]);
+            }
+            ++j;
+        }
+        else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
+            if (node1_mutations[i].mut == NUC_GAP)
+                mutations.emplace_back(node1_mutations[i]);
+            else if (node2_mutations[j].mut == NUC_GAP)
+                mutations.emplace_back(node2_mutations[j]);
+            else
+                mutations.emplace_back(node1_mutations[i]);
+
+            ++i; ++j;
+        }
+        else {
+            ++i; ++j;
+        }
+    }
+    
+    return mutations;
+}
