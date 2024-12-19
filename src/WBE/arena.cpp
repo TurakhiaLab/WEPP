@@ -693,7 +693,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     }
 
     // Mask positions on the reads covered by mutations
-    tbb::concurrent_hash_map<std::string, std::vector<raw_read>> mutations_read_map;
+    tbb::concurrent_hash_map<std::string, std::vector<raw_read>> mutations_read_map, masked_mutations_read_map;
     tbb::concurrent_hash_map<std::string, std::vector<haplotype *>> mutations_haplotype_map;
     const std::vector<raw_read> &reads = this->reads();
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge = this->ds.read_reverse_merge();
@@ -711,7 +711,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
                      });
 
             // Get residual_mutations_covered covered by reads and convert them to 'N'
-            std::vector<std::string> residual_mutations_covered;
+            std::vector<std::string> residual_mutations_covered, residual_mutations_masked;
             for (const auto& mut_tuple: residual_sites_covered) {
                 std::string curr_residual_mut = std::to_string(std::get<0>(mut_tuple)) + std::get<1>(mut_tuple) + ":" + std::to_string(std::get<2>(mut_tuple));
                 bool site_found = false;
@@ -726,24 +726,23 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
                             }
                         }
                         // If 'N' then only position should match
-                        else
-                            residual_mutations_covered.emplace_back(curr_residual_mut);
+                        else {
+                            residual_mutations_masked.emplace_back(curr_residual_mut);
+                        }
                         site_found = true;
                         break;
                     }
                 }
-                if (!site_found) {
-                    if (ds.reference()[std::get<0>(mut_tuple) - 1] == std::get<1>(mut_tuple)) {
-                        // Add site as masked mutation
-                        MAT::Mutation mut;
-                        mut.ref_nuc = MAT::get_nuc_id(std::get<1>(mut_tuple));
-                        mut.par_nuc = mut.ref_nuc;
-                        mut.mut_nuc = 0b1111;
-                        mut.position = std::get<0>(mut_tuple);
-                        rp.mutations.emplace_back(mut);
-                        std::sort(rp.mutations.begin(), rp.mutations.end());
-                        residual_mutations_covered.emplace_back(curr_residual_mut);
-                    }
+                if ((!site_found) && (ds.reference()[std::get<0>(mut_tuple) - 1] == std::get<1>(mut_tuple))) {
+                    // Add site as masked mutation
+                    MAT::Mutation mut;
+                    mut.ref_nuc = MAT::get_nuc_id(std::get<1>(mut_tuple));
+                    mut.par_nuc = mut.ref_nuc;
+                    mut.mut_nuc = 0b1111;
+                    mut.position = std::get<0>(mut_tuple);
+                    rp.mutations.emplace_back(mut);
+                    std::sort(rp.mutations.begin(), rp.mutations.end());
+                    residual_mutations_covered.emplace_back(curr_residual_mut);
                 }
             }
 
@@ -751,6 +750,14 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
             for (const auto& curr_residual_mut: residual_mutations_covered) {
                 tbb::concurrent_hash_map<std::string, std::vector<raw_read>>::accessor ac;
                 mutations_read_map.insert(ac, curr_residual_mut);
+                ac->second.emplace_back(rp);
+                ac.release();
+            }
+
+            // Add rp to masked_mutations_read_map if it masks residual mutations
+            for (const auto& curr_residual_mut: residual_mutations_masked) {
+                tbb::concurrent_hash_map<std::string, std::vector<raw_read>>::accessor ac;
+                masked_mutations_read_map.insert(ac, curr_residual_mut);
                 ac->second.emplace_back(rp);
                 ac.release();
             }
@@ -768,6 +775,16 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
         csv_print_reads += "\n";
         csv_reads << csv_print_reads;
     }
+
+    // Add masked_mutations_read_map to mutations_read_map for residual mutation to haplotype mapping
+    for (const auto &m_r : masked_mutations_read_map)
+    {
+        tbb::concurrent_hash_map<std::string, std::vector<raw_read>>::accessor ac;
+        mutations_read_map.insert(ac, m_r.first);
+        ac->second.insert(ac->second.end(), m_r.second.begin(), m_r.second.end());
+        ac.release();
+    }
+    masked_mutations_read_map.clear();
 
     // Find EPPs for each residual mutation in mutations_read_map
     tbb::parallel_for(tbb::blocked_range<size_t>(0, mutations_read_map.size()), [&](const tbb::blocked_range<size_t>& r) 
