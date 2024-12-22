@@ -1,10 +1,10 @@
 #pragma once
 
 constexpr bool IGNORE_N_MUTS = true;
-static constexpr float DEL_SUBS_RATIO = 2;
+static constexpr float DEL_SUBS_RATIO = 1;
 
-static constexpr int MIN_ALLOWED_DEL = 3;
-static constexpr int MAX_ALLOWED_DEL = 10;
+static constexpr int MIN_ALLOWED_DEL = 1;
+static constexpr int MAX_ALLOWED_DEL = 30;
 
 static constexpr int NUM_RANGE_BINS = 50;
 static constexpr int NUM_RANGE_TREES = 25;
@@ -23,14 +23,14 @@ static constexpr int MUTEX_BIN_SIZE = 4096;
 static constexpr int GRAIN_SIZE_FACTOR = 4;
 
 static constexpr double READ_DIST_FACTOR_THRESHOLD = (double) 0.5 / 100;
-static constexpr int MAX_PEAK_PEAK_MUTATION = 3;
+static constexpr int MAX_PEAK_PEAK_MUTATION = 2;
 static constexpr int FREYJA_PEAKS_LIMIT = 5000;
 static constexpr int TOP_N = 10;
 static constexpr int MAX_PEAKS = 300;
 static constexpr int MAX_NEIGHBORS_WEPP = 50;
 
 static constexpr int MAX_NEIGHBORS_FREYJA = 500;
-static constexpr int MAX_NEIGHBOR_MUTATION = 3;
+static constexpr int MAX_NEIGHBOR_MUTATION = 2;
 // Update this to switch between Freyja and WEPP
 static constexpr int MAX_NEIGHBOR_ITERATIONS = 10;
 static constexpr bool FULL_TREE = true;
@@ -39,4 +39,4 @@ static constexpr bool FULL_TREE = true;
 static constexpr bool SIMULATED_DATA = true;
 
 // Update the path to local conda
-static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh"; 
+static const std::string CONDA_PATH = "~/mambaforge/etc/profile.d/conda.sh"; 

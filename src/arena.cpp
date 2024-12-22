@@ -524,7 +524,8 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     std::vector<std::vector<mutation>> selected_mutations;
     for (const auto &pn : selected) {
         std::vector<mutation> final_node_mutations;
-        auto node_mutations = get_mutations(pn->condensed_source, false, true);
+        //auto node_mutations = get_mutations(pn->condensed_source, false, true);
+        auto node_mutations = get_mutations(pn->condensed_source, true, true);
         auto node_mutations_no_del = get_mutations(pn->condensed_source, true, true);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();
@@ -623,7 +624,8 @@ void arena::print_mutation_distance(const std::vector<haplotype *> &selected)
     for (const std::string &reference : comp)
     {
         std::vector<mutation> final_sample_mutations;
-        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        //std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), true, true);
         std::vector<mutation> sample_mutations_no_del = get_mutations(this->mat.allNodes.at(reference), true, true);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
@@ -749,7 +751,8 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     std::vector<std::vector<mutation>> comp_mutations;
     for (const std::string &reference : comp) {
         std::vector<mutation> final_sample_mutations;
-        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        //std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), false, true);
+        std::vector<mutation> sample_mutations = get_mutations(this->mat.allNodes.at(reference), true, true);
         std::vector<mutation> sample_mutations_no_del = get_mutations(this->mat.allNodes.at(reference), true, true);
         // Remove mutations from sample_mutations that are not present in site_read_map
         auto mut_itr = sample_mutations.begin();
@@ -848,7 +851,8 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
     for (const auto &pn : selected)
     {
         std::vector<mutation> final_node_mutations;
-        auto node_mutations = get_mutations(pn.first->condensed_source, false, true);
+        //auto node_mutations = get_mutations(pn.first->condensed_source, false, true);
+        auto node_mutations = get_mutations(pn.first->condensed_source, true, true);
         auto node_mutations_no_del = get_mutations(pn.first->condensed_source, true, true);
         // Remove mutations from node_mutations that are not present in site_read_map
         auto mut_itr = node_mutations.begin();

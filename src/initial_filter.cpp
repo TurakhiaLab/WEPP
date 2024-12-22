@@ -50,27 +50,27 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
     std::vector<int> my_sub_locations, my_del_locations, parent_locations;
     my_sub_locations.reserve(parent_sub_locations.size());
     my_del_locations.reserve(parent_del_locations.size());
-    parent_locations.reserve(parent_sub_locations.size() + parent_del_locations.size());
-    
-    for (const auto& vec : {std::ref(parent_sub_locations), std::ref(parent_del_locations)}) {
-        parent_locations.insert(parent_locations.end(), vec.get().begin(), vec.get().end());
-    }
-    tbb::parallel_sort(parent_locations.begin(), parent_locations.end());
 
     // go through all of this haplotypes mutations
     // and see if it increases or decreases overall mutations
     std::vector<mutation> curr_muts = curr->root->get_current_mutations(read.start, read.end);
 
-    size_t i = 0; // index of parent location
+    size_t u = 0; // index of parent sub location
+    size_t v = 0; // index of parent del location
     mutation search;
     search.pos = read.start;
-    auto j = std::lower_bound(curr_muts.begin(), curr_muts.end(), search); // index of curr_muts
+    auto j = curr_muts.begin();
 
     // keeping track of read mutation position may actually be the dominating factor with so many N
     // so we bin search whenever necessary
-    while (i < parent_locations.size() || j != curr_muts.end()) {
-        bool parent_first = i < parent_locations.size() && (j == curr_muts.end() || parent_locations[i] < j->pos);
-        bool us_first = j != curr_muts.end() && (i == parent_locations.size() || j->pos < parent_locations[i]);
+    while (u < parent_sub_locations.size() || v < parent_del_locations.size() || j != curr_muts.end()) {
+        size_t up = u == parent_sub_locations.size() ? SIZE_MAX : parent_sub_locations[u];
+        size_t vp = v == parent_del_locations.size() ? SIZE_MAX : parent_del_locations[v];
+        size_t jp = j == curr_muts.end() ? SIZE_MAX : j->pos;
+
+        bool parent_sub_first = up < vp && up < jp;
+        bool parent_del_first = vp < up && vp < jp; 
+        bool us_first = jp < up && jp < vp;
 
         if (us_first) {
             auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
@@ -83,12 +83,13 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
             }
             ++j;
         }
-        else if (parent_first) {
-            if (std::find(parent_del_locations.begin(), parent_del_locations.end(), parent_locations[i]) != parent_del_locations.end())
-                my_del_locations.push_back(parent_locations[i]);
-            else
-                my_sub_locations.push_back(parent_locations[i]);
-            ++i;
+        else if (parent_del_first) {
+            my_del_locations.push_back(parent_del_locations[v]);
+            ++v;
+        }
+        else if (parent_sub_first) {
+            my_sub_locations.push_back(parent_sub_locations[u]);
+            ++u;
         }
         else {
             auto it = std::lower_bound(read.mutations.begin(), read.mutations.end(), *j);
@@ -100,7 +101,8 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
                     my_sub_locations.push_back(j->pos);
             }
             ++j;
-            ++i;
+            if (jp == up) ++u;
+            if (jp == vp) ++v;
         }
     }
 
@@ -134,7 +136,7 @@ single_read_tree(arena& arena, const raw_read& read, std::vector<haplotype*> &ma
     
     std::vector<int> root_subs, root_dels;
     for (const mutation& mut: read.mutations) {
-        if (mut.mut != NUC_N) {
+        if (mut.mut != NUC_N && mut.ref != NUC_N) {
             if (mut.mut == NUC_GAP)
                 root_dels.push_back(mut.pos);
             else
