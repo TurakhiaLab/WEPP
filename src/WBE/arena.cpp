@@ -670,7 +670,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     std::string csv_print_haplotypes, csv_print_reads;
 
     // Read residual_mutations
-    std::string file_path = this->ds.directory() + "/residual_mutations.txt";
+    std::string file_path = this->ds.residual_mutations_path();
     std::ifstream file(file_path);  
     std::vector<std::tuple<int, char, float>> mutations; 
 
@@ -856,5 +856,44 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
         }
         csv_print_haplotypes += "\n";
         csv_haplotypes << csv_print_haplotypes;
+    }
+}
+
+void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream sam(this->ds.haplotype_sam_path());
+    std::string sam_print;
+    
+    // print headers
+    sam << "@SQ\tSN:NC_045512v2\tLN:" + std::to_string(this->reference().size()) + "\n@CO\tHP_SEQ\n";
+
+    for (size_t i = 0; i < abundance.size(); i++)
+    {
+        auto hap = abundance[i].first;
+        auto hap_mutations = ::get_mutations(mat, hap->id);
+        auto hap_sequence = this->reference();
+        for (const auto& mut: hap_mutations)
+        {
+            hap_sequence[mut.position - 1] = MAT::get_nuc(mut.mut_nuc);
+        }
+        sam_print = hap->id + "\t0\tNC_045512v2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\tRG:Z:group" + std::to_string(i + 1) + "\n";
+        sam << sam_print;
+    }
+
+    // Convert sam to bam
+    std::string bam_file = this->ds.haplotype_bam_path();
+    std::string sam_to_bam_command = "samtools view -S -b " + this->ds.haplotype_sam_path() + " | samtools sort -o " + bam_file;
+    int result = std::system(sam_to_bam_command.c_str());
+    if (result != 0) {
+        std::cerr << "Error: Failed to convert and sort haplotype SAM to BAM" << std::endl;
+        return;
+    }
+
+    // Command to index the sorted BAM file
+    std::string index_command = "samtools index " + bam_file;
+    result = std::system(index_command.c_str());
+    if (result != 0) {
+        std::cerr << "Error: Failed to index haplotype BAM file" << std::endl;
+        return;
     }
 }

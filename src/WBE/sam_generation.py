@@ -42,10 +42,11 @@ def write_sam_files(input_sam_file):
                             if len(hap_muts[hap]):
                                 w_file.write(f"\tUM:Z")
                                 for m_idx, mut in enumerate(hap_muts[hap]):
-                                    if m_idx == 0:
-                                        w_file.write(f":unaccounted{mutations[mut]}")
-                                    else:
-                                        w_file.write(f",unaccounted{mutations[mut]}")
+                                    if mut in mutations:
+                                        if m_idx == 0:
+                                            w_file.write(f":unaccounted{mutations[mut]}")
+                                        else:
+                                            w_file.write(f",unaccounted{mutations[mut]}")
                             w_file.write("\n")
                     else:
                         tokens = line.split()
