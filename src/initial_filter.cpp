@@ -57,8 +57,6 @@ single_read_tree(arena& arena, const std::vector<int>& parent_sub_locations, con
 
     size_t u = 0; // index of parent sub location
     size_t v = 0; // index of parent del location
-    mutation search;
-    search.pos = read.start;
     auto j = curr_muts.begin();
 
     // keeping track of read mutation position may actually be the dominating factor with so many N
