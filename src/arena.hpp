@@ -200,4 +200,6 @@ public:
     void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
 
     void dump_read2haplotype_mapping(const std::vector<std::pair<haplotype*, double>> & abundance);
+
+    void dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &abundance);
 };

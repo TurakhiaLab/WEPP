@@ -39,6 +39,18 @@ public:
         return options["comparison-files-prefix"].as<std::string>();
     }
 
+    std::string residual_mutations_path() const {
+        return this->directory() + "/residual_mutations.txt";
+    }
+    
+    std::string haplotype_sam_path() const {
+        return this->directory() + this->file_prefix() + "_haplotypes.sam";
+    }
+    
+    std::string haplotype_bam_path() const {
+        return this->directory() + this->file_prefix() + "_haplotypes.bam";
+    }
+
     const std::vector<int>& masked_sites() const {
         static std::vector<int> cached_mask; 
         if (cached_mask.empty()) {

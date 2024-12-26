@@ -32,20 +32,21 @@ def write_sam_files(input_sam_file):
                 else:
                     if add_RG:
                         add_RG = False
-                        # Write unseen groups of mutations
+                        # Write unaccounted groups of mutations
                         for mut, idx in mutations.items():
-                            w_file.write(f"@CO\tUM:unseen{idx}\tUS:{mut}\n")
+                            w_file.write(f"@CO\tUM:unaccounted{idx}\tUS:{mut}\n")
                         # Write read groups of haplotypes
                         for hap, idx in haplotypes.items():
                             w_file.write(f"@RG\tID:group{idx}\tDS:Node:{hap}")
-                            # Write unseen groups of haplotypes
+                            # Write unaccounted groups of haplotypes
                             if len(hap_muts[hap]):
                                 w_file.write(f"\tUM:Z")
                                 for m_idx, mut in enumerate(hap_muts[hap]):
-                                    if m_idx == 0:
-                                        w_file.write(f":unseen{mutations[mut]}")
-                                    else:
-                                        w_file.write(f",unseen{mutations[mut]}")
+                                    if mut in mutations:
+                                        if m_idx == 0:
+                                            w_file.write(f":unaccounted{mutations[mut]}")
+                                        else:
+                                            w_file.write(f",unaccounted{mutations[mut]}")
                             w_file.write("\n")
                     else:
                         tokens = line.split()
@@ -56,16 +57,16 @@ def write_sam_files(input_sam_file):
                                 w_file.write(f":group{haplotypes[hap]}")
                             else:
                                 w_file.write(f",group{haplotypes[hap]}")
-                        w_file.write(f"\tEPP:i:{len(read_haps[tokens[0]])}")
+                        w_file.write(f"\tEP:i:{len(read_haps[tokens[0]])}")
 
-                        # Write unseen mutations present in this read
+                        # Write unaccounted mutations present in this read
                         if (len(read_muts[tokens[0]])):
                             w_file.write("\tUM:Z")
                             for idx, mut in enumerate(read_muts[tokens[0]]):
                                 if idx == 0:
-                                    w_file.write(f":unseen{mutations[mut]}")
+                                    w_file.write(f":unaccounted{mutations[mut]}")
                                 else:
-                                    w_file.write(f",unseen{mutations[mut]}")
+                                    w_file.write(f",unaccounted{mutations[mut]}")
 
                         w_file.write("\n")
 
