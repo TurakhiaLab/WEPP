@@ -186,7 +186,7 @@ void sam::add_read(const std::string& line) {
                 
             case 'D':
                 alt_nuc = "";
-                ref_nuc += reference_seq.substr(nuc_pos, cig_len);
+                ref_nuc += reference_seq.substr(nuc_pos - 1, cig_len);
                 curr_sub_len += cig_len;
                 del_count += cig_len;
                 build += std::string(cig_len, '_');
@@ -257,6 +257,10 @@ void sam::read_correction() {
     for (int i = 0; i < (int) reference_seq.size(); ++i) {
         total_occurences[i] = std::accumulate(collapsed_frequency_table[i].begin(), collapsed_frequency_table[i].end(), 0); 
         majority[i] = std::max_element(collapsed_frequency_table[i].begin(), collapsed_frequency_table[i].end()) - collapsed_frequency_table[i].begin();
+    }
+
+    for (int j = 0; j < 6; ++j) {
+        std::cout << GENOME_STRING[j] << " occured " << collapsed_frequency_table[21640][j] << std::endl;
     }
 
     /* first correct aligned reads */
