@@ -14,7 +14,7 @@ static constexpr bool USE_READ_CORRECTION = true;
 static constexpr bool USE_COLUMN_MERGING  = true;
 static constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
 constexpr int PHRED_SCORE_THRESHOLD = 20;
-// Update based on sequencing technology: Illumina: 5%, Ion Torrent: 1.5%, ONT: 2%
+// Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 constexpr double FREQ_READ_THRESHOLD = 0.005; 
 
 static constexpr int MAX_CACHED_EPP_SIZE = 2048;
