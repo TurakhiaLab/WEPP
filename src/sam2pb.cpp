@@ -259,10 +259,6 @@ void sam::read_correction() {
         majority[i] = std::max_element(collapsed_frequency_table[i].begin(), collapsed_frequency_table[i].end()) - collapsed_frequency_table[i].begin();
     }
 
-    for (int j = 0; j < 6; ++j) {
-        std::cout << GENOME_STRING[j] << " occured " << collapsed_frequency_table[21640][j] << std::endl;
-    }
-
     /* first correct aligned reads */
     for (int i = 0; i < (int) aligned_reads.size(); ++i) {
         std::string& align = aligned_reads[i].aligned_string;
