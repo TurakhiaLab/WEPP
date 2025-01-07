@@ -208,6 +208,53 @@ int mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MA
     return distance;
 }
 
+std::vector<MAT::Mutation> mutation_distance_vector(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations, const std::string& reference) {
+    auto compareMutations = [](const MAT::Mutation &a, const MAT::Mutation &b)
+    {
+        if (a.position != b.position)
+            return a.position < b.position;
+        else
+            return a.mut_nuc < b.mut_nuc;
+    };
+
+    tbb::parallel_sort(node1_mutations.begin(), node1_mutations.end(), compareMutations);
+    tbb::parallel_sort(node2_mutations.begin(), node2_mutations.end(), compareMutations);
+    auto n1_iterator = node1_mutations.begin();
+    auto n2_iterator = node2_mutations.begin();
+    std::vector<MAT::Mutation> mut_diff;
+    while (n1_iterator != node1_mutations.end() && n2_iterator != node2_mutations.end()) {
+        if (n1_iterator->position == n2_iterator->position) {
+            if (n1_iterator->mut_nuc != n2_iterator->mut_nuc) {
+                mut_diff.emplace_back(*n1_iterator);
+            }
+            n1_iterator++;
+            n2_iterator++;
+        } else if (n1_iterator->position < n2_iterator->position) {
+            mut_diff.emplace_back(*n1_iterator);
+            n1_iterator++;
+        } else {
+            auto mut = *n2_iterator;
+            mut.mut_nuc = MAT::get_nuc_id(reference[mut.position - 1]);
+            mut_diff.emplace_back(mut);
+            n2_iterator++;
+        }
+    }
+
+    while (n1_iterator != node1_mutations.end()) {
+        mut_diff.emplace_back(*n1_iterator);
+        n1_iterator++;
+    }
+    
+    while (n2_iterator != node2_mutations.end()) {
+        auto mut = *n2_iterator;
+        mut.mut_nuc = MAT::get_nuc_id(reference[mut.position - 1]);
+        mut_diff.emplace_back(mut);
+        n2_iterator++;
+    }
+
+    return mut_diff;
+}
+
 std::vector<MAT::Mutation> get_mutations(const MAT::Tree& T, const std::string sample) {
     std::vector<MAT::Mutation> sample_mutations;
     for (auto anc: T.rsearch(sample, true)) { //Checking all ancestors of a node

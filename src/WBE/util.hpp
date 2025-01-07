@@ -21,6 +21,8 @@ parseWBEcommand(boost::program_options::parsed_options parsed);
 int 
 mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations);
 
+std::vector<MAT::Mutation> mutation_distance_vector(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations, const std::string& reference);
+
 std::vector<MAT::Mutation> 
 get_mutations(const MAT::Tree& T, const std::string sample);
 
