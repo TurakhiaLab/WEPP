@@ -221,6 +221,12 @@ void sam::add_read(const std::string& line) {
                 }
                 else
                     alt_nuc = std::string(1, read_seq[seq_idx]);
+            
+                // replace non ACGTN with N
+                if (GENOME_STRING.find(alt_nuc) == std::string::npos) {
+                    alt_nuc = 'N';
+                }
+
                 build += alt_nuc;
                 curr_sub_len++;
                 seq_idx++;
@@ -229,8 +235,8 @@ void sam::add_read(const std::string& line) {
             /* update frequency tables */
             if (update_table) {
                 if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
-                    auto raw_sub = GENOME_STRING.find(alt_nuc[0]);
-                    int sub = raw_sub == std::string::npos ? GENOME_STRING.find('N') : (int) raw_sub;
+                    int sub = (int) GENOME_STRING.find(alt_nuc);
+                    assert(0 <= sub && sub < GENOME_STRING.size());
                     
                     frequency_table[nuc_pos - 1][sub]++;
                 }
