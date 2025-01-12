@@ -8,11 +8,13 @@ make -j
 cd ../
 
 #Variables
-file_path="panmat_exp_dec_2023"
+file_path="manuscript_swampy_unseen_15_dec_2022"
 #file_path_cmp=
 file_prefix="my_vcf"
 #file_prefix_cmp=
-MAT="public-2023-12-25.all.masked.pb.gz"
+#MAT="updated_gisaidAndPublic.2023-12-15.masked.pb.gz"
+#MAT="pruned_public-2023-12-25.all.masked.pb.gz"
+MAT="unseen_15_pruned_public-2023-12-25.all.masked.pb.gz"
 #SRA="SRR29616810"
 full_file_path=$(realpath "$file_path")
 
@@ -45,29 +47,26 @@ full_file_path=$(realpath "$file_path")
 ##conda activate SWAMPy
 ##source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_samples.fa ${file_path}/${file_prefix}_samples.tsv ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path} 800000 149
 ##conda deactivate
+#
+# Run C-WAP
+cd ./src/C-WAP
+source run.sh $full_file_path
 
-## Run C-WAP
-#cd ./src/C-WAP
-#source run.sh $full_file_path
-#
-## Run Freyja
-#cd ../Freyja
-#source run.sh $full_file_path
-#
-## Run WEPP Pipeline
-#cd ../../
-#samtools fastq ${file_path}/resorted.bam > ${file_path}/${file_prefix}_reads.fastq
-#source src/WBE/swampy_align.sh ${file_path}/${file_prefix}_reads.fastq ${file_path}/NC_045512v2.fa ${file_prefix} ${file_path}
-#
+# Run Freyja
+cd ../Freyja
+source run.sh $full_file_path
+
+ Run WEPP Pipeline
+cd ../../
+python src/WBE/ivar_correction.py ${file_path}
+samtools view -h -o ${file_path}/${file_prefix}_alignment.sam ${file_path}/resorted.bam 
+
 ## Selecting subset of reads if needed
 #mv ${file_path}/${file_prefix}_alignment.sam ${file_path}/${file_prefix}_alignment.sam_orig
 #python src/WBE/select_subset_reads.py ${file_path}/${file_prefix}_alignment.sam_orig ${file_path}/${file_prefix}_alignment.sam
-#
-#
-#
-#
+
 wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
-wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
+wbe detectPeaks -T 56 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 
 ##Analysis Scripts
