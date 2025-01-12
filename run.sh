@@ -17,14 +17,22 @@ MAT="sars_8M_annotated_nextclade.panman"
 full_file_path=$(realpath "$file_path")
 fastq_file=$(find ${file_path} -name *fastq* | head -n 1)
 
-minimap2 -a --sam-hit-only -2 -x sr ./NC_045512v2.fa ${fastq_file} -t 32 -o my_vcf_alignment.sam -A 9 -B 3 -O 18,18 -E 1,1
+##minimap2 -a --sam-hit-only -2 -x sr ./NC_045512v2.fa ${file_path}/${file_prefix}_R1+R2.fastq -t 32 -o ${file_path}/${file_prefix}_alignment.sam 
 
-#cd ./src/Freyja
-#source run.sh $full_file_path
-#cd -
+# Run C-WAP
+cd ./src/C-WAP
+source run.sh $full_file_path
 
-#wbe sam2PB -i ${MAT} -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path}
-#wbe initial_filter -T 56 -i ${MAT} -v ${file_prefix} -o ${file_path}
+# Run Freyja
+cd ../Freyja
+source run.sh $full_file_path
+cd ../../
+
+#Run WEPP
+python src/ivar_correction.py ${file_path}
+samtools view -h -o ${file_path}/${file_prefix}_alignment.sam ${file_path}/resorted.bam 
+wbe sam2PB -i ${MAT} -v ${file_prefix} -s ${file_prefix}_alignment.sam -o ${file_path}
+wbe initial_filter -T 56 -i ${MAT} -v ${file_prefix} -o ${file_path}
 #wbe post_filter -T 56 -i ${MAT} -v ${file_prefix} -o ${file_path}
 # gdb --args wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -o ${file_path}
 
