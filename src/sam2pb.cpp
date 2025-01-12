@@ -229,7 +229,9 @@ void sam::add_read(const std::string& line) {
             /* update frequency tables */
             if (update_table) {
                 if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
-                    int sub = (int) GENOME_STRING.find(alt_nuc[0]);
+                    auto raw_sub = GENOME_STRING.find(alt_nuc[0]);
+                    int sub = raw_sub == std::string::npos ? GENOME_STRING.find('N') : (int) raw_sub;
+                    
                     frequency_table[nuc_pos - 1][sub]++;
                 }
                 else if (cig_val == 'D') {
