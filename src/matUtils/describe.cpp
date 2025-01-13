@@ -31,68 +31,169 @@ std::vector<std::string> mutation_paths(MAT::Tree* T, std::vector<std::string> s
 std::vector<std::string> mutation_paths_all(MAT:: Tree*T) {
     std::vector<std::string> mpaths;
     auto dfs = T->depth_first_expansion();
+    fprintf(stderr, "Nodes: %ld\n", dfs.size());
+
+    ////////////////////////////////////////////////////GIVES full path
+    std::ifstream file("aa_2023_12_15_node_mutations.tsv");
+    if (!file.is_open()) {
+        std::cerr << "Error opening file!" << std::endl;
+        return mpaths;
+    }
+
+    std::unordered_map<std::string, std::string> node_mutations;
+    std::string line, node_id, aa_mutations, nt_mutations, codon_changes, leaves_sharing_mutations;
+
+    // Read the header line (if needed)
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        std::istringstream ss(line);
+        
+        std::getline(ss, node_id, '\t');
+        std::getline(ss, aa_mutations, '\t');
+        std::getline(ss, nt_mutations, '\t');
+        std::getline(ss, codon_changes, '\t');
+        std::getline(ss, leaves_sharing_mutations, '\t');
+
+        //Check for redundant mutation by separating aa_mutations based on ";"
+        std::string filtered_mutations;
+        std::istringstream aa_stream(aa_mutations);
+        std::string mutation;
+
+        // Iterate over each part and split further based on ":"
+        while (std::getline(aa_stream, mutation, ';')) {
+            // Split the mutation based on `:`
+            std::istringstream mutation_stream(mutation);
+            std::string part1, part2;
+
+            std::getline(mutation_stream, part1, ':');
+            std::getline(mutation_stream, part2);
+            
+            // Check if the first and last characters of `part2` are the same
+            if ((!part2.empty()) && (part2.front() != part2.back())) {
+                // If they are not the same, include this mutation
+                if (!filtered_mutations.empty()) {
+                    filtered_mutations += ";";
+                }
+                filtered_mutations += mutation;
+            }
+        }
+
+        if (!filtered_mutations.empty())
+            node_mutations[node_id] = filtered_mutations;
+    }
+    file.close();
+
     for (const auto& curr_node: dfs) {
         if (curr_node->is_leaf()) {
+            bool mut_found = false;
             std::string cpath = curr_node->identifier + "\t";
-            std::vector<MAT::Mutation> mut_list;
-            for (auto anc: T->rsearch(curr_node->identifier, true)) {
-                for (auto c_mut: anc->mutations) {
-                    //Only consider the mutation closest to root at a site
-                    auto m_itr = mut_list.begin();
-                    while (m_itr != mut_list.end()) {
-                        if (m_itr->position == c_mut.position)
-                            break;
-                        m_itr++;
-                    }
-                    if (m_itr == mut_list.end())
-                        mut_list.emplace_back(c_mut);
+            auto path_nodes = T->rsearch(curr_node->identifier, true);
+            std::reverse(path_nodes.begin(), path_nodes.end());
+            for (const auto& curr_node: path_nodes) {
+                if (node_mutations.find(curr_node->identifier) != node_mutations.end()) {
+                    if (mut_found)
+                        cpath += ">";
+                    cpath += node_mutations[curr_node->identifier];
+                    mut_found = true;
                 }
             }
-            //Remove mutations where ref_nuc is same as mut_nuc -> Back Mutation
-            auto m_itr = mut_list.begin();
-            while (m_itr != mut_list.end()) {
-                if (m_itr->mut_nuc == m_itr->ref_nuc)
-                    m_itr = mut_list.erase(m_itr);
-                else
-                    m_itr++;
-            }
+            if (mut_found)
+                mpaths.emplace_back(cpath);
+        }
+    }
+    
+    
+    
 
-            //Reversing mutations to get from root to leaf    
-            std::vector<MAT::Node*> ancestor_list = T->rsearch(curr_node->identifier, true);
-            MAT::Node* prev_node = NULL;
-            int j = ancestor_list.size() - 1;
-            for (int i = mut_list.size() - 1; i >= 0; --i) {
-                auto curr_mut = mut_list[i];
-                bool found = false;
-                while (j >= 0) {
-                    MAT::Node* curr_node = ancestor_list[j];
-                    for (const auto& mut: curr_node->mutations) {
-                        if ((mut.position == curr_mut.position) && (mut.mut_nuc == curr_mut.mut_nuc)) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found) {
-                        if (prev_node == curr_node) {
-                            cpath += ",";
-                            cpath += MAT::get_nuc(curr_mut.ref_nuc) + std::to_string(curr_mut.position) + MAT::get_nuc(curr_mut.mut_nuc);
-                           
-                        }
-                        else {
-                            if (prev_node != NULL)
-                                cpath += ">";
-                            cpath += MAT::get_nuc(curr_mut.ref_nuc) + std::to_string(curr_mut.position) + MAT::get_nuc(curr_mut.mut_nuc);
-                         
-                        }
-                        prev_node = curr_node;
-                        break;
-                    }
-                    j--;
+
+    /*
+    //////////////////////////////////////////////////REMOVE
+    // Get full path nucleotide mutations
+    for (const auto& curr_node: dfs) {
+        if (curr_node->is_leaf()) {
+            bool mut_found = false;
+            std::string cpath = curr_node->identifier + "\t";
+            auto path_nodes = T->rsearch(curr_node->identifier, true);
+            std::reverse(path_nodes.begin(), path_nodes.end());
+            for (const auto& curr_node: path_nodes) {
+                for (const auto& mut: curr_node->mutations) {
+                    if (mut.get_string() != curr_node->mutations.front().get_string())
+                        cpath += ",";
+                    else if (mut_found)
+                        cpath += ">";
+                   cpath += mut.get_string();
+                   mut_found = true; 
                 }
             }
             mpaths.emplace_back(cpath);
         }
     }
+    //////////////////////////////////////////////////
+    */
+
+    //for (const auto& curr_node: dfs) {
+    //    if (curr_node->is_leaf()) {
+    //        std::string cpath = curr_node->identifier + "\t";
+    //        std::vector<MAT::Mutation> mut_list;
+    //        for (auto anc: T->rsearch(curr_node->identifier, true)) {
+    //            for (auto c_mut: anc->mutations) {
+    //                //Only consider the mutation closest to root at a site
+    //                auto m_itr = mut_list.begin();
+    //                while (m_itr != mut_list.end()) {
+    //                    if (m_itr->position == c_mut.position)
+    //                        break;
+    //                    m_itr++;
+    //                }
+    //                if (m_itr == mut_list.end())
+    //                    mut_list.emplace_back(c_mut);
+    //            }
+    //        }
+    //        //Remove mutations where ref_nuc is same as mut_nuc -> Back Mutation
+    //        auto m_itr = mut_list.begin();
+    //        while (m_itr != mut_list.end()) {
+    //            if (m_itr->mut_nuc == m_itr->ref_nuc)
+    //                m_itr = mut_list.erase(m_itr);
+    //            else
+    //                m_itr++;
+    //        }
+
+    //        //Reversing mutations to get from root to leaf    
+    //        std::vector<MAT::Node*> ancestor_list = T->rsearch(curr_node->identifier, true);
+    //        MAT::Node* prev_node = NULL;
+    //        int j = ancestor_list.size() - 1;
+    //        for (int i = mut_list.size() - 1; i >= 0; --i) {
+    //            auto curr_mut = mut_list[i];
+    //            bool found = false;
+    //            while (j >= 0) {
+    //                MAT::Node* curr_node = ancestor_list[j];
+    //                for (const auto& mut: curr_node->mutations) {
+    //                    if ((mut.position == curr_mut.position) && (mut.mut_nuc == curr_mut.mut_nuc)) {
+    //                        found = true;
+    //                        break;
+    //                    }
+    //                }
+    //                if (found) {
+    //                    if (prev_node == curr_node) {
+    //                        cpath += ",";
+    //                        cpath += MAT::get_nuc(curr_mut.ref_nuc) + std::to_string(curr_mut.position) + MAT::get_nuc(curr_mut.mut_nuc);
+    //                       
+    //                    }
+    //                    else {
+    //                        if (prev_node != NULL)
+    //                            cpath += ">";
+    //                        cpath += MAT::get_nuc(curr_mut.ref_nuc) + std::to_string(curr_mut.position) + MAT::get_nuc(curr_mut.mut_nuc);
+    //                     
+    //                    }
+    //                    prev_node = curr_node;
+    //                    break;
+    //                }
+    //                j--;
+    //            }
+    //        }
+    //        mpaths.emplace_back(cpath);
+    //    }
+    //}
     return mpaths;
 }
 
