@@ -11,13 +11,12 @@ output_file = sys.argv[2]
 
 # Open input and output files
 with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
-    # Keep the first three lines
-    for _ in range(3):
-        line = infile.readline()
-        outfile.write(line)
-    
-    # Read the remaining lines into a list
-    remaining_lines = infile.readlines()
+    remaining_lines = []
+    for line in infile:
+        if line.startswith("@"):
+            outfile.write(line)  # Optionally write header lines to output
+        else:
+            remaining_lines.append(line)
 
 # Shuffle the remaining lines and select 1M
 random.shuffle(remaining_lines)
