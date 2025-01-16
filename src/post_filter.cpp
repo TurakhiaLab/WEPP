@@ -284,6 +284,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
             "source " + CONDA_PATH + " && "
             "conda activate freyja-env && "
             "cd ./src/Freyja && "
+            "make dev && "
             "freyja demix ../../" + arena.owned_dataset().directory() + "/corrected_cwap_variants.tsv ../../" + arena.owned_dataset().directory() + "/cwap_depth.tsv --barcodes ../../" + arena.owned_dataset().directory() + "/barcodes.csv --output ../../" + arena.owned_dataset().directory() + "/freyja_output_latest.txt --eps 0.005"
             "\"";
     if (std::system(command.c_str()) != 0)
