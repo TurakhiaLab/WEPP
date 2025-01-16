@@ -250,7 +250,7 @@ std::set<haplotype *, score_comparator> arena::highest_scoring_neighbors(haploty
 void arena::get_residual_cooccuring_mutations(int window_size)
 {
     // Read residual_mutations
-    std::string file_path = this->ds.directory() + "/residual_mutations.txt";
+    std::string file_path = this->ds.data_directory() + "/residual_mutations.txt";
     std::ifstream file(file_path);  
     std::vector<std::string> mutations;  
 
@@ -658,7 +658,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
     }
 
     // Run Python script to generate sam files
-    std::string command = "python src/WBE/sam_generation.py " + ds.directory() + " " + ds.file_prefix();
+    std::string command = "python src/WBE/sam_generation.py " + ds.data_directory() + " " + ds.file_prefix();
     int result = std::system(command.c_str());
     if (result)
         fprintf(stderr, "\nCannot run sam_generation.py\n");

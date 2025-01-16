@@ -20,36 +20,40 @@ public:
         return options["threads"].as<uint32_t>();
     }
 
-    std::string directory() const {
-        return options["output-directory"].as<std::string>() + '/';
+    std::string dataset_name() const {
+        return options["dataset"].as<std::string>();
     }
 
-    std::string comparison_directory() const {
-        return options["comparison-directory"].as<std::string>() + '/';
+    std::string data_directory() const {
+        return "./data/" + dataset_name() + "/";
+    }
+
+    std::string intermediate_directory() const {
+        return "./intermediate/" + dataset_name() + "/";
+    }
+
+    std::string results_directory() const {
+        return "./results/" + dataset_name() + "/";
     }
 
     std::string file_prefix() const {
-        return options["output-files-prefix"].as<std::string>();
-    }
-
-    std::string comparison_file_prefix() const {
-        return options["comparison-files-prefix"].as<std::string>();
+        return options["file-prefix"].as<std::string>();
     }
 
     std::string ref_path() const {
-        return this->directory() + options["ref-fasta"].as<std::string>();
+        return this->data_directory() + options["ref-fasta"].as<std::string>();
     }
 
     std::string residual_mutations_path() const {
-        return this->directory() + "/residual_mutations.txt";
+        return this->data_directory() + "residual_mutations.txt";
     }
     
     std::string haplotype_sam_path() const {
-        return this->directory() + this->file_prefix() + "_haplotypes.sam";
+        return this->data_directory() + this->file_prefix() + "_haplotypes.sam";
     }
     
     std::string haplotype_bam_path() const {
-        return this->directory() + this->file_prefix() + "_haplotypes.bam";
+        return this->data_directory() + this->file_prefix() + "_haplotypes.bam";
     }
 
     const std::vector<int>& masked_sites() const {
@@ -57,7 +61,7 @@ public:
         if (cached_mask.empty()) {
             std::ifstream inputFile("./mask.bed");
             if (!inputFile.is_open()) {
-                std::cerr << "Error: Unable to open mask.bed file." << std::endl;
+                // assume no masks
                 return cached_mask; 
             }
 
@@ -78,31 +82,27 @@ public:
     }
     
     std::string first_checkpoint_path() const {
-        return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
+        return this->intermediate_directory() + this->file_prefix() + "_first_checkpoint.txt";
     }
 
     std::string haplotype_read_path() const {
-        return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
+        return this->data_directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
     std::string mutation_reads_path() const {
-        return this->directory() + this->file_prefix() + "_mutation_reads.csv";
+        return this->data_directory() + this->file_prefix() + "_mutation_reads.csv";
     }
     
     std::string mutation_haplotypes_path() const {
-        return this->directory() + this->file_prefix() + "_mutation_haplotypes.csv";
+        return this->data_directory() + this->file_prefix() + "_mutation_haplotypes.csv";
     }
 
     std::string haplotype_proportion_path() const {
-        return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
-    }
-
-    std::string comparison_haplotype_proportion_path() const {
-        return this->comparison_directory() + this->comparison_file_prefix() + "_haplotype_abundance.csv";
+        return this->data_directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
 
     std::string haplotype_growth_path() const {
-        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.csv";
+        return this->data_directory() + this->file_prefix() + "_" + this->file_prefix() + "_haplotype_growth.csv";
     }
 
     const std::string& reference() const {
@@ -130,40 +130,26 @@ public:
     }
 
     std::string sam_path() const {
-        return this->directory() + options["align-sam"].as<std::string>();
+        return this->intermediate_directory() + this->file_prefix() + "_alignment.sam";
     }
 
     std::string pb_path() const {
-        return this->directory() + this->file_prefix() + "_reads.pb";
+        return this->intermediate_directory() + this->file_prefix() + "_reads.pb";
     }
     
-    std::string comparison_pb_path() const {
-        return this->comparison_directory() + this->comparison_file_prefix() + "_reads.pb";
-    }
-
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
     MAT::Tree mat() const {
         MAT::Tree T;
         T.root = NULL;
-        std::string mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
+        std::string mat_filename = this->data_directory() + this->options["input-mat"].as<std::string>();
         T = MAT::load_mutation_annotated_tree(mat_filename);
         T.uncondense_leaves();
         return T;
     }
 
-    MAT::Tree cmp_mat() const {
-       MAT::Tree T;
-       T.root = NULL;
-
-       std::string mat_filename = this->comparison_directory() + this->options["cmp-mat"].as<std::string>();
-       T = MAT::load_mutation_annotated_tree(mat_filename);
-       T.uncondense_leaves();
-       return T;
-    }
-
     std::vector<std::pair<std::string, std::vector<MAT::Mutation>>>  true_haplotypes() const {
-        return read_sample_vcf(this->directory() + this->file_prefix() + "_samples.vcf");
+        return read_sample_vcf(this->data_directory() + this->file_prefix() + "_samples.vcf");
     }
 };

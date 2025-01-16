@@ -5,14 +5,15 @@ from collections import defaultdict
 
 #Check arguments
 if len(sys.argv) != 2:
-    print("USAGE: python src/WBE/ivar_correction.py <directory>")
+    print("USAGE: python src/WBE/ivar_correction.py <dataset> <file_prefix>")
     sys.exit(1)
 
-dir_name = sys.argv[1]
+dataset = sys.argv[1]
+prefix = sys.argv[2]
 
 # Read the TSV file
-variants_file = dir_name + "/cwap_variants.tsv"
-depth_file = dir_name + "/cwap_depth.tsv"
+variants_file = f"intermediate/{dataset}/{prefix}_variants.tsv"
+depth_file = f"intermediate/{dataset}/{prefix}_depth.tsv"
 
 df_variants = pd.read_csv(variants_file, sep='\t')
 df_depth = pd.read_csv(depth_file, sep='\t', header=None, names=['Region', 'POS', 'Base', 'Value'])
@@ -120,4 +121,4 @@ for position, new_row in insert_positions_sorted:
     offset += 1  # Increment offset as a new row is added
 
 # Save the updated df_variants to a file
-df_variants.to_csv(dir_name + "/corrected_cwap_variants.tsv", sep='\t', index=False)
+df_variants.to_csv(f"intermediate/{dataset}/{prefix}_corrected_variants.tsv", sep='\t', index=False)

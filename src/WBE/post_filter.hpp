@@ -9,7 +9,7 @@
 
 class post_filter {
 public:
-    int num_filter_rounds = 1;
+    int num_filter_rounds = MAX_NEIGHBOR_ITERATIONS;
     int freeze_round = 1;
     int max_nbrs = MAX_NEIGHBORS_FREYJA;
     int max_rad = MAX_NEIGHBOR_MUTATION;

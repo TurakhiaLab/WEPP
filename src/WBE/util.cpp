@@ -134,20 +134,12 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
-    ("cmp-mat,r", po::value<std::string>()->default_value(""),
-     "Comparison mutation-annotated tree file")
-    ("output-directory,o", po::value<std::string>()->default_value("./"),
+    ("dataset,d", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
-     ("comparison-directory,p", po::value<std::string>()->default_value("./"),
-     "Read files from the comparison directory. Default is current directory.")
-    ("output-files-prefix,v", po::value<std::string>()->default_value("my_vcf"),
+    ("file-prefix,p", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
-    ("comparison-files-prefix,w", po::value<std::string>()->default_value("my_vcf"),
-    "Prefix to be used for comparison intermediate files.")
     ("ref-fasta,f", po::value<std::string>()->default_value(""),
      "Input fasta file representing reference sequence")
-    ("align-sam,s", po::value<std::string>()->default_value(""),
-     "Input sam file representing reference sequence")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the

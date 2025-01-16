@@ -26,8 +26,6 @@ const std::string CHROM = "NC_045512v2";
 
 void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
-    std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
-    std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
     std::string ref_fasta = d.ref_path();
     std::string sam_file = d.sam_path();
 
@@ -36,21 +34,6 @@ void sam2PB(const dataset& d) {
     timer.Start();
     
     std::string ref_seq = d.reference();
-
-    //std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
-    //std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);
-    //boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf_freyja_vcf, outbuf_freyja_depth;
-    
-    //if (freyja_vcf_file.find(".gz\0") != std::string::npos)
-    //    outbuf_freyja_vcf.push(boost::iostreams::gzip_compressor());
-    //if (freyja_depth_file.find(".gz\0") != std::string::npos)
-    //    outbuf_freyja_depth.push(boost::iostreams::gzip_compressor());
-    
-    //outbuf_freyja_vcf.push(outfile_freyja_vcf);
-    //outbuf_freyja_depth.push(outfile_freyja_depth);
-    //std::ostream freyja_vcf(&outbuf_freyja_vcf);
-    //std::ostream freyja_depth(&outbuf_freyja_depth);
-
     sam sam{ref_seq};
     boost::filesystem::ifstream fileHandler(sam_file);
     std::string s;
@@ -306,7 +289,10 @@ void sam::read_correction() {
 }
 
 void sam::merge_duplicates() {
-    assert(!aligned_reads.empty());
+    if (aligned_reads.empty()) {
+        std::cerr <<  "Zero reads; likely did not find input sam file\n";
+        exit(1);
+    }
 
     std::vector<sam_read> merged{aligned_reads[0]};
 

@@ -8,13 +8,13 @@ make -j
 cd ../
 
 #Variables
-file_path="manuscript_swampy_unseen_15_dec_2022"
+file_path="data/manuscript_swampy_dec_2022"
 #file_path_cmp=
 file_prefix="my_vcf"
 #file_prefix_cmp=
 #MAT="updated_gisaidAndPublic.2023-12-15.masked.pb.gz"
 #MAT="pruned_public-2023-12-25.all.masked.pb.gz"
-MAT="unseen_15_pruned_public-2023-12-25.all.masked.pb.gz"
+MAT="pruned_public-2023-12-25.all.masked.pb.gz"
 #SRA="SRR29616810"
 full_file_path=$(realpath "$file_path")
 
@@ -49,14 +49,14 @@ full_file_path=$(realpath "$file_path")
 ##conda deactivate
 #
 # Run C-WAP
-cd ./src/C-WAP
-source run.sh $full_file_path
+# cd ./src/C-WAP
+# source run.sh $full_file_path
 
 # Run Freyja
-cd ../Freyja
+cd ./src/Freyja
 source run.sh $full_file_path
 
- Run WEPP Pipeline
+## Run WEPP Pipeline
 cd ../../
 python src/WBE/ivar_correction.py ${file_path}
 samtools view -h -o ${file_path}/${file_prefix}_alignment.sam ${file_path}/resorted.bam 
