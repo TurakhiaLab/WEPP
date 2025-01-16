@@ -1,0 +1,9 @@
+include: "rules/cwap.smk"
+include: "rules/freyja.smk"
+include: "rules/preprocess.smk"
+include: "rules/sam2pb.smk"
+include: "rules/subsample.smk"
+include: "rules/filter.smk"
+
+# example invocation
+# snakemake results/dataset/run.txt --sdm conda --cores 64
