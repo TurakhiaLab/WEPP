@@ -363,7 +363,7 @@ void sam::subsample() {
         }
 
         double sum = std::accumulate(p.begin(), p.end(), 0.0);
-        std::for_each(reference_seq.begin(), reference_seq.end(), 
+        std::for_each(p.begin(), p.end(), 
             [&](double &p) { p /= sum; });
 
         return p;
