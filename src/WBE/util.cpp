@@ -136,6 +136,8 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
      "Input mutation-annotated tree file")
     ("cmp-mat,r", po::value<std::string>()->default_value(""),
      "Comparison mutation-annotated tree file")
+    ("max-reads,m", po::value<uint32_t>()->default_value(1e9),
+     "The maximum number of reads to use. Default is 1e9.")
     ("output-directory,o", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
      ("comparison-directory,p", po::value<std::string>()->default_value("./"),

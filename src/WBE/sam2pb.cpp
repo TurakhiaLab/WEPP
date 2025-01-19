@@ -6,6 +6,7 @@
 #include <regex>
 #include <vector>
 #include <numeric>
+#include <random>
 
 #include "dataset.hpp"
 #include "read.hpp"
@@ -51,18 +52,19 @@ void sam2PB(const dataset& d) {
     //std::ostream freyja_vcf(&outbuf_freyja_vcf);
     //std::ostream freyja_depth(&outbuf_freyja_depth);
 
-    sam sam{ref_seq};
+    sam sam{ref_seq, d.max_merged_reads()};
     boost::filesystem::ifstream fileHandler(sam_file);
     std::string s;
     while (getline(fileHandler, s))
         sam.add_read(s);
     sam.build();
+
     sam.dump_proto(proto_filename);
     // sam.dump_freyja(freyja_depth, freyja_vcf);
     fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
 }
 
-sam::sam(const std::string& ref) : reference_seq{ref} {
+sam::sam(const std::string& ref, int subsampled_reads) : reference_seq{ref}, subsampled_reads{subsampled_reads} {
     this->frequency_table.resize(ref.size());
     this->indel_frequency_table.resize(ref.size());
     this->collapsed_frequency_table.resize(ref.size());
@@ -333,6 +335,84 @@ void sam::merge_duplicates() {
     this->aligned_reads = merged;
 }
 
+void sam::subsample() {
+    if (this->aligned_reads.size() <= subsampled_reads) {
+        return;
+    }
+
+    // transform aligned reads to a subset of 
+    // aligned reads
+
+    double best_score = std::numeric_limits<double>::max();
+    std::vector<sam_read> best_set;
+
+    std::vector<int> index_set(aligned_reads.size());
+    std::iota(index_set.begin(), index_set.end(), 0);
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    // reference allele frequency
+    auto frequency_vector = [&](const sub_table& t) {
+        std::vector<double> p;
+        for (size_t i = 0; i < reference_seq.size(); ++i) {
+            int sum = std::accumulate(frequency_table[i].begin(), frequency_table[i].end(), 0);
+            for (size_t j = 0; j < GENOME_STRING.size(); ++j) {
+                p.push_back((double) frequency_table[i][j] / sum);
+            }
+        }
+
+        double sum = std::accumulate(p.begin(), p.end(), 0.0);
+        std::for_each(reference_seq.begin(), reference_seq.end(), 
+            [&](double &p) { p /= sum; });
+
+        return p;
+    };
+
+    std::vector<double> p = frequency_vector(this->frequency_table);
+
+    for (size_t i = 0; i < SUBSAMPLE_ITERS; ++i) {
+        std::vector<sam_read> current;
+        std::shuffle(index_set.begin(), index_set.end(), g);
+        for (size_t j = 0; j < subsampled_reads; ++j) {
+            current.push_back(aligned_reads[index_set[j]]);
+        }
+
+        sub_table af(this->reference_seq.size());
+
+
+        for (const auto &read : current) {
+            for (size_t j = 0; j < read.aligned_string.size(); ++j) {
+                int pos = j + read.start_idx;
+                char effective = read.aligned_string[j] == '_' ? reference_seq[pos] : read.aligned_string[j];
+                int ind = GENOME_STRING.find(read.aligned_string[j]);
+                // this is before merging so degree is 1, but bettter
+                // to be explicit
+                af[ind][pos] += read.degree;
+            }
+        }
+
+        std::vector<double> q = frequency_vector(af);
+        double divergence = 0;
+        for (size_t j = 0; j < p.size(); ++j) {
+            if (p[j] == 0) continue;
+            double effective_q = std::max(q[j], 1e-9);
+
+            divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+        }
+
+        if (divergence < best_score) {
+            best_score = divergence;
+            best_set = current;
+        }
+    }
+
+    std::cerr << "Best Score " << best_score << std::endl;
+
+    this->aligned_reads = best_set;
+    sort(this->aligned_reads.begin(), this->aligned_reads.end());
+}
+
 void sam::build() {
     /* create collapsed frequencies, treating indels as identity transformations */
     for (size_t i = 0; i < indel_frequency_table.size(); ++i) {
@@ -348,6 +428,8 @@ void sam::build() {
     }
 
     std::sort(this->aligned_reads.begin(), this->aligned_reads.end());
+
+    this->subsample();
 
     if (USE_COLUMN_MERGING) {
         this->merge_duplicates();

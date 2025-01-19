@@ -19,6 +19,10 @@ public:
     uint32_t num_threads() const {
         return options["threads"].as<uint32_t>();
     }
+    
+    uint32_t max_merged_reads() const {
+        return options["max-reads"].as<uint32_t>();
+    }
 
     std::string directory() const {
         return options["output-directory"].as<std::string>() + '/';

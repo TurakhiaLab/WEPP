@@ -49,6 +49,7 @@ struct sam_read {
 struct sam {
    private:
        const std::string reference_seq;
+       const int subsampled_reads;
    
        /* aligned/padded reads (possibly merged) */
        std::vector<sam_read> aligned_reads;
@@ -74,12 +75,14 @@ struct sam {
    
        void read_correction();
        void merge_duplicates();
+       void subsample();
    
    public:
-       sam(const std::string& ref);
+       sam(const std::string& ref, int subsampled_reads);
    
        void add_read(const std::string& line);
        void build();
+
    
        void dump_proto(std::string const& filename);
        void dump_reverse_merge(std::ostream& out);
