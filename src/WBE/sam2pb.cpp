@@ -281,7 +281,6 @@ void sam::read_correction() {
             int indx = start + j;
             char effective = align[j] == '_' ? reference_seq[indx] : align[j];
             int curr = GENOME_STRING.find(effective);
-            int indx = start + j;
 
             if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
                 if (MAP_TO_MAJORITY_INSTEAD_OF_N) {
