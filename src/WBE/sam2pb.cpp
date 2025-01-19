@@ -278,7 +278,8 @@ void sam::read_correction() {
         std::string& align = aligned_reads[i].aligned_string;
         int start = aligned_reads[i].start_idx;
         for (int j = 0; j < (int) align.size(); ++j) {
-            char effective = align[j] == '_' ? reference_seq[j] : align[j];
+            int indx = start + j;
+            char effective = align[j] == '_' ? reference_seq[indx] : align[j];
             int curr = GENOME_STRING.find(effective);
             int indx = start + j;
 
