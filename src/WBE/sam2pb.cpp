@@ -7,6 +7,7 @@
 #include <vector>
 #include <numeric>
 #include <random>
+#include <iomanip>
 
 #include "dataset.hpp"
 #include "read.hpp"
@@ -52,7 +53,7 @@ void sam2PB(const dataset& d) {
     //std::ostream freyja_vcf(&outbuf_freyja_vcf);
     //std::ostream freyja_depth(&outbuf_freyja_depth);
 
-    sam sam{ref_seq, d.max_merged_reads()};
+    sam sam{ref_seq, (int) d.max_merged_reads()};
     boost::filesystem::ifstream fileHandler(sam_file);
     std::string s;
     while (getline(fileHandler, s))
@@ -251,7 +252,7 @@ void sam::add_read(const std::string& line) {
             if (update_table) {
                 if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
                     int sub = (int) GENOME_STRING.find(alt_nuc);
-                    assert(0 <= sub && sub < GENOME_STRING.size());
+                    assert(0 <= sub && sub < (int) GENOME_STRING.size());
                     
                     frequency_table[nuc_pos - 1][sub]++;
                 }
@@ -281,7 +282,7 @@ void sam::read_correction() {
         int start = aligned_reads[i].start_idx;
         for (int j = 0; j < (int) align.size(); ++j) {
             int indx = start + j;
-            char effective = align[j] == '_' ? reference_seq[indx] : align[j];
+            char effective = align[j] == '_' ? 'N' : align[j];
             int curr = GENOME_STRING.find(effective);
 
             if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
@@ -336,7 +337,7 @@ void sam::merge_duplicates() {
 }
 
 void sam::subsample() {
-    if (this->aligned_reads.size() <= subsampled_reads) {
+    if ((int) this->aligned_reads.size() <= subsampled_reads) {
         return;
     }
 
@@ -356,9 +357,10 @@ void sam::subsample() {
     auto frequency_vector = [&](const sub_table& t) {
         std::vector<double> p;
         for (size_t i = 0; i < reference_seq.size(); ++i) {
-            int sum = std::accumulate(frequency_table[i].begin(), frequency_table[i].end(), 0);
+            int sum = std::accumulate(t[i].begin(), t[i].end(), 0);
             for (size_t j = 0; j < GENOME_STRING.size(); ++j) {
-                p.push_back((double) frequency_table[i][j] / sum);
+                if (!sum) p.push_back(0);
+                else p.push_back((double) t[i][j] / sum);
             }
         }
 
@@ -374,7 +376,7 @@ void sam::subsample() {
     for (size_t i = 0; i < SUBSAMPLE_ITERS; ++i) {
         std::vector<sam_read> current;
         std::shuffle(index_set.begin(), index_set.end(), g);
-        for (size_t j = 0; j < subsampled_reads; ++j) {
+        for (int j = 0; j < subsampled_reads; ++j) {
             current.push_back(aligned_reads[index_set[j]]);
         }
 
@@ -384,11 +386,11 @@ void sam::subsample() {
         for (const auto &read : current) {
             for (size_t j = 0; j < read.aligned_string.size(); ++j) {
                 int pos = j + read.start_idx;
-                char effective = read.aligned_string[j] == '_' ? reference_seq[pos] : read.aligned_string[j];
-                int ind = GENOME_STRING.find(read.aligned_string[j]);
+                char effective = read.aligned_string[j] == '_' ? 'N' : read.aligned_string[j];
+                int ind = GENOME_STRING.find(effective);
                 // this is before merging so degree is 1, but bettter
                 // to be explicit
-                af[ind][pos] += read.degree;
+                af[pos][ind] += read.degree;
             }
         }
 
@@ -396,7 +398,7 @@ void sam::subsample() {
         double divergence = 0;
         for (size_t j = 0; j < p.size(); ++j) {
             if (p[j] == 0) continue;
-            double effective_q = std::max(q[j], 1e-9);
+            double effective_q = std::max(q[j], 1e-10);
 
             divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
         }
@@ -407,7 +409,6 @@ void sam::subsample() {
         }
     }
 
-    std::cerr << "Best Score " << best_score << std::endl;
 
     this->aligned_reads = best_set;
     sort(this->aligned_reads.begin(), this->aligned_reads.end());
