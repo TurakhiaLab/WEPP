@@ -347,9 +347,6 @@ void sam::subsample() {
     double best_score = std::numeric_limits<double>::max();
     std::vector<sam_read> best_set;
 
-    std::vector<int> index_set(aligned_reads.size());
-    std::iota(index_set.begin(), index_set.end(), 0);
-
     std::random_device rd;
     std::mt19937 g(rd());
 
@@ -372,44 +369,63 @@ void sam::subsample() {
     };
 
     std::vector<double> p = frequency_vector(this->frequency_table);
+    tbb::queuing_mutex my_mutex;
 
-    for (size_t i = 0; i < SUBSAMPLE_ITERS; ++i) {
-        std::vector<sam_read> current;
-        std::shuffle(index_set.begin(), index_set.end(), g);
-        for (int j = 0; j < subsampled_reads; ++j) {
-            current.push_back(aligned_reads[index_set[j]]);
-        }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, SUBSAMPLE_ITERS),
+                      [&](tbb::blocked_range<size_t> block)
+                      {
+                          for (size_t i = block.begin(); i < block.end(); ++i)
+                          {
+                              std::vector<sam_read> current;
 
-        sub_table af(this->reference_seq.size());
+                              std::vector<int> index_set(aligned_reads.size());
+                              std::iota(index_set.begin(), index_set.end(), 0);
+                              {
+                                  tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                  std::shuffle(index_set.begin(), index_set.end(), g);
+                              }
+                              for (int j = 0; j < subsampled_reads; ++j)
+                              {
+                                  current.push_back(aligned_reads[index_set[j]]);
+                              }
 
+                              sub_table af(this->reference_seq.size());
 
-        for (const auto &read : current) {
-            for (size_t j = 0; j < read.aligned_string.size(); ++j) {
-                int pos = j + read.start_idx;
-                char effective = read.aligned_string[j] == '_' ? 'N' : read.aligned_string[j];
-                int ind = GENOME_STRING.find(effective);
-                // this is before merging so degree is 1, but bettter
-                // to be explicit
-                af[pos][ind] += read.degree;
-            }
-        }
+                              for (const auto &read : current)
+                              {
+                                  for (size_t j = 0; j < read.aligned_string.size(); ++j)
+                                  {
+                                      int pos = j + read.start_idx;
+                                      char effective = read.aligned_string[j] == '_' ? 'N' : read.aligned_string[j];
+                                      int ind = GENOME_STRING.find(effective);
+                                      // this is before merging so degree is 1, but bettter
+                                      // to be explicit
+                                      af[pos][ind] += read.degree;
+                                  }
+                              }
 
-        std::vector<double> q = frequency_vector(af);
-        double divergence = 0;
-        for (size_t j = 0; j < p.size(); ++j) {
-            if (p[j] == 0) continue;
-            double effective_q = std::max(q[j], 1e-10);
+                              std::vector<double> q = frequency_vector(af);
+                              double divergence = 0;
+                              for (size_t j = 0; j < p.size(); ++j)
+                              {
+                                  if (p[j] == 0)
+                                      continue;
+                                  double effective_q = std::max(q[j], 1e-10);
 
-            divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
-        }
+                                  divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+                              }
 
-        if (divergence < best_score) {
-            best_score = divergence;
-            best_set = current;
-        }
-    }
-
-
+                            //   std::cout << "Divergence " << divergence << '\n';
+                              {
+                                tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                if (divergence < best_score)
+                                {
+                                    best_score = divergence;
+                                    best_set = current;
+                                }
+                              }
+                          }
+                      });
     this->aligned_reads = best_set;
     sort(this->aligned_reads.begin(), this->aligned_reads.end());
 }
