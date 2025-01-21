@@ -377,7 +377,7 @@ void sam::subsample() {
         return p;
     };
 
-    std::vector<double> p = frequency_vector(this->frequency_table);
+    std::vector<double> p = frequency_vector(this->collapsed_frequency_table);
     tbb::queuing_mutex my_mutex;
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, SUBSAMPLE_ITERS),
@@ -391,7 +391,7 @@ void sam::subsample() {
                               std::iota(index_set.begin(), index_set.end(), 0);
                               {
                                   tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                                //   std::shuffle(index_set.begin(), index_set.end(), g);
+                                  std::shuffle(index_set.begin(), index_set.end(), g);
                               }
                               for (int j = 0; j < subsampled_reads; ++j)
                               {
@@ -423,6 +423,7 @@ void sam::subsample() {
                                   divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
                               }
 
+                            //   std::cerr << "Divergence " << divergence << std::endl;
                               {
                                 tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
                                 if (divergence < best_score)
@@ -447,13 +448,14 @@ void sam::build() {
         }
     }
 
+    this->subsample();
+
     if (USE_READ_CORRECTION) {
         this->read_correction();
     }
 
     std::sort(this->aligned_reads.begin(), this->aligned_reads.end());
 
-    this->subsample();
 
     if (USE_COLUMN_MERGING) {
         this->merge_duplicates();
