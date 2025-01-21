@@ -7,8 +7,8 @@
 
 #include "dataset.hpp"
 
-const std::string GENOME_STRING{"ACGTN"};
-typedef std::vector<std::array<int, 5>> sub_table;
+const std::string GENOME_STRING{"ACGTN_"};
+typedef std::vector<std::array<int, 6>> sub_table;
 
 struct sam_read {
     std::string raw_name;
@@ -86,7 +86,6 @@ struct sam {
    
        void dump_proto(std::string const& filename);
        void dump_reverse_merge(std::ostream& out);
-       void dump_freyja(std::ostream& dout, std::ostream& vout);
 };
 
 void sam2PB(const dataset& d);
