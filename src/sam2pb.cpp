@@ -6,14 +6,11 @@
 #include <regex>
 #include <vector>
 #include <numeric>
-
-#include <tbb/blocked_range.h>
-#include <tbb/queuing_mutex.h>
-#include <tbb/parallel_for.h>
+#include <random>
+#include <iomanip>
 
 #include "dataset.hpp"
 #include "read.hpp"
-#include "timer.hpp"
 
 #include "sam2pb.hpp"
 #include "sam.pb.h"
@@ -29,14 +26,41 @@ constexpr int phred_score_cutoff = PHRED_SCORE_THRESHOLD;
 
 const std::string CHROM = "NC_045512v2";
 
+
+static void 
+dump_sub_table(const sub_table& sub, std::string const& name) {
+    std::ofstream fout(name);
+    fout << "Position\tAllele\tFrequency\tDepth\n";
+    for (size_t i = 0; i < sub.size(); ++i) {
+        int sum = std::accumulate(sub[i].begin(), sub[i].end(), 0);
+        
+        std::vector<std::pair<int, int>> res;
+        for (size_t j = 0; j < 6; ++j) {
+            if (sub[i][j]) {
+                res.emplace_back(sub[i][j], j);
+            }
+        }
+        
+        std::sort(res.begin(), res.end(), std::greater<>());
+        for (auto [_, j] : res) {
+            fout << i + 1 << '\t'
+                 << GENOME_STRING[j] << '\t'
+                 << std::fixed << std::setprecision(10) << (double) sub[i][j] / sum << '\t'
+                 << sum << '\n';
+        }
+    }
+}
+
 void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
-    //std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
-    //std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
+    std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
+    std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
+    std::string ref_fasta = d.ref_path();
     std::string sam_file = d.sam_path();
 
     //Reading reference genome
-    timer t;
+    Timer timer;
+    timer.Start();
     
     std::string ref_seq = d.reference();
 
@@ -54,27 +78,21 @@ void sam2PB(const dataset& d) {
     //std::ostream freyja_vcf(&outbuf_freyja_vcf);
     //std::ostream freyja_depth(&outbuf_freyja_depth);
 
-    sam sam{ref_seq};
+    sam sam{ref_seq, (int) d.max_reads()};
     boost::filesystem::ifstream fileHandler(sam_file);
     std::string s;
     while (getline(fileHandler, s))
         sam.add_read(s);
     sam.build();
+
     sam.dump_proto(proto_filename);
-    fprintf(stderr, "\nFiles generated in %ld sec \n\n", t.seconds());
+    // sam.dump_freyja(freyja_depth, freyja_vcf);
+    fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
 }
 
-sam::sam(const std::string& ref) : reference_seq{ref} {
+sam::sam(const std::string& ref, int subsampled_reads) : reference_seq{ref}, subsampled_reads{subsampled_reads} {
     this->frequency_table.resize(ref.size());
-    this->insertion_frequency_table.resize(ref.size());
     this->collapsed_frequency_table.resize(ref.size());
-}
-
-// for quick prototyping
-sam::sam(const std::string&ref, const std::vector<sam_read>& raw_reads) : reference_seq{ref}
-{
-    this->aligned_reads = raw_reads;
-    this->merge_duplicates();
 }
 
 void sam::dump_proto(const std::string& filename) {
@@ -121,12 +139,7 @@ void sam::dump_proto(const std::string& filename) {
 
 void sam::add_read(const std::string& line) {
     std::vector<std::string> tokens;
-
-    std::stringstream ss(line);
-    std::string tmp;
-    while (ss >> tmp) {
-        tokens.push_back(std::move(tmp));
-    }
+    MAT::string_split(line, tokens);
 
     /* skip if unmapped */
     if (tokens.empty() || tokens[0][0] == '@' || std::stoi(tokens[1]) & 4)
@@ -175,12 +188,10 @@ void sam::add_read(const std::string& line) {
                     else
                         alt_nuc.push_back(read_seq[idx]);
                 }
-                if (std::count(alt_nuc.begin(), alt_nuc.end(), 'N') == (int)(alt_nuc.size())) {
-                    update_table = false;
-                }
                 curr_sub_len += cig_len;
                 seq_idx += cig_len;
                 ins_count += cig_len;
+                update_table = false;
                 /* build stays the same*/
                 break;
                 
@@ -217,7 +228,6 @@ void sam::add_read(const std::string& line) {
                 ref_nuc = reference_seq[nuc_pos - 1];
                 if ((static_cast<int>(phred_seq[seq_idx]) - 33) < phred_score_cutoff) {
                     alt_nuc = std::string(1, 'N');
-                    update_table = false;
                 }
                 else
                     alt_nuc = std::string(1, read_seq[seq_idx]);
@@ -227,6 +237,10 @@ void sam::add_read(const std::string& line) {
                     alt_nuc = 'N';
                 }
 
+                if (alt_nuc == "N") {
+                    update_table = false;
+                }
+
                 build += alt_nuc;
                 curr_sub_len++;
                 seq_idx++;
@@ -234,21 +248,18 @@ void sam::add_read(const std::string& line) {
 
             /* update frequency tables */
             if (update_table) {
-                if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
-                    int sub = (int) GENOME_STRING.find(alt_nuc);
-                    assert(0 <= sub && sub < GENOME_STRING.size());
-                    
-                    frequency_table[nuc_pos - 1][sub]++;
-                }
-                else if (cig_val == 'D') {
-                    // deletion
-                    int sub = (int) GENOME_STRING.find('_');
-                    for (size_t i = 0; i < ref_nuc.size(); ++i) {
+                if (cig_val == 'D') {
+                    int sub = (int) GENOME_STRING.find('_');;
+                    for (int i = 0; i < cig_len; ++i) {
                         frequency_table[nuc_pos + i - 1][sub]++;
                     }
                 }
-                else {
-                    insertion_frequency_table[nuc_pos - 1][std::make_pair(ref_nuc.size(), alt_nuc)]++; 
+                else if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
+                    int sub = (int) GENOME_STRING.find(alt_nuc);
+                    assert(0 <= sub && sub < (int) GENOME_STRING.size());
+                    assert(alt_nuc != "N");
+                    
+                    frequency_table[nuc_pos - 1][sub]++;
                 }
             }
         }
@@ -272,9 +283,8 @@ void sam::read_correction() {
         std::string& align = aligned_reads[i].aligned_string;
         int start = aligned_reads[i].start_idx;
         for (int j = 0; j < (int) align.size(); ++j) {
-            char effective = align[j];
-            int curr = GENOME_STRING.find(effective);
             int indx = start + j;
+            int curr = GENOME_STRING.find(align[j]);
 
             if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
                 if (MAP_TO_MAJORITY_INSTEAD_OF_N) {
@@ -327,17 +337,110 @@ void sam::merge_duplicates() {
     this->aligned_reads = merged;
 }
 
-void sam::build() {
-    /* create collapsed frequencies, completely ignoring indels */
-    for (size_t i = 0; i < insertion_frequency_table.size(); ++i) {
-        collapsed_frequency_table[i] = frequency_table[i];
+void sam::subsample() {
+    if ((int) this->aligned_reads.size() <= subsampled_reads) {
+        return;
     }
+
+    // transform aligned reads to a subset of 
+    // aligned reads
+
+    double best_score = std::numeric_limits<double>::max();
+    std::vector<sam_read> best_set;
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    // reference allele frequency
+    auto frequency_vector = [&](const sub_table& t) {
+        std::vector<double> p;
+        for (size_t i = 0; i < reference_seq.size(); ++i) {
+            int sum = std::accumulate(t[i].begin(), t[i].end(), 0);
+            for (size_t j = 0; j < GENOME_STRING.size(); ++j) {
+                if (!sum) p.push_back(0);
+                else p.push_back((double) t[i][j] / sum);
+            }
+        }
+
+        double sum = std::accumulate(p.begin(), p.end(), 0.0);
+        std::for_each(p.begin(), p.end(), 
+            [&](double &p) { p /= sum; });
+
+        return p;
+    };
+
+    std::vector<double> p = frequency_vector(this->collapsed_frequency_table);
+    tbb::queuing_mutex my_mutex;
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, SUBSAMPLE_ITERS),
+                      [&](tbb::blocked_range<size_t> block)
+                      {
+                          for (size_t i = block.begin(); i < block.end(); ++i)
+                          {
+                              std::vector<sam_read> current;
+
+                              std::vector<int> index_set(aligned_reads.size());
+                              std::iota(index_set.begin(), index_set.end(), 0);
+                              {
+                                  tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                  std::shuffle(index_set.begin(), index_set.end(), g);
+                              }
+                              for (int j = 0; j < subsampled_reads; ++j)
+                              {
+                                  current.push_back(aligned_reads[index_set[j]]);
+                              }
+
+                              sub_table af(this->reference_seq.size());
+
+                              for (const auto &read : current)
+                              {
+                                  for (size_t j = 0; j < read.aligned_string.size(); ++j)
+                                  {
+                                      int pos = j + read.start_idx;
+                                      int ind = GENOME_STRING.find(read.aligned_string[j]);
+                                      // this is before merging so degree is 1, but bettter
+                                      // to be explicit
+                                      af[pos][ind] += read.degree;
+                                  }
+                              }
+
+                              std::vector<double> q = frequency_vector(af);
+                              double divergence = 0;
+                              for (size_t j = 0; j < p.size(); ++j)
+                              {
+                                  if (p[j] == 0)
+                                      continue;
+                                  double effective_q = std::max(q[j], 1e-10);
+
+                                  divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+                              }
+
+                              {
+                                tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                if (divergence < best_score)
+                                {
+                                    best_score = divergence;
+                                    best_set = current;
+                                }
+                              }
+                          }
+                      });
+
+    this->aligned_reads = best_set;
+    sort(this->aligned_reads.begin(), this->aligned_reads.end());
+}
+
+void sam::build() {
+    collapsed_frequency_table = frequency_table;
+
+    this->subsample();
 
     if (USE_READ_CORRECTION) {
         this->read_correction();
     }
 
     std::sort(this->aligned_reads.begin(), this->aligned_reads.end());
+
 
     if (USE_COLUMN_MERGING) {
         this->merge_duplicates();
@@ -360,101 +463,9 @@ void sam::dump_reverse_merge(std::ostream &out) {
     }
 }
 
-void sam::dump_fake_sam(const std::string& out_name) {
-    std::map<size_t, size_t> ungapped_pos;
-    size_t non_gap_reference_size = 0;
-    for (size_t i = 0; i < reference_seq.size(); ++i) {
-        if (reference_seq[i] != '_')
-        {
-            ungapped_pos[i] = ++non_gap_reference_size;
-        }
-    }
-    std::ofstream out(out_name);
-    // dump headers
-    out << "@HD	VN:1.0\tSO:unsorted" << '\n';
-    out << "@SQ\tSN:" << CHROM << "\tLN:" << non_gap_reference_size << '\n';
-    out << "@PG\tID:bowtie2\tPN:bowtie2\tVN:2.4.4\tCL:\"wepp\"" << '\n';
-
-    // dump line
-    for (const sam_read& read : this->aligned_reads) {
-        for (const std::string& name : this->reverse_merge[read.degree_name()]) {
-            std::string cigar;
-            std::string nucs;
-            std::string quality;
-            size_t match_start_index = 0;
-            size_t reference_start_index = 0;
-            
-            for (size_t i = 0; i < read.aligned_string.size(); ++i) {
-                if (!match_start_index && read.aligned_string[i] != '_') {
-                    auto it = ungapped_pos.lower_bound(read.start_idx + i);
-                    if (it == ungapped_pos.end()) {
-                        it = std::prev(it);
-                    }
-                    match_start_index = it->second;
-                    reference_start_index = read.start_idx + i;
-                }
-
-                if (read.aligned_string[i] != '_') {
-                    nucs.push_back(read.aligned_string[i]);
-                    quality.push_back('?');
-                }
-            }
-
-            if (match_start_index == 0) {
-                continue;
-            }
-
-            size_t read_index = reference_start_index - read.start_idx;
-            // progress reference and/or progress read
-            std::vector<std::pair<bool, bool>> uncompressed;
-            for (size_t i = read_index; i < read.aligned_string.size(); ++i) {
-                bool const ref = reference_seq[read.start_idx + i] != '_';
-                bool const our = read.aligned_string[i] != '_';
-                if (ref || our) {
-                    uncompressed.emplace_back(ref, our);
-                }
-            }
-            // sentinel
-            uncompressed.emplace_back(false, false);
-
-            int run_count = 0;
-            std::pair<bool, bool> last = uncompressed.front(); 
-            for (auto p : uncompressed) {
-                if (p != last) {
-                    char type;
-                    if (last.first && last.second) type = 'M';
-                    else if (last.first) type = 'D';
-                    else type = 'I';
-                    cigar += std::to_string(run_count);
-                    cigar += type;
-                    
-                    run_count = 1;
-                    last = p;
-                }
-                else {
-                    ++run_count;
-                }
-            }
-
-            out << name << '\t';
-            out << 0 << '\t';
-            out << CHROM << '\t';
-
-            out << match_start_index << '\t';
-            out << 42 << '\t';
-            out << cigar << '\t';
-            out << '*' << '\t';
-            out << '0' << '\t';
-            out << '0' << '\t';
-            out << nucs << '\t';
-            out << quality << '\t';
-            out << std::endl;
-        }
-    }
-}
-
 std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
-    timer t;
+    Timer timer;
+    timer.Start();
 
     Sam::sam data;
 
@@ -486,29 +497,30 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                               out.read = curr.read();
                               for (size_t i = 0; i < curr.content().size(); ++i)
                               {
-                                  if (curr.content()[i] != reference[curr.start_idx() + i - 1])
+                                  if (curr.content()[i] != reference[curr.start_idx() + i - 1] && curr.content()[i] != '_')
                                   {
-                                      mutation mut; 
-                                      mut.ref = nuc_from_char(reference[curr.start_idx() + i - 1]);
-                                      mut.mut = nuc_from_char(curr.content()[i]);
-                                      mut.pos = out.start + i;
+                                      MAT::Mutation mutation;
+                                      mutation.is_missing = curr.content()[i] == 'N';
+                                      mutation.chrom = CHROM;
+                                      mutation.ref_nuc = mutation.par_nuc = MAT::get_nuc_id(reference[out.start + i - 1]);
+                                      mutation.par_nuc = mutation.ref_nuc;
+                                      mutation.mut_nuc = MAT::get_nuc_id(curr.content()[i]);
+                                      mutation.position = out.start + i;
 
-                                      out.mutations.push_back(std::move(mut));
+                                      out.mutations.push_back(std::move(mutation));
                                   }
                               }
                           }
                       });
 
     /* finally, reverse merge table */
-    int unmerged_count = 0;
     for (int i = 0; i < data.reverse_columns_size(); ++i) {
         Sam::column_info const &inv = data.reverse_columns()[i];
         for (int j = 0; j < inv.input_columns_size(); ++j) {
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
         }
-        unmerged_count += inv.input_columns().size();
     }
 
-    printf("--- parsed %s containing %d merged / %d unmerged reads in %ld sec\n\n", filename.c_str(), read_count, unmerged_count, t.seconds());   
+    printf("--- parsed %s containing %d merged reads in %ld sec\n\n", filename.c_str(), read_count, (timer.Stop() / 1000));   
     return reads;
 }
