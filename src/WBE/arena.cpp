@@ -865,18 +865,24 @@ void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &a
     std::string sam_print;
     
     // print headers
-    sam << "@SQ\tSN:NC_045512v2\tLN:" + std::to_string(this->reference().size()) + "\n@CO\tHP_SEQ\n";
+    sam << "@SQ\tSN:NC_045512.2\tLN:" + std::to_string(this->reference().size()) + "\n@CO\tHP_SEQ\n";
 
     for (size_t i = 0; i < abundance.size(); i++)
     {
         auto hap = abundance[i].first;
         auto hap_mutations = ::get_mutations(mat, hap->id);
+        std::sort(hap_mutations.begin(), hap_mutations.end());
+        int start_idx = 1;
+        std::string md = "MD:Z:";
         auto hap_sequence = this->reference();
         for (const auto& mut: hap_mutations)
         {
             hap_sequence[mut.position - 1] = MAT::get_nuc(mut.mut_nuc);
+            md += std::to_string(mut.position - start_idx) + MAT::get_nuc(mut.ref_nuc);
+            start_idx = mut.position + 1;
         }
-        sam_print = hap->id + "\t0\tNC_045512v2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\tRG:Z:group" + std::to_string(i + 1) + "\n";
+        md += std::to_string(hap_sequence.size() - start_idx + 1);
+        sam_print = hap->id + "\t0\tNC_045512.2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\tRG:Z:group" + std::to_string(i + 1) + "\t" + md + "\n";
         sam << sam_print;
     }
 
