@@ -10,6 +10,7 @@
 const std::string GENOME_STRING{"ACGTN_"};
 typedef std::vector<std::array<int, 6>> sub_table;
 
+
 struct sam_read {
     std::string raw_name;
     int start_idx;
@@ -63,12 +64,9 @@ struct sam {
        /* does NOT take into account read correction */
        sub_table frequency_table;
    
-       /* frequency + collapsed indels to reference */
+       /* frequency */
        /* may take into account read correction */
        sub_table collapsed_frequency_table;
-   
-       /* for any starting index, length possible indels (length in reference, replacement string)  */
-       std::vector<std::map<std::pair<size_t, std::string>, int>> indel_frequency_table;
    
        /* merging unmap information, column -> preimage of column */
        std::map<std::string, std::vector<std::string>> reverse_merge;

@@ -26,6 +26,31 @@ constexpr int phred_score_cutoff = PHRED_SCORE_THRESHOLD;
 
 const std::string CHROM = "NC_045512v2";
 
+
+static void 
+dump_sub_table(const sub_table& sub, std::string const& name) {
+    std::ofstream fout(name);
+    fout << "Position\tAllele\tFrequency\tDepth\n";
+    for (size_t i = 0; i < sub.size(); ++i) {
+        int sum = std::accumulate(sub[i].begin(), sub[i].end(), 0);
+        
+        std::vector<std::pair<int, int>> res;
+        for (size_t j = 0; j < 6; ++j) {
+            if (sub[i][j]) {
+                res.emplace_back(sub[i][j], j);
+            }
+        }
+        
+        std::sort(res.begin(), res.end(), std::greater<>());
+        for (auto [_, j] : res) {
+            fout << i + 1 << '\t'
+                 << GENOME_STRING[j] << '\t'
+                 << std::fixed << std::setprecision(10) << (double) sub[i][j] / sum << '\t'
+                 << sum << '\n';
+        }
+    }
+}
+
 void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
     std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
@@ -67,7 +92,6 @@ void sam2PB(const dataset& d) {
 
 sam::sam(const std::string& ref, int subsampled_reads) : reference_seq{ref}, subsampled_reads{subsampled_reads} {
     this->frequency_table.resize(ref.size());
-    this->indel_frequency_table.resize(ref.size());
     this->collapsed_frequency_table.resize(ref.size());
 }
 
@@ -155,58 +179,30 @@ void sam::add_read(const std::string& line) {
             switch (cig_val)
             {
             case 'I':
-                // Insertion at pos 1 requires ref_nuc at pos 1 after the alt_nuc
-                if (nuc_pos == 1)
-                {
-                    ref_nuc = reference_seq[0];
-                    for (int i = 0; i < cig_len; i++) {
-                        int idx = seq_idx + i;
-                        if ((static_cast<int>(phred_seq[idx]) - 33) < phred_score_cutoff)
-                            alt_nuc.push_back('N');
-                        else
-                            alt_nuc.push_back(read_seq[idx]);
-                    }
-                    alt_nuc.push_back(reference_seq[0]);
-                }
-                // Otherwise the ref_nuc needs to be from prev pos
-                else
-                {
-                    alt_nuc = ref_nuc;
-                    for (int i = 0; i < cig_len; i++) {
-                        int idx = seq_idx + i;
-                        if ((static_cast<int>(phred_seq[idx]) - 33) < phred_score_cutoff)
-                            alt_nuc.push_back('N');
-                        else
-                            alt_nuc.push_back(read_seq[idx]);
-                    }
-                    nuc_pos -= 1;
-                }
-                if (std::count(alt_nuc.begin(), alt_nuc.end(), 'N') == (int)(alt_nuc.size() - 1)) {
-                    update_table = false;
+                ref_nuc = "";
+                alt_nuc = "";
+                for (int i = 0; i < cig_len; i++) {
+                    int idx = seq_idx + i;
+                    if ((static_cast<int>(phred_seq[idx]) - 33) < phred_score_cutoff)
+                        alt_nuc.push_back('N');
+                    else
+                        alt_nuc.push_back(read_seq[idx]);
                 }
                 curr_sub_len += cig_len;
                 seq_idx += cig_len;
                 ins_count += cig_len;
+                update_table = false;
                 /* build stays the same*/
                 break;
                 
             case 'D':
-                // Deletion at pos 1 requires alt_nuc at pos 1 after the ref_nuc
-                if (nuc_pos == 1)
-                {
-                    alt_nuc = reference_seq[cig_len];
-                    ref_nuc = reference_seq.substr(0, cig_len) + alt_nuc;
-                }
-                else
-                {
-                    alt_nuc = ref_nuc;
-                    ref_nuc += reference_seq.substr(nuc_pos - 1, cig_len);
-                    nuc_pos -= 1;
-                }
+                alt_nuc = "";
+                ref_nuc += reference_seq.substr(nuc_pos - 1, cig_len);
                 curr_sub_len += cig_len;
                 del_count += cig_len;
                 build += std::string(cig_len, '_');
                 break;
+
             case 'N':
                 ref_nuc = reference_seq[nuc_pos - 1];
                 alt_nuc = "N";
@@ -232,7 +228,6 @@ void sam::add_read(const std::string& line) {
                 ref_nuc = reference_seq[nuc_pos - 1];
                 if ((static_cast<int>(phred_seq[seq_idx]) - 33) < phred_score_cutoff) {
                     alt_nuc = std::string(1, 'N');
-                    update_table = false;
                 }
                 else
                     alt_nuc = std::string(1, read_seq[seq_idx]);
@@ -240,6 +235,10 @@ void sam::add_read(const std::string& line) {
                 // replace non ACGTN with N
                 if (GENOME_STRING.find(alt_nuc) == std::string::npos) {
                     alt_nuc = 'N';
+                }
+
+                if (alt_nuc == "N") {
+                    update_table = false;
                 }
 
                 build += alt_nuc;
@@ -258,11 +257,9 @@ void sam::add_read(const std::string& line) {
                 else if (ref_nuc.size() == 1 && alt_nuc.size() == 1) {
                     int sub = (int) GENOME_STRING.find(alt_nuc);
                     assert(0 <= sub && sub < (int) GENOME_STRING.size());
+                    assert(alt_nuc != "N");
                     
                     frequency_table[nuc_pos - 1][sub]++;
-                }
-                else {
-                    indel_frequency_table[nuc_pos - 1][std::make_pair(ref_nuc.size(), alt_nuc)]++; 
                 }
             }
         }
@@ -298,7 +295,7 @@ void sam::read_correction() {
                 }
             }
 
-            // convert gap to N
+            // convert gaps to N
             if (align[j] == '_') {
                 align[j] = 'N';
             }
@@ -423,7 +420,6 @@ void sam::subsample() {
                                   divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
                               }
 
-                            //   std::cerr << "Divergence " << divergence << std::endl;
                               {
                                 tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
                                 if (divergence < best_score)
@@ -434,19 +430,13 @@ void sam::subsample() {
                               }
                           }
                       });
+
     this->aligned_reads = best_set;
     sort(this->aligned_reads.begin(), this->aligned_reads.end());
 }
 
 void sam::build() {
-    /* create collapsed frequencies, treating indels as identity transformations */
-    for (size_t i = 0; i < indel_frequency_table.size(); ++i) {
-        collapsed_frequency_table[i] = frequency_table[i];
-        for (const auto& freq: indel_frequency_table[i]) {
-            int ref = (int) GENOME_STRING.find(reference_seq[i]);
-            collapsed_frequency_table[i][ref] += freq.second;
-        }
-    }
+    collapsed_frequency_table = frequency_table;
 
     this->subsample();
 
