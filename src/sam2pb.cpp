@@ -9,8 +9,13 @@
 #include <random>
 #include <iomanip>
 
+#include <tbb/blocked_range.h>
+#include <tbb/queuing_mutex.h>
+#include <tbb/parallel_for.h>
+
 #include "dataset.hpp"
 #include "read.hpp"
+#include "timer.hpp"
 
 #include "sam2pb.hpp"
 #include "sam.pb.h"
@@ -55,12 +60,11 @@ void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
     std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
     std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
-    std::string ref_fasta = d.ref_path();
     std::string sam_file = d.sam_path();
 
     //Reading reference genome
-    Timer timer;
-    timer.Start();
+    timer timer;
+    timer.start();
     
     std::string ref_seq = d.reference();
 
@@ -87,13 +91,14 @@ void sam2PB(const dataset& d) {
 
     sam.dump_proto(proto_filename);
     // sam.dump_freyja(freyja_depth, freyja_vcf);
-    fprintf(stderr, "\nFiles generated in %ld sec \n\n", (timer.Stop() / 1000));
+    fprintf(stderr, "\nFiles generated in %ld sec \n\n", timer.seconds());
 }
 
 sam::sam(const std::string& ref, int subsampled_reads) : reference_seq{ref}, subsampled_reads{subsampled_reads} {
     this->frequency_table.resize(ref.size());
     this->collapsed_frequency_table.resize(ref.size());
 }
+
 
 void sam::dump_proto(const std::string& filename) {
     Sam::sam data;
@@ -139,7 +144,12 @@ void sam::dump_proto(const std::string& filename) {
 
 void sam::add_read(const std::string& line) {
     std::vector<std::string> tokens;
-    MAT::string_split(line, tokens);
+
+    std::stringstream ss(line);
+    std::string tmp;
+    while (ss >> tmp) {
+        tokens.push_back(std::move(tmp));
+    }
 
     /* skip if unmapped */
     if (tokens.empty() || tokens[0][0] == '@' || std::stoi(tokens[1]) & 4)
@@ -463,9 +473,9 @@ void sam::dump_reverse_merge(std::ostream &out) {
     }
 }
 
+
 std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::string const& filename, std::unordered_map<std::string, std::vector<std::string>> &reverse_merge) {
-    Timer timer;
-    timer.Start();
+    timer t;
 
     Sam::sam data;
 
@@ -497,30 +507,29 @@ std::vector<raw_read> load_reads_from_proto(std::string const& reference, std::s
                               out.read = curr.read();
                               for (size_t i = 0; i < curr.content().size(); ++i)
                               {
-                                  if (curr.content()[i] != reference[curr.start_idx() + i - 1] && curr.content()[i] != '_')
+                                  if (curr.content()[i] != reference[curr.start_idx() + i - 1])
                                   {
-                                      MAT::Mutation mutation;
-                                      mutation.is_missing = curr.content()[i] == 'N';
-                                      mutation.chrom = CHROM;
-                                      mutation.ref_nuc = mutation.par_nuc = MAT::get_nuc_id(reference[out.start + i - 1]);
-                                      mutation.par_nuc = mutation.ref_nuc;
-                                      mutation.mut_nuc = MAT::get_nuc_id(curr.content()[i]);
-                                      mutation.position = out.start + i;
+                                      mutation mut; 
+                                      mut.ref = nuc_from_char(reference[curr.start_idx() + i - 1]);
+                                      mut.mut = nuc_from_char(curr.content()[i]);
+                                      mut.pos = out.start + i;
 
-                                      out.mutations.push_back(std::move(mutation));
+                                      out.mutations.push_back(std::move(mut));
                                   }
                               }
                           }
                       });
 
     /* finally, reverse merge table */
+    int unmerged_count = 0;
     for (int i = 0; i < data.reverse_columns_size(); ++i) {
         Sam::column_info const &inv = data.reverse_columns()[i];
         for (int j = 0; j < inv.input_columns_size(); ++j) {
             reverse_merge[inv.column_name()].push_back(inv.input_columns()[j]);
         }
+        unmerged_count += inv.input_columns().size();
     }
 
-    printf("--- parsed %s containing %d merged reads in %ld sec\n\n", filename.c_str(), read_count, (timer.Stop() / 1000));   
+    printf("--- parsed %s containing %d merged / %d unmerged reads in %ld sec\n\n", filename.c_str(), read_count, unmerged_count, t.seconds());   
     return reads;
 }
