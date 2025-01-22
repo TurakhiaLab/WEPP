@@ -77,11 +77,10 @@ struct sam {
    
    public:
        sam(const std::string& ref, int subsampled_reads);
-   
-       void add_read(const std::string& line);
+
+       void add_reads(const std::vector<std::string> &lines, tbb::blocked_range<size_t> range, tbb::queuing_mutex *mutex);
        void build();
 
-   
        void dump_proto(std::string const& filename);
        void dump_reverse_merge(std::ostream& out);
 };
