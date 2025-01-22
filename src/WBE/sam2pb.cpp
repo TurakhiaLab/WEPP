@@ -261,12 +261,12 @@ void sam::add_reads(const std::vector<std::string> &lines, tbb::blocked_range<si
         // update frequency table
         for (size_t i = 0; i < read.aligned_string.size(); ++i) {
             size_t pos = i + read.start_idx;
-            char current = read.aligned_string[pos];
+            char current = read.aligned_string[i];
             if (current == 'N') {
                 continue;
             }
 
-            int sub = (int)GENOME_STRING.find(read.aligned_string[i]);
+            int sub = (int)GENOME_STRING.find(current);
             assert(0 <= sub && sub < (int)GENOME_STRING.size());
 
             frequency_table[pos][sub] += read.degree;
