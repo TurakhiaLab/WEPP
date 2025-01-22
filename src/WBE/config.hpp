@@ -8,8 +8,9 @@ static constexpr bool USE_READ_CORRECTION = true;
 static constexpr bool USE_COLUMN_MERGING  = true;
 static constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
 constexpr int PHRED_SCORE_THRESHOLD = 20;
-// Update based on sequencing technology: Illumina: 5%, Ion Torrent: 1.5%, ONT: 2%
+// Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 constexpr double FREQ_READ_THRESHOLD = 0.005; 
+static constexpr int SUBSAMPLE_ITERS = 1000;
 
 static constexpr int MAX_CACHED_EPP_SIZE = 2048;
 static constexpr bool HIGH_MEMORY_CARTESIAN_MAP = true;
@@ -40,5 +41,3 @@ static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
 
 // Used for styding cluster trend in time series data
 static constexpr int CLUSTER_DIST = 2;
-
-static constexpr int SUBSAMPLE_ITERS = 1000;
