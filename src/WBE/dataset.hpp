@@ -20,7 +20,7 @@ public:
         return options["threads"].as<uint32_t>();
     }
     
-    uint32_t max_merged_reads() const {
+    uint32_t max_reads() const {
         return options["max-reads"].as<uint32_t>();
     }
 
