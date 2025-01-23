@@ -262,10 +262,10 @@ void sam::add_reads(const std::vector<std::string> &lines, tbb::blocked_range<si
             }
         }
 
-        reads.emplace_back(sam_read {tokens[0], start_idx - 1, 1, std::move(build)} );
+        reads.emplace_back(sam_read{std::move(tokens[0]), start_idx - 1, 1, std::move(build)});
     }
 
-    tbb::queuing_mutex::scoped_lock{*mutex};
+    tbb::queuing_mutex::scoped_lock lock{*mutex};
     for (sam_read& read : reads) {
         // update frequency table
         for (size_t i = 0; i < read.aligned_string.size(); ++i) {
