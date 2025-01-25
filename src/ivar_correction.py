@@ -76,7 +76,7 @@ for mut, del_count in site_del_counts.items():
         # Update the matching rows with new ALT_FREQ values and TOTAL_DP
         for index, row in matching_rows.iterrows():
             # Update ALT_FREQ
-            row['ALT_FREQ'] = allele_counts[row['ALT']] / total_site_count
+            row['ALT_FREQ'] = min(allele_counts[row['ALT']] / total_site_count, 1.0)
             # Update TOTAL_DP
             row['TOTAL_DP'] = total_site_count
 
@@ -89,7 +89,7 @@ for mut, del_count in site_del_counts.items():
         'POS': mut[1:],
         'REF': mut[0],
         'ALT': '-',
-        'ALT_FREQ': del_count / total_site_count if total_site_count > 0 else 0.0,
+        'ALT_FREQ': min(del_count / total_site_count, 1.0) if total_site_count > 0 else 0.0,
         'TOTAL_DP': total_site_count
     }
     
