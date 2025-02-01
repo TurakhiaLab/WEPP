@@ -73,10 +73,26 @@ struct sam {
    
        void read_correction();
        void merge_duplicates();
+
+       double divergence(std::vector<double> const& p, std::vector<double> const& q) {
+           double divergence = 0;
+           for (size_t j = 0; j < p.size(); ++j)
+           {
+               if (p[j] == 0)
+                   continue;
+               double effective_q = std::max(q[j], 1e-10);
+
+               divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+           }
+
+           return divergence;
+       }
+
+       int get_binning_size();
        void subsample();
-   
+
    public:
-       sam(const std::string& ref, int subsampled_reads);
+       sam(const std::string &ref, int subsampled_reads);
 
        void add_reads(const std::vector<std::string> &lines, tbb::blocked_range<size_t> range, tbb::queuing_mutex *mutex);
        void build();
