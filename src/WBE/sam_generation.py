@@ -19,13 +19,13 @@ def read_csv_file(file):
     return read_haps, haplotypes
 
 def read_tsv_file(file):
-    haps_sam = defaultdict(set)
+    hap_sams = defaultdict(set)
     with open(file, newline='') as tsvfile:
         reader = csv.reader(tsvfile, delimiter='\t')
         for idx, row in enumerate(reader):
             value, *keys = row
-            haps_sam[value] = keys
-    return haps_sam
+            hap_sams[value] = keys
+    return hap_sams
 
 def write_sam_files(input_sam_file):
     write_file_sam_reads = os.path.join(directory, f"{file_prefix}_haplotype_reads.sam")
@@ -94,10 +94,20 @@ def write_sam_files(input_sam_file):
                 sys.exit(1)      
 
     with open(write_file_sam_haps, mode='w', newline='') as w_file_haps:
-        first_hap, first_row = next(iter(haps_sam.items()))
+        first_hap, first_row = next(iter(hap_sams.items()))
         w_file_haps.write(f"@SQ\tSN:NC_045512.2\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
         for hap, idx in haplotypes.items():
-            w_file_haps.write(hap + "\t" + "\t".join(haps_sam[hap]) + str(idx) + "\n")
+            w_file_haps.write(hap + "\t" + "\t".join(hap_sams[hap]) + str(idx))
+            # Write unaccounted groups of haplotypes
+            if len(hap_muts[hap]):
+                w_file_haps.write(f"\tUM:Z")
+                for m_idx, mut in enumerate(hap_muts[hap]):
+                    if mut in mutations:
+                        if m_idx == 0:
+                            w_file_haps.write(f":unaccounted{mutations[mut]}")
+                        else:
+                            w_file_haps.write(f",unaccounted{mutations[mut]}")
+            w_file_haps.write("\n")
 
         # Convert sam to bam
         command_1 = f"samtools view -Sb {write_file_sam_haps} | samtools sort -o {write_file_bam_haps}"
@@ -131,7 +141,7 @@ read_muts, mutations = read_csv_file(directory + "/" + file_prefix + "_mutation_
 hap_muts, _ = read_csv_file(directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Reading haplotypes File
-haps_sam = read_tsv_file(directory + "/" + file_prefix + "_haplotypes.tsv")
+hap_sams = read_tsv_file(directory + "/" + file_prefix + "_haplotypes.tsv")
 
 # Writing File
 write_sam_files(directory + "/" + file_prefix + "_alignment.sam")
