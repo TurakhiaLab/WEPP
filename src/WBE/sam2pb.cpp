@@ -61,7 +61,7 @@ void sam2PB(const dataset& d) {
     //Reading reference genome
     Timer timer;
     timer.Start();
-    
+
     std::string ref_seq = d.reference();
 
     //std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
@@ -418,7 +418,7 @@ void sam::subsample() {
                     }
                 }
         }
-        int remaining_necessary = std::max(0, (int) (total * subsampled_reads / aligned_reads.size()) - already_used);
+        size_t remaining_necessary = std::max(static_cast<size_t>(0), (static_cast<size_t>(total) * static_cast<size_t>(subsampled_reads) / aligned_reads.size()) - static_cast<size_t>(already_used));
 
         double best_score = std::numeric_limits<double>::max();
         std::vector<int> best_set;
@@ -438,11 +438,12 @@ void sam::subsample() {
                                       tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
                                       std::shuffle(index_set.begin(), index_set.end(), g);
                                   }
+                                  assert(remaining_necessary <= index_set.size());
                                   index_set.erase(index_set.begin() + remaining_necessary, index_set.end());
 
                                   for (int ip : index_set)
                                   {
-                                      current.push_back(aligned_reads[ip]);
+                                      current.push_back(aligned_reads.at(ip));
                                   }
 
                                   sub_table af(this->reference_seq.size());
@@ -460,9 +461,10 @@ void sam::subsample() {
                                   }
 
                                   std::vector<double> q = frequency_vector(af, bin_s, bin_e);
+                                  double div = divergence(p, q);
                                   {
+
                                       tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                                      double div = divergence(p, q);
                                       if (div < best_score)
                                       {
                                           best_score = div;
