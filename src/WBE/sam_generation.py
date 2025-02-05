@@ -96,6 +96,24 @@ def write_sam_files(input_sam_file):
     with open(write_file_sam_haps, mode='w', newline='') as w_file_haps:
         first_hap, first_row = next(iter(hap_sams.items()))
         w_file_haps.write(f"@SQ\tSN:NC_045512.2\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
+        # Write unaccounted groups of mutations
+        for mut, idx in mutations.items():
+            w_file_haps.write(f"@CO\tUM:unaccounted{idx}\tUS:{mut}\n")
+        # Write read groups of haplotypes
+        for hap, idx in haplotypes.items():
+            w_file_haps.write(f"@RG\tID:group{idx}\tDS:Node:{hap}")
+            # Write unaccounted groups of haplotypes
+            if len(hap_muts[hap]):
+                w_file_haps.write(f"\tUM:Z")
+                for m_idx, mut in enumerate(hap_muts[hap]):
+                    if mut in mutations:
+                        if m_idx == 0:
+                            w_file_haps.write(f":unaccounted{mutations[mut]}")
+                        else:
+                            w_file_haps.write(f",unaccounted{mutations[mut]}")
+            w_file_haps.write("\n")
+        
+        #Write haplotypes now
         for hap, idx in haplotypes.items():
             w_file_haps.write(hap + "\t" + "\t".join(hap_sams[hap]) + str(idx))
             # Write unaccounted groups of haplotypes
