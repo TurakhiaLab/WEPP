@@ -61,7 +61,7 @@ void sam2PB(const dataset& d) {
     //Reading reference genome
     Timer timer;
     timer.Start();
-
+    
     std::string ref_seq = d.reference();
 
     //std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
@@ -348,29 +348,24 @@ void sam::merge_duplicates() {
     this->aligned_reads = merged;
 }
 
-
-int sam::get_binning_size() {
-    // if no binning should be done at all
-    // return std::numeric_limits<int>::max();
-    int max_length = 0;
-    for (const sam_read& r : aligned_reads) max_length = std::max(max_length, (int) r.aligned_string.size());
-
-    return max_length * 5;
-} 
-
 void sam::subsample() {
     if ((int) this->aligned_reads.size() <= subsampled_reads) {
         return;
     }
 
-    // go in groups
-    int bin_size = get_binning_size();
-    // whether or not any given read is used
-    std::vector<bool> used(this->aligned_reads.size());
+    // transform aligned reads to a subset of 
+    // aligned reads
 
-    auto frequency_vector = [&](const sub_table& t, size_t start, size_t end) {
+    double best_score = std::numeric_limits<double>::max();
+    std::vector<sam_read> best_set;
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    // reference allele frequency
+    auto frequency_vector = [&](const sub_table& t) {
         std::vector<double> p;
-        for (size_t i = start; i < end; ++i) {
+        for (size_t i = 0; i < reference_seq.size(); ++i) {
             int sum = std::accumulate(t[i].begin(), t[i].end(), 0);
             for (size_t j = 0; j < GENOME_STRING.size(); ++j) {
                 if (!sum) p.push_back(0);
@@ -385,112 +380,65 @@ void sam::subsample() {
         return p;
     };
 
-    int bins = (this->reference_seq.size() + bin_size - 1) / bin_size;
+    std::vector<double> p = frequency_vector(this->collapsed_frequency_table);
+    tbb::queuing_mutex my_mutex;
 
-    std::random_device rd;
-    std::mt19937 g(rd());
-
-    for (int b = 0; b < bins; ++b) {
-        int bin_s = b * bin_size;
-        int bin_e = (b + 1) * bin_size;
-
-        // current index set
-        std::vector<int> available_indices;
-        int already_used = 0;
-        int total = 0;
-        for (size_t i = 0; i < used.size(); ++i)
-        {
-            int s = aligned_reads[i].start_idx;
-            int e = aligned_reads[i].start_idx + aligned_reads[i].aligned_string.size();
-            bool within = bin_s <= s && s < bin_e &&
-                          bin_s <= e && e < bin_e;
-            if (within)
-                {
-                    ++total;
-
-                    if (used[i])
-                    {
-                        ++already_used;
-                    }
-                    else
-                    {
-                        available_indices.emplace_back(i);
-                    }
-                }
-        }
-        size_t remaining_necessary = std::max(static_cast<size_t>(0), (static_cast<size_t>(total) * static_cast<size_t>(subsampled_reads) / aligned_reads.size()) - static_cast<size_t>(already_used));
-
-        double best_score = std::numeric_limits<double>::max();
-        std::vector<int> best_set;
-
-        std::vector<double> p = frequency_vector(this->collapsed_frequency_table, bin_s, bin_e);
-        tbb::queuing_mutex my_mutex;
-
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, SUBSAMPLE_ITERS),
-                          [&](tbb::blocked_range<size_t> block)
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, SUBSAMPLE_ITERS),
+                      [&](tbb::blocked_range<size_t> block)
+                      {
+                          for (size_t i = block.begin(); i < block.end(); ++i)
                           {
-                              for (size_t i = block.begin(); i < block.end(); ++i)
+                              std::vector<sam_read> current;
+
+                              std::vector<int> index_set(aligned_reads.size());
+                              std::iota(index_set.begin(), index_set.end(), 0);
                               {
-                                  std::vector<sam_read> current;
+                                  tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                  std::shuffle(index_set.begin(), index_set.end(), g);
+                              }
+                              for (int j = 0; j < subsampled_reads; ++j)
+                              {
+                                  current.push_back(aligned_reads[index_set[j]]);
+                              }
 
-                                  std::vector<int> index_set = available_indices;
+                              sub_table af(this->reference_seq.size());
+
+                              for (const auto &read : current)
+                              {
+                                  for (size_t j = 0; j < read.aligned_string.size(); ++j)
                                   {
-                                      tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                                      std::shuffle(index_set.begin(), index_set.end(), g);
-                                  }
-                                  assert(remaining_necessary <= index_set.size());
-                                  index_set.erase(index_set.begin() + remaining_necessary, index_set.end());
-
-                                  for (int ip : index_set)
-                                  {
-                                      current.push_back(aligned_reads.at(ip));
-                                  }
-
-                                  sub_table af(this->reference_seq.size());
-
-                                  for (const auto &read : current)
-                                  {
-                                      for (size_t j = 0; j < read.aligned_string.size(); ++j)
-                                      {
-                                          int pos = j + read.start_idx;
-                                          int ind = GENOME_STRING.find(read.aligned_string[j]);
-                                          // this is before merging so degree is 1, but bettter
-                                          // to be explicit
-                                          af[pos][ind] += read.degree;
-                                      }
-                                  }
-
-                                  std::vector<double> q = frequency_vector(af, bin_s, bin_e);
-                                  double div = divergence(p, q);
-                                  {
-
-                                      tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
-                                      if (div < best_score)
-                                      {
-                                          best_score = div;
-                                          best_set = index_set;
-                                      }
+                                      int pos = j + read.start_idx;
+                                      int ind = GENOME_STRING.find(read.aligned_string[j]);
+                                      // this is before merging so degree is 1, but bettter
+                                      // to be explicit
+                                      af[pos][ind] += read.degree;
                                   }
                               }
-                          });
 
-        for (int u : best_set) {
-            used[u] = true;
-        }
-    }
+                              std::vector<double> q = frequency_vector(af);
+                              double divergence = 0;
+                              
+                              for (size_t j = 0; j < p.size(); ++j)
+                              {
+                                  if (p[j] == 0)
+                                      continue;
+                                  double effective_q = std::max(q[j], 1e-10);
 
-    // transform aligned reads to a subset of 
-    // aligned reads
-    std::vector<sam_read> chosen;
-    for (int i = 0; i < (int) used.size(); ++i) {
-        if (used[i]) {
-            chosen.push_back(std::move(aligned_reads[i]));
-        }
-    }
-    this->aligned_reads = chosen;
+                                  divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+                              }
 
-    std::cout << "Final Amount " << aligned_reads.size() << std::endl;
+                              {
+                                tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
+                                if (divergence < best_score)
+                                {
+                                    best_score = divergence;
+                                    best_set = current;
+                                }
+                              }
+                          }
+                      });
 
+    this->aligned_reads = best_set;
     sort(this->aligned_reads.begin(), this->aligned_reads.end());
 }
 
