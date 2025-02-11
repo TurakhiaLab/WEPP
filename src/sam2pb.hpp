@@ -5,6 +5,10 @@
 #include <array>
 #include <map>
 
+#include <tbb/blocked_range.h>
+#include <tbb/queuing_mutex.h>
+#include <tbb/parallel_for.h>
+
 #include "dataset.hpp"
 
 const std::string GENOME_STRING{"ACGTN_"};
