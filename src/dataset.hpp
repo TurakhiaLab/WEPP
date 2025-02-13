@@ -48,8 +48,8 @@ public:
         return this->directory() + "/residual_mutations.txt";
     }
     
-    std::string haplotype_sam_path() const {
-        return this->directory() + this->file_prefix() + "_haplotypes.sam";
+    std::string haplotype_tsv_path() const {
+        return this->directory() + this->file_prefix() + "_haplotypes.tsv";
     }
     
     std::string haplotype_bam_path() const {

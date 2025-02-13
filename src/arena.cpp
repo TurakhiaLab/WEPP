@@ -1275,39 +1275,49 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
 
 void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
-    std::ofstream sam(this->ds.haplotype_sam_path());
-    std::string sam_print;
+    std::ofstream tsv(this->ds.haplotype_tsv_path());
+    std::string tsv_print;
     
-    // print headers
-    sam << "@SQ\tSN:NC_045512v2\tLN:" + std::to_string(this->reference().size()) + "\n@CO\tHP_SEQ\n";
-
     for (size_t i = 0; i < abundance.size(); i++)
     {
         auto hap = abundance[i].first;
         auto hap_mutations = get_mutations(hap->condensed_source, false, true);
+        int start_idx = 1;
+        std::string md = "MD:Z:";
         auto hap_sequence = this->reference();
+        std::string stored_del = ""
         for (const auto& mut: hap_mutations)
         {
-            hap_sequence[mut.pos - 1] = char_from_nuc(mut.mut);
+            if (mut.is_del())
+            {
+                hap_sequence[mut.pos - 1] = "_";
+                if (stored_del.empty())
+                {
+                    md += std::to_string(mut.pos - start_idx) + "^";
+                }
+                stored_del += char_from_nuc(mut.ref);
+                start_idx = mut.pos + 1;
+            }
+            else 
+            {
+                if (stored_del.size())
+                {
+                    md += stored_del;
+                    stored_del.clear();
+                }
+                hap_sequence[mut.pos - 1] = char_from_nuc(mut.mut);
+                md += std::to_string(mut.pos - start_idx) + char_from_nuc(mut.ref);
+                start_idx = mut.pos + 1;
+            }
         }
-        sam_print = hap->id + "\t0\tNC_045512v2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\tRG:Z:group" + std::to_string(i + 1) + "\n";
-        sam << sam_print;
-    }
-
-    // Convert sam to bam
-    std::string bam_file = this->ds.haplotype_bam_path();
-    std::string sam_to_bam_command = "samtools view -S -b " + this->ds.haplotype_sam_path() + " | samtools sort -o " + bam_file;
-    int result = std::system(sam_to_bam_command.c_str());
-    if (result != 0) {
-        std::cerr << "Error: Failed to convert and sort haplotype SAM to BAM" << std::endl;
-        return;
-    }
-
-    // Command to index the sorted BAM file
-    std::string index_command = "samtools index " + bam_file;
-    result = std::system(index_command.c_str());
-    if (result != 0) {
-        std::cerr << "Error: Failed to index haplotype BAM file" << std::endl;
-        return;
+        if (stored_del.size())
+        {
+            md += stored_del;
+            stored_del.clear();
+        }
+        if (hap_sequence.size() - start_idx + 1) 
+            md += std::to_string(hap_sequence.size() - start_idx + 1);
+        tsv_print = hap->id + "\t0\tNC_045512.2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\t" + md + "\tRG:Z:group\n";
+        tsv << tsv_print;
     }
 }
