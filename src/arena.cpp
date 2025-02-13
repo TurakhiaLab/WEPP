@@ -1285,12 +1285,12 @@ void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &a
         int start_idx = 1;
         std::string md = "MD:Z:";
         auto hap_sequence = this->reference();
-        std::string stored_del = ""
+        std::string stored_del = "";
         for (const auto& mut: hap_mutations)
         {
             if (mut.is_del())
             {
-                hap_sequence[mut.pos - 1] = "_";
+                hap_sequence[mut.pos - 1] = '_';
                 if (stored_del.empty())
                 {
                     md += std::to_string(mut.pos - start_idx) + "^";
