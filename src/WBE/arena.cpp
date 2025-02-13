@@ -878,7 +878,8 @@ void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &a
             md += std::to_string(mut.position - start_idx) + MAT::get_nuc(mut.ref_nuc);
             start_idx = mut.position + 1;
         }
-        md += std::to_string(hap_sequence.size() - start_idx + 1);
+        if (hap_sequence.size() - start_idx + 1)
+            md += std::to_string(hap_sequence.size() - start_idx + 1);
         tsv_print = hap->id + "\t0\tNC_045512.2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\t" + md + "\tRG:Z:group\n";
         tsv << tsv_print;
     }
