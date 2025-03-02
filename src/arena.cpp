@@ -1019,6 +1019,33 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
     }
 }
 
+void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream csv(this->ds.lineage_proportion_path());
+    std::string csv_print;
+    std::unordered_map<std::string, double> a_map;
+
+    for (const auto &n_p : abundance)
+    {
+        std::string lineage_name;
+        for (auto anc = condensed_node_mappings[n_p.first].front(); anc; anc = anc->parent)
+        {
+            if (anc->annotations.size()) {
+                lineage_name = anc->annotations.front();
+                break;
+            }
+        }
+        a_map[lineage_name] += n_p.second;
+    }
+
+    for (const auto &l_p : a_map)
+    {
+        csv_print = l_p.first + "," + std::to_string(l_p.second);
+        csv_print += "\n";
+        csv << csv_print;
+    }
+}
+
 void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
     std::ofstream csv(this->ds.haplotype_read_path());
