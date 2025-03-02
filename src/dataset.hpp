@@ -124,6 +124,10 @@ public:
     std::string haplotype_proportion_path() const {
         return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
+    
+    std::string lineage_proportion_path() const {
+        return this->directory() + this->file_prefix() + "_lineage_abundance.csv";
+    }
 
     std::string comparison_haplotype_proportion_path() const {
         return this->comparison_directory() + this->comparison_file_prefix() + "_haplotype_abundance.csv";
