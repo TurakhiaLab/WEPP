@@ -27,7 +27,7 @@ df_variants = df_variants[['POS', 'REF', 'ALT', 'ALT_FREQ', 'TOTAL_DP']]
 # Dictionary to store site-wise deletion counts
 site_del_counts = defaultdict(int)
 
-# Find and print rows where 'ALT' contains "-"
+# Find rows where 'ALT' contains "-"
 rows_with_deletions = df_variants[df_variants['ALT'].str.contains("-", na=False)]
 indices_to_drop = rows_with_deletions.index
 df_variants = df_variants.drop(indices_to_drop)
@@ -77,7 +77,7 @@ for mut, del_count in site_del_counts.items():
         # Update the matching rows with new ALT_FREQ values and TOTAL_DP
         for index, row in matching_rows.iterrows():
             # Update ALT_FREQ
-            row['ALT_FREQ'] = allele_counts[row['ALT']] / total_site_count
+            row['ALT_FREQ'] = min(allele_counts[row['ALT']] / total_site_count, 1.0)
             # Update TOTAL_DP
             row['TOTAL_DP'] = total_site_count
 
@@ -88,10 +88,10 @@ for mut, del_count in site_del_counts.items():
     # Add a row for the deletion at that site with ALT = "-"
     new_row = {
         'POS': mut[1:],
-        'REF': mut[0],  # Assuming you don't have REF for the deletion, can be customized
+        'REF': mut[0],
         'ALT': '-',
-        'ALT_FREQ': del_count / total_site_count,  # You can set this to 0 or another value based on how you want to handle deletions
-        'TOTAL_DP': total_site_count  # Set total_site_count as the total depth for the deletion row
+        'ALT_FREQ': min(del_count / total_site_count, 1.0) if total_site_count > 0 else 0.0,
+        'TOTAL_DP': total_site_count
     }
     
     # Check if there are any matching rows

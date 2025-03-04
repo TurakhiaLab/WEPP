@@ -19,6 +19,10 @@ public:
     uint32_t num_threads() const {
         return options["threads"].as<uint32_t>();
     }
+    
+    uint32_t max_reads() const {
+        return options["max-reads"].as<uint32_t>();
+    }
 
     std::string dataset_name() const {
         return options["dataset"].as<std::string>();
@@ -50,6 +54,10 @@ public:
     
     std::string haplotype_sam_path() const {
         return this->data_directory() + this->file_prefix() + "_haplotypes.sam";
+    }
+
+    std::string haplotype_tsv_path() const {
+        return this->data_directory() + this->file_prefix() + "_haplotypes.tsv";
     }
     
     std::string haplotype_bam_path() const {
@@ -98,7 +106,11 @@ public:
     }
 
     std::string haplotype_proportion_path() const {
-        return this->data_directory() + this->file_prefix() + "_haplotype_abundance.csv";
+        return this->results_directory() + this->file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string lineage_proportion_path() const {
+        return this->results_directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
 
     std::string haplotype_growth_path() const {

@@ -7,8 +7,9 @@
 
 #include "dataset.hpp"
 
-const std::string GENOME_STRING{"ACGTN"};
-typedef std::vector<std::array<int, 5>> sub_table;
+const std::string GENOME_STRING{"ACGTN_"};
+typedef std::vector<std::array<int, 6>> sub_table;
+
 
 struct sam_read {
     std::string raw_name;
@@ -49,6 +50,7 @@ struct sam_read {
 struct sam {
    private:
        const std::string reference_seq;
+       const int subsampled_reads;
    
        /* aligned/padded reads (possibly merged) */
        std::vector<sam_read> aligned_reads;
@@ -62,28 +64,41 @@ struct sam {
        /* does NOT take into account read correction */
        sub_table frequency_table;
    
-       /* frequency + collapsed indels to reference */
+       /* frequency */
        /* may take into account read correction */
        sub_table collapsed_frequency_table;
-   
-       /* for any starting index, length possible indels (length in reference, replacement string)  */
-       std::vector<std::map<std::pair<size_t, std::string>, int>> indel_frequency_table;
    
        /* merging unmap information, column -> preimage of column */
        std::map<std::string, std::vector<std::string>> reverse_merge;
    
        void read_correction();
        void merge_duplicates();
-   
+
+       double divergence(std::vector<double> const& p, std::vector<double> const& q) {
+           double divergence = 0;
+           for (size_t j = 0; j < p.size(); ++j)
+           {
+               if (p[j] == 0)
+                   continue;
+               double effective_q = std::max(q[j], 1e-10);
+
+               divergence += p[j] * (std::log(p[j]) - std::log(effective_q));
+           }
+
+           return divergence;
+       }
+
+       int get_binning_size();
+       void subsample();
+
    public:
-       sam(const std::string& ref);
-   
-       void add_read(const std::string& line);
+       sam(const std::string &ref, int subsampled_reads);
+
+       void add_reads(const std::vector<std::string> &lines, tbb::blocked_range<size_t> range, tbb::queuing_mutex *mutex);
        void build();
-   
+
        void dump_proto(std::string const& filename);
        void dump_reverse_merge(std::ostream& out);
-       void dump_freyja(std::ostream& dout, std::ostream& vout);
 };
 
 void sam2PB(const dataset& d);

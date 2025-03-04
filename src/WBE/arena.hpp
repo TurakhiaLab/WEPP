@@ -193,8 +193,6 @@ public:
         return nullptr;
     }
 
-    void get_residual_cooccuring_mutations(int window_size);
-
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
     
@@ -203,6 +201,8 @@ public:
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
+    
+    void dump_lineage_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
     
     void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
 
