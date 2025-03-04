@@ -10,9 +10,9 @@ cd ../
 #Variables
 file_path="data/manuscript_swampy_dec_2022"
 #file_path_cmp=
-file_prefix="my_vcf"
+file_prefix="control_162166"
 #file_prefix_cmp=
-#MAT="updated_gisaidAndPublic.2023-12-15.masked.pb.gz"
+MAT="updated_gisaidAndPublic.2023-12-15.masked.pb.gz"
 #MAT="pruned_public-2023-12-25.all.masked.pb.gz"
 MAT="pruned_public-2023-12-25.all.masked.pb.gz"
 #SRA="SRR29616810"
@@ -26,14 +26,14 @@ full_file_path=$(realpath "$file_path")
 #cd ../../sratoolkit.3.1.1-ubuntu64/
 #prefetch ${SRA}
 #fasterq-dump ${SRA}
-##gzip ${SRA}.fastq
-#gzip ${SRA}_1.fastq
-#gzip ${SRA}_2.fastq
+#gzip ${SRA}.fastq
+##gzip ${SRA}_1.fastq
+##gzip ${SRA}_2.fastq
 #rm -rf ${SRA}
-##mv ${SRA}.fastq.gz ../SARS2-WBE/${file_path}/
-#mv ${SRA}_1.fastq.gz ../SARS2-WBE/${file_path}/
-#mv ${SRA}_2.fastq.gz ../SARS2-WBE/${file_path}/
-#cd ../SARS2-WBE
+#mv ${SRA}.fastq.gz ../MAT_WEPP/SARS2-WBE/${file_path}/
+##mv ${SRA}_1.fastq.gz ../SARS2-WBE/${file_path}/
+##mv ${SRA}_2.fastq.gz ../SARS2-WBE/${file_path}/
+#cd ../MAT_WEPP/SARS2-WBE
 #
 #
 # Conver Freyja files for Quick run
@@ -61,13 +61,13 @@ cd ../../
 python src/WBE/ivar_correction.py ${file_path}
 samtools view -h -o ${file_path}/${file_prefix}_alignment.sam ${file_path}/resorted.bam 
 
-## Selecting subset of reads if needed
-#mv ${file_path}/${file_prefix}_alignment.sam ${file_path}/${file_prefix}_alignment.sam_orig
-#python src/WBE/select_subset_reads.py ${file_path}/${file_prefix}_alignment.sam_orig ${file_path}/${file_prefix}_alignment.sam
+# Selecting subset of reads if needed
+mv ${file_path}/${file_prefix}_alignment.sam ${file_path}/${file_prefix}_alignment.sam_orig
+python src/WBE/sub_sampling_reads.py ${file_path} ${file_prefix}
+mv ${file_path}/${file_prefix}_alignment.sam_best ${file_path}/${file_prefix}_alignment.sam
 
 wbe sam2PB -v ${file_prefix} -f NC_045512v2.fa -s ${file_prefix}_alignment.sam -o ${file_path}
-wbe detectPeaks -T 56 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
-
+wbe detectPeaks -T 32 -i ${MAT} -v ${file_prefix} -f NC_045512v2.fa -o ${file_path}
 
 ##Analysis Scripts
 #wbe analyzePeaks -T 1 -i ${MAT} -r ${MAT} -v ${file_prefix} -w ${file_prefix_cmp} -o ${file_path} -p ${file_path_cmp} -f NC_045512v2.fa 
