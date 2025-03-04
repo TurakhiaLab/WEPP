@@ -1,5 +1,11 @@
 # Wastewater based Epidemiology using Phylogenetic Placement (WEPP)
 
+## Snakemake running
+Do not forget the --use-conda flag
+```
+snakemake ./results/manuscript_swampy_dec_2022/my_vcf_run.txt --cores 16 --use-conda
+```
+
 <div align="center">
 <img src="images/WBE_gif.gif" style="margin: 0px 0px -20px 0px;"/>
 </div>

@@ -135,6 +135,7 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
     ("dataset,d", po::value<std::string>()->default_value("./"),
+      "The dataset name to use")
     ("max-reads,m", po::value<uint32_t>()->default_value(1e9),
      "The maximum number of reads to use. Default is 1e9.")
     ("file-prefix,p", po::value<std::string>()->default_value("my_vcf"),

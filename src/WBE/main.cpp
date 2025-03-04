@@ -48,9 +48,6 @@ int main (int argc, char** argv) {
     } else if (cmd == "sam2PB") {
         dataset ds{parseWBEcommand(parsed)};
         sam2PB(ds);
-    } else if (cmd == "analyzePeaks") {
-        dataset ds{parseWBEcommand(parsed)};
-        analyze_peaks(ds);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

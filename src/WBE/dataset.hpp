@@ -94,15 +94,15 @@ public:
     }
 
     std::string haplotype_read_path() const {
-        return this->data_directory() + this->file_prefix() + "_haplotype_reads.csv";
+        return this->results_directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
     std::string mutation_reads_path() const {
-        return this->data_directory() + this->file_prefix() + "_mutation_reads.csv";
+        return this->results_directory() + this->file_prefix() + "_mutation_reads.csv";
     }
     
     std::string mutation_haplotypes_path() const {
-        return this->data_directory() + this->file_prefix() + "_mutation_haplotypes.csv";
+        return this->results_directory() + this->file_prefix() + "_mutation_haplotypes.csv";
     }
 
     std::string haplotype_proportion_path() const {
@@ -114,7 +114,7 @@ public:
     }
 
     std::string haplotype_growth_path() const {
-        return this->data_directory() + this->file_prefix() + "_" + this->file_prefix() + "_haplotype_growth.csv";
+        return this->results_directory() + this->file_prefix() + "_" + this->file_prefix() + "_haplotype_growth.csv";
     }
 
     const std::string& reference() const {
