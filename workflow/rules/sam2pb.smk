@@ -1,5 +1,15 @@
 configfile: config.get("config_path","config/config.yaml")
 
+rule sorted_sam:
+     input:
+        "data/{dataset}/{file_prefix}_resorted.bam"
+    output:
+        "intermediate/{dataset}/{file_prefix}_alignment.sam"
+    conda:
+        "../envs/wbe.yml"
+    shell:
+        "samtools view -h -o intermediate/{dataset}/{file_prefix}_alignment.sam data/{dataset}/{file_prefix}_resorted.bam"
+
 rule sam2pb:
     input:
         "build/wbe",
