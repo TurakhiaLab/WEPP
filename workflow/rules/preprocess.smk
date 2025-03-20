@@ -28,5 +28,3 @@ rule build_wbe:
         workflow.cores
     shell:
         "cd build && make -j"
-
-# need resorted.bam
