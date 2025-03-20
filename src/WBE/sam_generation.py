@@ -18,6 +18,15 @@ def read_csv_file(file):
                 read_haps[key].add(value)   
     return read_haps, haplotypes
 
+def read_csv_abundance_file(file):
+    hap_abun = {}
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            hap, abun = row[0], row[1] 
+            hap_abun[hap] = float(abun)
+    return hap_abun
+
 def read_tsv_file(file):
     hap_sams = defaultdict(set)
     with open(file, newline='') as tsvfile:
@@ -58,6 +67,7 @@ def write_sam_files(input_sam_file):
                                             w_file_reads.write(f":unaccounted{mutations[mut]}")
                                         else:
                                             w_file_reads.write(f",unaccounted{mutations[mut]}")
+                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}")
                             w_file_reads.write("\n")
                     else:
                         tokens = line.split()
@@ -111,6 +121,7 @@ def write_sam_files(input_sam_file):
                             w_file_haps.write(f":unaccounted{mutations[mut]}")
                         else:
                             w_file_haps.write(f",unaccounted{mutations[mut]}")
+            w_file_haps.write(f"\tHS:Z:{hap_abun[hap]}")
             w_file_haps.write("\n")
         
         #Write haplotypes now
@@ -157,6 +168,9 @@ read_muts, mutations = read_csv_file(directory + "/" + file_prefix + "_mutation_
 
 # Reading mutations_haplotypes File
 hap_muts, _ = read_csv_file(directory + "/" + file_prefix + "_mutation_haplotypes.csv")
+
+# Reading haplotype_abundance File
+hap_abun = read_csv_abundance_file(directory + "/" + file_prefix + "_haplotype_abundance.csv")
 
 # Reading haplotypes File
 hap_sams = read_tsv_file(directory + "/" + file_prefix + "_haplotypes.tsv")
