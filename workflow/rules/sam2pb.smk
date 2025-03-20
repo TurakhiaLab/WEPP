@@ -1,7 +1,7 @@
 configfile: config.get("config_path","config/config.yaml")
 
 rule sorted_sam:
-     input:
+    input:
         "data/{dataset}/{file_prefix}_resorted.bam"
     output:
         "intermediate/{dataset}/{file_prefix}_alignment.sam"

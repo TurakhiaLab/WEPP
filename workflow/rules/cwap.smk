@@ -1,6 +1,9 @@
-# rule cwap
-# inputs: data/{dataset}/fastq
-# outputs: intermediate/{dataset}/{prefix}_alignment.sam
-    # for sam2pb
-# outputs: intermediate/{dataset}/{prefix}_resorted.bam
-    # for freyja
+rule cwap
+    input:
+        "data/{dataset}/{prefix}_{ext}.fastq.gz"
+    output:
+        "intermediate/{dataset}/{prefix}_resorted.bam"
+    conda:
+        "../envs/wbe.yml"
+    shell:
+        echo "TODO"
