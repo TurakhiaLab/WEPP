@@ -8,6 +8,7 @@ rule filter:
         "intermediate/{dataset}/{file_prefix}_corrected_variants.tsv",
         "intermediate/{dataset}/{file_prefix}_depth.tsv"
     output:
+        # other results too, but probably should add all at some point
         "results/{dataset}/{file_prefix}_run.txt"
     conda:
         "../envs/wbe.yml"
