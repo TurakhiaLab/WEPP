@@ -1,9 +1,13 @@
 # Wastewater based Epidemiology using Phylogenetic Placement (WEPP)
 
-## Snakemake running
-Do not forget the --use-conda flag
+## Installation and running
+0. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`
+1. Install Kraken in accordance with the instructions [here](https://github.com/CFSAN-Biostatistics/C-WAP). Ensure the `K2_STD_DB_PATH` is properly set as an environment variable.
+2. Place the reads under the `./data/{dataset_name}/` folder with the name `{file_prefix}_R1.fastq.gz`.
+3. Create a config/config.yaml file that contains the name of the MAT under the key "TREE" and the reference sequence file for the MAT under the key "REF". The actual reference tree and sequence files should be placed in `./data/{dataset}` folder.
+4. Run snakemake. Do not forget the --use-conda flag. Optionally, you can specific configuration options here instead.
 ```
-snakemake ./results/manuscript_swampy_dec_2022/my_vcf_run.txt --cores 16 --use-conda
+snakemake ./results/{dataset_name}/{file_prefix}_run.txt --cores 16 --use-conda
 ```
 
 <div align="center">
