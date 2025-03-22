@@ -8,7 +8,7 @@ rule sorted_sam:
     conda:
         "../envs/wbe.yml"
     shell:
-        "samtools view -h -o intermediate/{dataset}/{file_prefix}_alignment.sam data/{dataset}/{file_prefix}_resorted.bam"
+        "samtools view -h -o intermediate/{wildcards.dataset}/{file_prefix}_alignment.sam data/{wildcards.dataset}/{file_prefix}_resorted.bam"
 
 rule sam2pb:
     input:
