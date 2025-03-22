@@ -2,7 +2,7 @@ configfile: config.get("config_path","config/config.yaml")
 
 rule sorted_sam:
     input:
-        "data/{dataset}/{file_prefix}_resorted.bam"
+        "intermediate/{dataset}/{file_prefix}_resorted.bam"
     output:
         "intermediate/{dataset}/{file_prefix}_alignment.sam"
     conda:
@@ -24,4 +24,4 @@ rule sam2pb:
         max(workflow.cores - 1, 1)
     shell:
         "mkdir -p intermediate/{wildcards.dataset} && "
-        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'" + " -m  " + config.get("MAX_READS", str(1e9))
+        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'" + " -m " + config.get("MAX_READS", str(int(1e9)))
