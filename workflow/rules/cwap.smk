@@ -6,7 +6,7 @@ rule cwap:
     conda:
         "../envs/cwap.yml"
     params:
-        seq_type=lambda wildcards: config.get("SEQUENCING_TYPE", "i"),
+        seq_type=lambda wildcards: config.get("SEQUENCING_TYPE", "s"),
         primer_bed=lambda wildcards: config.get("PRIMER_BED", "none.bed")
     shell:
         """
@@ -25,11 +25,10 @@ rule cwap:
 
         # Clean up previous runs
         rm -rf work
-        rm .nextflow.log
+        rm -f .nextflow.log
         
         # Run nextflow workflow
-        nextflow run startWorkflow.nf --platform {params.seq_type} --in $in_path --out point_loma --verbose -wait
-        
+        ./startWorkflow.nf --platform {params.seq_type} --in $in_path --out point_loma -with-conda
         # Locate and copy the resulting BAM file
         bam_file=$(find work -name resorted.bam | head -n 1)
         cp $bam_file $out_path/{wildcards.prefix}_resorted.bam
