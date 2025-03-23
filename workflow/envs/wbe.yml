@@ -3,7 +3,6 @@ channels:
  - bioconda
  - conda-forge
 dependencies:
- - freyja=1.5.3
  - usher=0.6.1
  - libprotobuf=3.20.2
  - protobuf=3.20.2

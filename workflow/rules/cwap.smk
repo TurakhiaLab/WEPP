@@ -25,7 +25,8 @@ rule cwap:
 
         # Clean up previous runs
         rm -rf work
-        rm -f .nextflow.log
+        rm -f .nextflow.log*
+        rm -f .nextflow.pid
         
         # Run nextflow workflow
         ./startWorkflow.nf --platform {params.seq_type} --in $in_path --out point_loma -with-conda
