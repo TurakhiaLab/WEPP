@@ -55,6 +55,10 @@ if(DEFINED Protobuf_PATH)
     add_executable(wbe
 	    ${WBE_SRCS} ${PANMAT_SRCS}
     )
+    
+    add_executable(closest_peak_clustering 
+        src/closest_peak_clustering.cpp
+    )
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
@@ -71,6 +75,11 @@ else()
         ${PROTO_SRCS} ${SAM_SRCS}
         ${PROTO_HDRS} ${SAM_HDRS}
         )
+
+    add_executable(closest_peak_clustering 
+        src/closest_peak_clustering.cpp
+    )
 endif()
 
 target_link_libraries(wbe PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+target_link_libraries(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS}) # OpenMP::OpenMP_CXX)
