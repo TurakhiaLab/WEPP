@@ -8,4 +8,5 @@ dependencies:
  - protobuf=3.20.2
  - boost=1.74.0
  - tbb=2022.0.0
+ - ivar=1.4.2
  

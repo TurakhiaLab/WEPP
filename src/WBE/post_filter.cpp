@@ -146,12 +146,12 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     auto const& dataset = arena.owned_dataset();
 
     std::string command = "bash -c \""
-                "cd ./src/Freyja && "
+                "cd ./src/Freyja/ && "
                 "freyja demix "
-                    "'./" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
-                    "'./" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "
-                    "--barcodes './" + dataset.intermediate_directory() + dataset.file_prefix() + "barcodes.csv' "
-                    "--output './" + dataset.intermediate_directory() + "freyja_output_latest.txt' --eps 0.005"
+                    "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
+                    "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "
+                    "--barcodes '../../" + dataset.intermediate_directory() + dataset.file_prefix() + "barcodes.csv' "
+                    "--output '../../" + dataset.intermediate_directory() + "freyja_output_latest.txt' --eps 0.005"
                 "\"";
     if (std::system(command.c_str()) != 0)
     {

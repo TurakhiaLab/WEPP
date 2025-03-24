@@ -37,10 +37,10 @@ def read_tsv_file(file):
     return hap_sams
 
 def write_sam_files(input_sam_file):
-    write_file_sam_reads = os.path.join(directory, f"{file_prefix}_haplotype_reads.sam")
-    write_file_bam_reads = os.path.join(directory, f"{file_prefix}_haplotype_reads.bam")
-    write_file_sam_haps = os.path.join(directory, f"{file_prefix}_haplotypes.sam")
-    write_file_bam_haps = os.path.join(directory, f"{file_prefix}_haplotypes.bam")
+    write_file_sam_reads = os.path.join(results_directory, f"{file_prefix}_haplotype_reads.sam")
+    write_file_bam_reads = os.path.join(results_directory, f"{file_prefix}_haplotype_reads.bam")
+    write_file_sam_haps = os.path.join(results_directory, f"{file_prefix}_haplotypes.sam")
+    write_file_bam_haps = os.path.join(results_directory, f"{file_prefix}_haplotypes.bam")
     
     with open(write_file_sam_reads, mode='w', newline='') as w_file_reads:
         add_RG = True
@@ -151,31 +151,32 @@ def write_sam_files(input_sam_file):
                 sys.exit(1)      
 
 #Check arguments
-if len(sys.argv) != 3:
-    print("USAGE: python src/WBE/sam_generation.py <directory> <file_prefix>")
+if len(sys.argv) != 4:
+    print("USAGE: python src/WBE/sam_generation.py <results_directory> <intermediate_directory> <file_prefix>")
     sys.exit(1)
 
 # Start time
 start_time = time.time()
-file_prefix = sys.argv[2]
-directory = sys.argv[1]
+results_directory = sys.argv[1]
+intermediate_directory = sys.argv[2]
+file_prefix = sys.argv[3]
 
 # Reading haplotype_reads File
-read_haps, haplotypes = read_csv_file(directory + "/" + file_prefix + "_haplotype_reads.csv")
+read_haps, haplotypes = read_csv_file(results_directory + "/" + file_prefix + "_haplotype_reads.csv")
 
 # Reading mutations_reads File
-read_muts, mutations = read_csv_file(directory + "/" + file_prefix + "_mutation_reads.csv")
+read_muts, mutations = read_csv_file(results_directory + "/" + file_prefix + "_mutation_reads.csv")
 
 # Reading mutations_haplotypes File
-hap_muts, _ = read_csv_file(directory + "/" + file_prefix + "_mutation_haplotypes.csv")
+hap_muts, _ = read_csv_file(results_directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Reading haplotype_abundance File
-hap_abun = read_csv_abundance_file(directory + "/" + file_prefix + "_haplotype_abundance.csv")
+hap_abun = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
 
 # Reading haplotypes File
-hap_sams = read_tsv_file(directory + "/" + file_prefix + "_haplotypes.tsv")
+hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.tsv")
 
 # Writing File
-write_sam_files(directory + "/" + file_prefix + "_alignment.sam")
+write_sam_files(intermediate_directory + "/" + file_prefix + "_alignment.sam")
 
 print(f"\nElapsed time: {time.time() - start_time} seconds")

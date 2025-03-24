@@ -405,7 +405,7 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
 
 void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
-    std::ofstream csv(this->ds.haplotype_proportion_path());
+    std::ofstream csv(this->ds.lineage_proportion_path());
     std::string csv_print;
     std::unordered_map<std::string, double> a_map;
 
@@ -482,7 +482,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
     }
 
     // Run Python script to generate sam files
-    std::string command = "python src/WBE/sam_generation.py " + ds.results_directory() + " " + ds.file_prefix();
+    std::string command = "python src/WBE/sam_generation.py '" + ds.results_directory() + "' '" + ds.intermediate_directory() + "' " + ds.file_prefix();
     int result = std::system(command.c_str());
     if (result)
         fprintf(stderr, "\nCannot run sam_generation.py\n");

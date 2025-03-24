@@ -49,19 +49,15 @@ public:
     }
 
     std::string residual_mutations_path() const {
-        return this->data_directory() + "residual_mutations.txt";
+        return this->intermediate_directory() + "residual_mutations.txt";
     }
     
-    std::string haplotype_sam_path() const {
-        return this->data_directory() + this->file_prefix() + "_haplotypes.sam";
-    }
-
     std::string haplotype_tsv_path() const {
-        return this->data_directory() + this->file_prefix() + "_haplotypes.tsv";
+        return this->results_directory() + this->file_prefix() + "_haplotypes.tsv";
     }
     
     std::string haplotype_bam_path() const {
-        return this->data_directory() + this->file_prefix() + "_haplotypes.bam";
+        return this->results_directory() + this->file_prefix() + "_haplotypes.bam";
     }
 
     const std::vector<int>& masked_sites() const {
@@ -110,7 +106,7 @@ public:
     }
 
     std::string lineage_proportion_path() const {
-        return this->results_directory() + this->file_prefix() + "_haplotype_abundance.csv";
+        return this->results_directory() + this->file_prefix() + "_lineage_abundance.csv";
     }
 
     std::string haplotype_growth_path() const {

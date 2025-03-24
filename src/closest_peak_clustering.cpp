@@ -108,16 +108,17 @@ int mutation_distance(const std::vector<Mutation>& node1_mutations, const std::v
 int main(int argc, char* argv[]) {
     // Check if the command line argument for epsilon is provided
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <epsilon> <file_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <epsilon> <in_file_path> <out_file_path>" << std::endl;
         return 1;
     }
     // Get epsilon from the command line and convert it to float
     float eps = std::stof(argv[1]);
-    std::string file_path = argv[2];
+    std::string in_file_path = argv[2];
+    std::string out_file_path = argv[2];
 
     // Read the CSV file and get the vector of costMutations structs
-    std::string input_filename = file_path + "/closest_peak_search.csv";
-    std::string output_filename = file_path + "/peaks_clustered.csv";
+    std::string input_filename = in_file_path + "/closest_peak_search.csv";
+    std::string output_filename = out_file_path + "/peaks_clustered.csv";
     std::vector<Mutation> mutation_list;
     std::vector<costMutations> data = readCSV(input_filename, mutation_list);
     if (data.empty())
