@@ -16,6 +16,9 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQ
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
+# otherwise it sometimes goes to system protobuf instead
+set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include")
+
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
 else()
@@ -83,6 +86,5 @@ else()
     )
 endif()
 
-TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) # OpenMP::OpenMP_CXX)
-
-TARGET_LINK_LIBRARIES(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) 
+TARGET_LINK_LIBRARIES(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS})

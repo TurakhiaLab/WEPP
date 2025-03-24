@@ -132,7 +132,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     
     std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
 
-    std::ofstream outfile(a.owned_dataset().directory() + "/barcodes.csv");
+    std::ofstream outfile(a.owned_dataset().intermediate_directory() + a.owned_dataset().file_prefix() + "barcodes.csv");
     for (const std::string &mut : mutations)
     {
         outfile << "," << mut;
@@ -157,12 +157,17 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     fprintf(stderr, "%ld peaks selected for Freyja!\n\n", input.size());
     dump_barcode(arena, input);
 
+    auto const& dataset = arena.owned_dataset();
+
     std::string command = "bash -c \""
-            "source " + CONDA_PATH + " && "
-            "conda activate freyja-env && "
-            "cd ./src/Freyja && "
-            "freyja demix ../../" + arena.owned_dataset().directory() + "/cwap_variants.tsv ../../" + arena.owned_dataset().directory() + "/cwap_depth.tsv --barcodes ../../" + arena.owned_dataset().directory() + "/barcodes.csv --output ../../" + arena.owned_dataset().directory() + "/freyja_output_latest.txt --eps 0.005"
-            "\"";
+        "cd ./src/Freyja/ && "
+        "freyja demix "
+            "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
+            "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "
+            "--barcodes '../../" + dataset.intermediate_directory() + dataset.file_prefix() + "barcodes.csv' "
+            "--output '../../" + dataset.intermediate_directory() + "freyja_output_latest.txt' --eps 0.005"
+        "\"";
+    
     if (std::system(command.c_str()) != 0)
     {
         std::cerr << "Failed to run freyja" << std::endl;
@@ -171,7 +176,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 
     std::vector<std::pair<haplotype *, double>> freyja_nodes;
 
-    std::ifstream fin(arena.owned_dataset().directory() + "/freyja_output_latest.txt");
+    std::ifstream fin(dataset.intermediate_directory() + "freyja_output_latest.txt");
     std::string tmp;
     std::getline(fin, tmp);
     std::getline(fin, tmp);

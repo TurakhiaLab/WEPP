@@ -44,4 +44,4 @@ public:
     void run_from_last_initial(bool is_full_run);
 };
 
-void detect_peaks(const dataset& d, bool is_initial);
+void detect_peaks(const dataset& d);
