@@ -9,8 +9,7 @@ endif()
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -std=c++17 -Wall -Wno-unused-function  -Wno-deprecated-declarations") 
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR    -fsanitize=address
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -Wno-unused-function  -Wno-deprecated-declarations") 
 set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address -O0 -ggdb3 -fno-eliminate-unused-debug-symbols")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
@@ -34,11 +33,11 @@ include(${TBB_DIR}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
-FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
+find_package(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
 
 #find_package(OpenMP REQUIRED)
 
-INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
 file(GLOB WBE_SRCS "src/WBE/*.cpp" "src/WBE/*.hpp")
 
 if(DEFINED Protobuf_PATH)
@@ -81,5 +80,5 @@ else()
     )
 endif()
 
-target_link_libraries(wbe PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
-target_link_libraries(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS}) # OpenMP::OpenMP_CXX)
+target_link_libraries(wbe PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES})
+target_link_libraries(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS})
