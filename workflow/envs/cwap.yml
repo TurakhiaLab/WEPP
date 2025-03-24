@@ -1,0 +1,7 @@
+channels:
+ - defaults
+ - bioconda
+ - conda-forge
+dependencies:
+ - nextflow=22.10.0
+ - micromamba=2.0.8

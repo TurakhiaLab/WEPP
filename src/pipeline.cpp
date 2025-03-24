@@ -8,7 +8,7 @@
 
 #include "pipeline.hpp"
 
-void detect_peaks(const dataset& d, bool is_initial) {
+void detect_peaks(const dataset& d) {
     std::unique_ptr<initial_filter> main;
     if (FULL_TREE)
         main = std::make_unique<wepp_filter>();
@@ -20,12 +20,8 @@ void detect_peaks(const dataset& d, bool is_initial) {
 
     pipeline p{d, std::move(main), std::move(post)};
     
-    if (is_initial) {
-        p.run_initial();
-    }
-    else {
-        p.run_from_last_initial(false);
-    }
+    p.run_initial();
+    p.run_from_last_initial(true);
 }
 
 void pipeline::run_initial() {

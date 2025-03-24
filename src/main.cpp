@@ -38,19 +38,12 @@ int main (int argc, char** argv) {
         //0 when no command is selected because that's what passes tests.
         exit(0);
     }
-    if (cmd == "initial_filter") { 
+    if (cmd == "detectPeaks") { 
         dataset ds{parseWBEcommand(parsed)};
-        detect_peaks(ds, true);
-    }
-    else if (cmd == "post_filter") { 
-        dataset ds{parseWBEcommand(parsed)};
-        detect_peaks(ds, false);
+        detect_peaks(ds);
     } else if (cmd == "sam2PB") {
         dataset ds{parseWBEcommand(parsed)};
         sam2PB(ds);
-    } else if (cmd == "analyzePeaks") {
-        dataset ds{parseWBEcommand(parsed)};
-        analyze_peaks(ds);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {

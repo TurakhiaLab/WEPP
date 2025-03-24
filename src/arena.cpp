@@ -711,7 +711,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
     }
 
     // Run Python script to generate sam files
-    std::string command = "python src/sam_generation.py " + ds.directory() + " " + ds.file_prefix();
+    std::string command = "python src/WBE/sam_generation.py '" + ds.results_directory() + "' '" + ds.intermediate_directory() + "' " + ds.file_prefix();
     int result = std::system(command.c_str());
     if (result)
         fprintf(stderr, "\nCannot run sam_generation.py\n");
@@ -723,7 +723,7 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     std::string csv_print_haplotypes, csv_print_reads;
 
     // Read residual_mutations
-    std::string file_path = this->ds.directory() + "/residual_mutations.txt";
+    std::string file_path = this->ds.residual_mutations_path();
     std::ifstream file(file_path);  
     std::vector<std::tuple<int, char, float>> mutations; 
 

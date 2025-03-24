@@ -22,47 +22,71 @@ public:
     uint32_t num_threads() const {
         return options["threads"].as<uint32_t>();
     }
-
-    std::string directory() const {
-        return options["output-directory"].as<std::string>() + '/';
+    
+    std::string dataset_name() const {
+        return options["dataset"].as<std::string>();
     }
 
-    std::string comparison_directory() const {
-        return options["comparison-directory"].as<std::string>() + '/';
+    std::string data_directory() const {
+        return "./data/" + dataset_name() + "/";
+    }
+
+    std::string intermediate_directory() const {
+        return "./intermediate/" + dataset_name() + "/";
+    }
+
+    std::string results_directory() const {
+        return "./results/" + dataset_name() + "/";
     }
 
     std::string file_prefix() const {
-        return options["output-files-prefix"].as<std::string>();
+        return options["file-prefix"].as<std::string>();
     }
 
-    std::string comparison_file_prefix() const {
-        return options["comparison-files-prefix"].as<std::string>();
+    std::string residual_mutations_path() const {
+        return this->intermediate_directory() + "residual_mutations.txt";
     }
 
-    std::string ref_path() const {
-        return this->directory() + options["ref-fasta"].as<std::string>();
+    std::string haplotype_tsv_path() const {
+        return this->results_directory() + this->file_prefix() + "_haplotypes.tsv";
     }
-
+    
     std::string first_checkpoint_path() const {
-        return this->directory() + this->file_prefix() + "_first_checkpoint.txt";
+        return this->intermediate_directory() + this->file_prefix() + "_first_checkpoint.txt";
     }
 
     std::string haplotype_read_path() const {
-        return this->directory() + this->file_prefix() + "_haplotype_reads.csv";
+        return this->results_directory() + this->file_prefix() + "_haplotype_reads.csv";
     }
 
-    std::string variants_path() const {
-        return "./src/Freyja/cwap_variants.tsv";
+    std::string mutation_reads_path() const {
+        return this->results_directory() + this->file_prefix() + "_mutation_reads.csv";
+    }
+    
+    std::string mutation_haplotypes_path() const {
+        return this->results_directory() + this->file_prefix() + "_mutation_haplotypes.csv";
     }
 
-    std::string depth_path() const {
-        return "./src/Freyja/cwap_depth.tsv";
+    std::string haplotype_proportion_path() const {
+        return this->results_directory() + this->file_prefix() + "_haplotype_abundance.csv";
+    }
+
+    std::string lineage_proportion_path() const {
+        return this->results_directory() + this->file_prefix() + "_lineage_abundance.csv";
+    }
+
+    std::string sam_path() const {
+        return this->intermediate_directory() + this->file_prefix() + "_alignment.sam";
+    }
+
+    std::string pb_path() const {
+        return this->intermediate_directory() + this->file_prefix() + "_reads.pb";
     }
 
     const panmanUtils::Tree& mat() const {
         static std::optional<panmanUtils::Tree> tree;
         if (!tree.has_value()) {
-            std::string input_mat_filename = this->directory() + this->options["input-mat"].as<std::string>();
+            std::string input_mat_filename = this->data_directory() + this->options["input-mat"].as<std::string>();
             std::ifstream fin(input_mat_filename);
             boost::iostreams::filtering_streambuf< boost::iostreams::input> inPMATBuffer;
             inPMATBuffer.push(boost::iostreams::lzma_decompressor());
@@ -75,26 +99,6 @@ public:
         return tree.value();
     }
     
-    std::string mutation_reads_path() const {
-        return this->directory() + this->file_prefix() + "_mutation_reads.csv";
-    }
-    
-    std::string mutation_haplotypes_path() const {
-        return this->directory() + this->file_prefix() + "_mutation_haplotypes.csv";
-    }
-
-    std::string haplotype_proportion_path() const {
-        return this->directory() + this->file_prefix() + "_haplotype_abundance.csv";
-    }
-
-    std::string comparison_haplotype_proportion_path() const {
-        return this->comparison_directory() + this->comparison_file_prefix() + "_haplotype_abundance.csv";
-    }
-
-    std::string haplotype_growth_path() const {
-        return this->directory() + this->file_prefix() + "_" + this->comparison_file_prefix() + "_haplotype_growth.csv";
-    }
-
     const std::string& reference() const {
         // CONSENSUS Sequence is actually reference sequence in our PanMAT
         static std::optional<std::string> saved;
@@ -107,22 +111,10 @@ public:
         return saved.value();
     }
 
-    std::string sam_path() const {
-        return this->directory() + options["align-sam"].as<std::string>();
-    }
-
-    std::string pb_path() const {
-        return this->directory() + this->file_prefix() + "_reads.pb";
-    }
-    
-    std::string comparison_pb_path() const {
-        return this->comparison_directory() + this->comparison_file_prefix() + "_reads.pb";
-    }
-
     std::vector<raw_read> reads() const;
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
     std::vector<std::string> true_haplotypes() const {
-        return read_sample_vcf(this->directory() + this->file_prefix() + "_samples.vcf");
+        return read_sample_vcf(this->data_directory() + this->file_prefix() + "_samples.vcf");
     }
 };
