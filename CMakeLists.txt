@@ -15,6 +15,9 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
+# otherwise it sometimes goes to system protobuf instead
+set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include")
+
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
 else()
