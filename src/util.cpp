@@ -47,9 +47,9 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
-    ("output-directory,o", po::value<std::string>()->default_value("./"),
-     "Write output files to the target directory. Default is current directory.")
-    ("output-files-prefix,v", po::value<std::string>()->default_value("my_vcf"),
+    ("dataset,d", po::value<std::string>(), 
+     "Dataset name")
+    ("file-prefix,v", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
     ("align-sam,s", po::value<std::string>()->default_value(""),
      "Input sam file representing reference sequence")

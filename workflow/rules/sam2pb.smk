@@ -24,4 +24,4 @@ rule sam2pb:
         max(workflow.cores - 1, 1)
     shell:
         "mkdir -p intermediate/{wildcards.dataset} && "
-        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -d '{wildcards.dataset}'"
+        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -v '{wildcards.file_prefix}' -d '{wildcards.dataset}'"
