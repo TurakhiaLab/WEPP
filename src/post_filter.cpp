@@ -280,12 +280,16 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     fprintf(stderr, "%ld peaks selected for Freyja!\n\n", input.size());
     dump_barcode(arena, input);
 
-    std::string command = "bash -c \""
+    double af_thresh = 0.0;
+    if (FREQ_READ_THRESHOLD > 0.01)
+        af_thresh = FREQ_READ_THRESHOLD;
+    
+        std::string command = "bash -c \""
             "source " + CONDA_PATH + " && "
             "conda activate freyja-env && "
             "cd ./src/Freyja && "
             "make dev && "
-            "freyja demix ../../" + arena.owned_dataset().directory() + "/corrected_cwap_variants.tsv ../../" + arena.owned_dataset().directory() + "/cwap_depth.tsv --barcodes ../../" + arena.owned_dataset().directory() + "/barcodes.csv --output ../../" + arena.owned_dataset().directory() + "/freyja_output_latest.txt --eps 0.005"
+            "freyja demix ../../" + arena.owned_dataset().directory() + "/corrected_cwap_variants.tsv ../../" + arena.owned_dataset().directory() + "/cwap_depth.tsv --barcodes ../../" + arena.owned_dataset().directory() + "/barcodes.csv --output ../../" + arena.owned_dataset().directory() + "/freyja_output_latest.txt --eps 0.005 --af " + std::to_string(af_thresh) +
             "\"";
     if (std::system(command.c_str()) != 0)
     {
