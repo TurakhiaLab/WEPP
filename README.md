@@ -1,6 +1,8 @@
-<div style="display: flex; align-items: center;">
-  <img src="WEPP_logo.svg" width="250" height="250" style="margin-center: 20px;" />
-  <h1 style="font-size: 2em; margin: 0;">Wastewater-based Epidemiology using Phylogenetic Placement (WEPP)</h1>
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+  <img src="WEPP_logo.svg" width="250" height="250" style="margin-bottom: 20px;" />
+  <h1 style="font-size: 2em; text-align: center;">
+    Wastewater-based Epidemiology using Phylogenetic Placement
+  </h1>
 </div>
 
 ## Installation and running
