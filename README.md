@@ -1,9 +1,10 @@
-<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
-  <img src="WEPP_logo.svg" width="250" height="250" style="margin-bottom: 20px;" />
-  <h1 style="font-size: 2em; text-align: center;">
-    Wastewater-based Epidemiology using Phylogenetic Placement
-  </h1>
-</div>
+<p align="center">
+  <img src="WEPP_logo.svg" width="200" height="200">
+</p>
+
+<h1 align="center">
+  Wastewater-based Epidemiology using Phylogenetic Placement
+</h1>
 
 ## Installation and running
 0. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`.
