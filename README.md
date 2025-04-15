@@ -1,3 +1,6 @@
+<div align="left">
+  <img src="WEPP_logo.svg" width="250" height="250" />
+</div>
 # Wastewater-based Epidemiology using Phylogenetic Placement (WEPP)
 
 ## Installation and running
@@ -8,10 +11,6 @@
 ```
 snakemake ./results/{dataset}/{file_prefix}_run.txt --cores 16 --use-conda
 ```
-
-<div align="center">
-  <img src="WEPP_logo.svg" width="250" height="250" />
-</div>
 
 **WEPP** is a novel phylogenetic method for detecting the SARS CoV-2 variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. We have two version of WEPP - one is based on MAT called WEPP and the other uses PANMAT called WEPP-PANMAT.  
 
