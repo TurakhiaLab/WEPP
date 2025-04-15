@@ -1,7 +1,7 @@
-<div align="left">
-  <img src="WEPP_logo.svg" width="250" height="250" />
+<div style="display: flex; align-items: center;">
+  <img src="WEPP_logo.svg" width="150" height="150" style="margin-right: 20px;" />
+  <h1 style="font-size: 2em; margin: 0;">Wastewater-based Epidemiology using Phylogenetic Placement (WEPP)</h1>
 </div>
-# Wastewater-based Epidemiology using Phylogenetic Placement (WEPP)
 
 ## Installation and running
 0. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`.
