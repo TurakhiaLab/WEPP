@@ -19,9 +19,7 @@ rule sam2pb:
     conda:
         "../envs/wbe.yml"
     threads:
-        # sam2pb is early so we may want to allow other 
-        # jobs to run as well
-        max(workflow.cores - 1, 1)
+        workflow.cores
     shell:
         "mkdir -p intermediate/{wildcards.dataset} && "
         "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'" + " -m " + config.get("MAX_READS", str(int(1e9)))
