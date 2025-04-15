@@ -15,8 +15,9 @@
 snakemake ./results/{dataset}/{file_prefix}_run.txt --cores 16 --use-conda
 ```
 
-**WEPP** is a novel phylogenetic method for detecting the SARS CoV-2 variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. We have two version of WEPP - one is based on MAT called WEPP and the other uses PANMAT called WEPP-PANMAT.  
+**WEPP** is a novel phylogenetic method for detecting the SARS CoV-2 variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. We have two version of WEPP - one is based on MAT called WEPP-MAT and the other uses PANMAT called WEPP-PANMAT.  
 
-This repository consists of the entire workflow, which only requires the following things to generate the output. It uses C-WAP pipeline internally to filter and convert fastq to bam format, which is then used by WEPP.
-1. Reads in fastq format
-2. Phylogenetic Tree as MAT
+This repository contains the complete workflow, which requires the following inputs to generate results:
+1. Sequencing reads in `fastq.gz` format
+2. A phylogenetic tree in `MAT` format
+3. A primer `BED` file
