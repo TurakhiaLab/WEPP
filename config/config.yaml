@@ -1,8 +1,8 @@
-TREE: updated_gisaidAndPublic.2023-12-15.masked.pb.gz
+TREE: pruned_public-2023-12-25.all.masked.pb.gz
 REF: wuhan.fa
 
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
-SEQUENCING_TYPE: "n"
+SEQUENCING_TYPE: "s"
 
 # Allele frequency based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 AF: 0.005
@@ -12,7 +12,7 @@ CONDA_PATH: "~/miniforge3"
 
 ## OPTIONAL PARAMETERS
 # Bed file should be present in 'database'
-PRIMER_BED: "ARTICv4_1.bed"
+PRIMER_BED: "nimagenV2.bed"
 
 # Subsampling Reads to reduce WEPP's runtime
-MAX_READS: "1e9"
+MAX_READS: "1000000000"
