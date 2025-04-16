@@ -12,3 +12,6 @@ CONDA_PATH: "~/miniforge3"
 ## OPTIONAL PARAMETERS
 # Bed file should be present in 'database'
 PRIMER_BED: "nimagenV2.bed"
+
+# Subsampling Reads to reduce WEPP's runtime
+MAX_READS: "1000000000"

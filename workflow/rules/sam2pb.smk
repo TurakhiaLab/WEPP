@@ -22,4 +22,4 @@ rule sam2pb:
         workflow.cores
     shell:
         "mkdir -p intermediate/{wildcards.dataset} && "
-        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -v '{wildcards.file_prefix}' -d '{wildcards.dataset}'"
+        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -v '{wildcards.file_prefix}' -d '{wildcards.dataset}'" + " -m " + config.get("MAX_READS", str(int(1e9)))

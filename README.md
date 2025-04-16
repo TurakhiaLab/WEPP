@@ -6,10 +6,25 @@
   Wastewater-based Epidemiology using Phylogenetic Placement
 </h1>
 
-## Installation and running
-0. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`.
+
+## Installation
+1. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`. Switch the branch if needed and check if the `src/Freyja` is not empty. If it is empty then go inside `src/Freyja` and use
+```
+git pull --recurse 
+```
+2. Create a docker image by going to the `docker` and running,
+```
+docker build -t {image_name} .
+```
+3. Return to the main folder and run 
+```
+docker run -it -v "$PWD":/workspace -w /workspace {image_name} /bin/bash
+```
+
+## Running
+We consider that all the reads belong to a `dataset` and all the files begin with a `file_prefix`.  
 1. Place the reads under the `./data/{dataset}/` folder ending with the name `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
-2. Create a config/config.yaml file that contains the name of the MAT under the key "TREE". The MAT should also be placed in `./data/{dataset}` folder. Pick the primer bed file from the database folder.
+2. Create a config/config.yaml file that contains the name of the MAT under the key "TREE" and the reference sequence file for the MAT under the key "REF". The MAT and reference sequence should also be placed in `./data/{dataset}` folder. Pick the primer bed file from the database folder.
 3. Run snakemake. Do not forget the --use-conda flag. Optionally, you can specific configuration options here instead.
 ```
 snakemake ./results/{dataset}/{file_prefix}_run.txt --cores 16 --use-conda

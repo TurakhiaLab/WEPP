@@ -32,7 +32,6 @@ void pipeline::run_initial() {
 
         timer t;
         running = main->filter(a);
-        // a.print_mutation_distance(running);
         std::cout << "--- initial filter took " << t.seconds() << " seconds " << std::endl << std::endl;
     }
 
@@ -44,7 +43,7 @@ void pipeline::run_initial() {
 
 void pipeline::run_from_last_initial(bool is_full_run) {
     std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path());
-    //a.print_mutation_distance(running);
+    a.print_mutation_distance(running);
     {
         std::cout << "----- [running post filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;
@@ -73,7 +72,9 @@ void pipeline::run_from_last_initial(bool is_full_run) {
         std::cout << "--- post filter took " << t.seconds() << " seconds " << std::endl;
 
         a.dump_haplotype_proportion(full);
+        a.dump_lineage_proportion(full);
         a.resolve_unaccounted_mutations(full);
+        a.dump_haplotypes(full);
         a.dump_read2haplotype_mapping(full);
 
         std::cout << "--- RUN COMPLETED" << std::endl;
