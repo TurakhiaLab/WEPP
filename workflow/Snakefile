@@ -1,4 +1,4 @@
-include: "rules/cwap.smk"
+include: "rules/qc.smk"
 include: "rules/freyja.smk"
 include: "rules/preprocess.smk"
 include: "rules/sam2pb.smk"
