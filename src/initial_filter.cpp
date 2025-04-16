@@ -458,7 +458,7 @@ wepp_filter::step(arena& arena, std::vector<haplotype*>& current, std::set<haplo
         {
             consideration.push_back(*it);
             (*it)->mapped = true;
-            printf("* raw %.9f divergence %.9f id %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
+            //printf("* raw %.9f divergence %.9f id %s\n", (*it)->score, (*it)->dist_divergence, (*it)->id.c_str());
         }
     }
 
