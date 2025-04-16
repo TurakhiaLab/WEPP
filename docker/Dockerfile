@@ -32,6 +32,10 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
 # Set Conda/Miniforge paths
 ENV PATH=/root/miniforge3/bin:$PATH
 
+# Initialize Conda and ensure it’s sourced on login
+RUN /root/miniforge3/bin/conda init bash && \
+    echo "source ~/.bashrc" >> /root/.bash_profile
+
 # Install Snakemake using pip
 RUN pip install snakemake
 
