@@ -1542,7 +1542,9 @@ panmanUtils::Tree::Tree(std::istream& fin, FILE_TYPE ftype) {
 
     if(ftype == panmanUtils::FILE_TYPE::PANMAT) {
         kj::std::StdInputStream kjInputStream(fin);
-        capnp::InputStreamMessageReader messageReader(kjInputStream);
+        capnp::ReaderOptions ro{};
+        ro.traversalLimitInWords = (1ull << 32);
+        capnp::InputStreamMessageReader messageReader(kjInputStream, ro);
 
         panman::Tree::Reader mainTree = messageReader.getRoot<panman::Tree>();
         // Todo: Check if above statment returns true?
@@ -5691,7 +5693,9 @@ panmanUtils::TreeGroup::TreeGroup(std::vector< std::ifstream >& treeFiles, std::
 
 panmanUtils::TreeGroup::TreeGroup(std::istream& fin) {
     kj::std::StdInputStream kjInputStream(fin);
-    capnp::InputStreamMessageReader messageReader(kjInputStream);
+    capnp::ReaderOptions ro{};
+    ro.traversalLimitInWords = (1ull << 32);
+    capnp::InputStreamMessageReader messageReader(kjInputStream, ro);
 
 
     panman::TreeGroup::Reader TG = messageReader.getRoot<panman::TreeGroup>();

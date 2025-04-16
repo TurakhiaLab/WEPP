@@ -2,7 +2,7 @@ from os import listdir
 from os.path import join
 
 build_inps = []
-excluded_dirs = {"src/C-WAP", "src/Freyja"}
+excluded_dirs = {"src/Freyja"}
 for root, _, files in os.walk("src"):
     if any(root.startswith(excluded) for excluded in excluded_dirs):
         continue
@@ -30,5 +30,17 @@ rule build_wbe:
         "../envs/wbe.yml"
     threads:
         workflow.cores
+    params:
+        af_thresh=lambda wildcards: config["AF"],
+        conda_path=lambda wildcards: config["CONDA_PATH"]
     shell:
-        "cd build && make -j"
+        """
+        # Update FREQ_READ_THRESHOLD in config.hpp
+        sed -i 's#FREQ_READ_THRESHOLD.*$#FREQ_READ_THRESHOLD = {params.af_thresh};#' src/config.hpp
+        
+        # Update CONDA_PATH in config.hpp
+        sed -i 's#CONDA_PATH.*$#CONDA_PATH = "{params.conda_path}/etc/profile.d/conda.sh";#' src/config.hpp
+        
+        echo "Starting build..."
+        cd build && make -j || exit 1
+        """

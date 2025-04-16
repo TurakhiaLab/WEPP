@@ -3,5 +3,5 @@ channels:
  - bioconda
  - conda-forge
 dependencies:
- - nextflow=22.10.0
- - micromamba=2.0.8
+ - minimap2=2.24
+ - ivar=1.4.2

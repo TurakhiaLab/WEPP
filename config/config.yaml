@@ -1,1 +1,14 @@
 TREE: sars_8M_annotated_nextclade.panman
+
+# Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
+SEQUENCING_TYPE: "s"
+
+# Allele frequency based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+AF: 0.005
+
+# Path to local conda installation
+CONDA_PATH: "~/miniforge3"
+
+## OPTIONAL PARAMETERS
+# Bed file should be present in 'database'
+PRIMER_BED: "nimagenV2.bed"
