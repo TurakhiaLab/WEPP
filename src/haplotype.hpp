@@ -90,7 +90,7 @@ struct haplotype {
         }
         
         // Store Ns in muts_in_range
-        auto n_it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, INT_MIN),
+        auto n_it = std::lower_bound(n_muts.begin(), n_muts.end(), std::make_pair(start, start),
             [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                 return range.second < value.first; 
         });
@@ -135,7 +135,7 @@ struct haplotype {
         }
         
         // Store Ns in muts_in_range
-        auto n_it = std::lower_bound(stack_n_muts.begin(), stack_n_muts.end(), std::make_pair(start, INT_MIN),
+        auto n_it = std::lower_bound(stack_n_muts.begin(), stack_n_muts.end(), std::make_pair(start, start),
             [](const std::pair<int, int>& range, const std::pair<int, int>& value) {
                 return range.second < value.first; 
         });
@@ -168,11 +168,11 @@ struct haplotype {
         return muts_in_range;
     }
 
-    int mutation_distance(const raw_read& other) const {
+    float mutation_distance(const raw_read& other) const {
         return ::mutation_distance(other.mutations, this->get_mutations(other.start, other.end));
     }
 
-    int mutation_distance(haplotype * other) const {
+    float mutation_distance(haplotype * other) const {
         return ::mutation_distance(other->get_mutations(), this->get_mutations());
     }
 
@@ -190,7 +190,7 @@ struct multi_haplotype {
     /* arena indices of ranged node children */
     std::vector<int> children;
 
-    int mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) {
+    float mutation_distance(std::vector<mutation> const& comp, int min_pos, int max_pos) {
         return ::mutation_distance(comp, root->get_mutations(min_pos, max_pos));
     }
 };

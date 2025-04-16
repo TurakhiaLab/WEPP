@@ -32,27 +32,8 @@ struct score_comparator {
             return effective_left > effective_right;
         }
         else {
-            return left > right;
+            return left->id > right->id;
         }
-    }
-};
-
-/* used to sort nodes by their mutation list */
-struct mutation_comparator {
-    bool operator() (haplotype* left, haplotype* right) const {
-        if (left->stack_muts.size() != right->stack_muts.size()) {
-            return left->stack_muts.size() < right->stack_muts.size();
-        }  
-        for (size_t i = 0; i < left->stack_muts.size(); ++i) {
-            if (left->stack_muts[i].pos != right->stack_muts[i].pos) {
-                return left->stack_muts[i].pos < right->stack_muts[i].pos;
-            }
-            else if (left->stack_muts[i].mut != right->stack_muts[i].mut) {
-                return left->stack_muts[i].mut < right->stack_muts[i].mut;
-            }
-        }
-
-        return false;
     }
 };
 
@@ -60,6 +41,7 @@ class arena {
     std::vector<haplotype> nodes;
     std::vector<multi_haplotype> ranged_nodes;
     std::vector<raw_read> raw_reads;
+    std::vector<int> masked_sites;
 
     /* stats */
     size_t read_distribution_bin_size;
@@ -76,7 +58,7 @@ class arena {
     std::unordered_map<haplotype *, std::vector<panmanUtils::Node *>> condensed_node_mappings;
 
     haplotype* from_pan(haplotype* parent, panmanUtils::Node* node, const std::unordered_set<int> &site_read_map, std::vector<panmanUtils::Node *> &parent_mapping, const std::vector<mutation>& condensed_n_muts);
-    int pan_tree_size(panmanUtils::Node *node); 
+    int pan_tree_size(panmanUtils::Node *node);
     int build_range_tree(int parent, haplotype* curr, int start, int end);
 
     void get_single_mutations(std::vector<mutation>& mutations, const panmanUtils::Node* n);
@@ -149,20 +131,22 @@ public:
         return this->num_reads;
     }
 
-    std::unordered_set<int> site_read_map() const {
-        std::unordered_set<int> ret;
-        for (size_t i = 0; i < this->raw_reads.size(); i++)
-        {
-            const auto &rp = raw_reads[i];
-            std::vector<int> ambiguous_sites;
-            for (auto& mut: rp.mutations) {
-                if (mut.mut == NUC_N)
-                    ambiguous_sites.emplace_back(mut.pos);
-            }
+    const std::unordered_set<int>& site_read_map() const {
+        static std::unordered_set<int> ret;
+        if (ret.empty()) {
+            for (size_t i = 0; i < this->raw_reads.size(); i++)
+            {
+                const auto &rp = raw_reads[i];
+                std::vector<int> ambiguous_sites;
+                for (auto& mut: rp.mutations) {
+                    if (mut.mut == NUC_N)
+                        ambiguous_sites.emplace_back(mut.pos);
+                }
 
-            for (int j = rp.start; j <= rp.end; j++)
-                if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end())
-                    ret.insert(j);
+                for (int j = rp.start; j <= rp.end; j++)
+                    if (std::find(ambiguous_sites.begin(), ambiguous_sites.end(), j) == ambiguous_sites.end() && std::find(this->masked_sites.begin(), this->masked_sites.end(), j) == this->masked_sites.end())
+                        ret.insert(j);
+            }
         }
         return ret;
     }
@@ -202,7 +186,7 @@ public:
     void get_residual_cooccuring_mutations(int window_size);
 
     // mutations from root to here
-    std::vector<mutation> get_mutations(const panmanUtils::Node* n, bool replace_N=false);
+    std::vector<mutation> get_mutations(const panmanUtils::Node* n, bool replace_GAP=false, bool replace_N=false);
 
     // precondition: true haplotypes of current dataset are known
     void print_mutation_distance(const std::vector<haplotype*>& selected);
@@ -213,7 +197,11 @@ public:
 
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
     
+    void dump_lineage_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
+    
     void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
 
     void dump_read2haplotype_mapping(const std::vector<std::pair<haplotype*, double>> & abundance);
+
+    void dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &abundance);
 };

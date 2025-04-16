@@ -7,8 +7,7 @@
 
 #include "util.hpp"
 #include "panman_bridge.hpp"
-
-constexpr bool IGNORE_N_MUTS = true;
+#include "config.hpp"
 
 //Get the names of samples prsent in samples.vcf
 std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples) {
@@ -51,6 +50,8 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
      "Dataset name")
     ("file-prefix,v", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
+     ("max-reads,m", po::value<uint32_t>()->default_value(1e9),
+     "The maximum number of reads to use. Default is 1e9.")
     ("align-sam,s", po::value<std::string>()->default_value(""),
      "Input sam file representing reference sequence")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -109,42 +110,105 @@ get_single_mutations(std::vector<mutation>& ret, const std::string& ref, const p
 }
 
 // precondition, both mutation lists are sorted
-int mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
-    int muts = 0, i = 0, j = 0;
+float mutation_distance(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
+    int dels = 0, subs = 0, i = 0, j = 0;
 
     while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
         if (i == (int) node1_mutations.size()) {                
             if (node2_mutations[j].mut != NUC_N) {
-                ++muts;
+                if (node2_mutations[j].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++j;
         }
         else if (j == (int) node2_mutations.size()) {
             if (node1_mutations[i].mut != NUC_N) {
-                ++muts;
+                if (node1_mutations[i].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++i;
         }
         else if (node1_mutations[i].pos < node2_mutations[j].pos) {
             if (node1_mutations[i].mut != NUC_N) {
-                ++muts;
+                if (node1_mutations[i].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++i;
         }
         else if (node1_mutations[i].pos > node2_mutations[j].pos) {
             if (node2_mutations[j].mut != NUC_N) {
-                ++muts;
+                if (node2_mutations[j].mut == NUC_GAP)
+                    ++dels;
+                else
+                    ++subs;
             }
             ++j;
         }
         else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
-            ++muts;
+            if (node1_mutations[i].mut == NUC_GAP || node2_mutations[j].mut == NUC_GAP)
+                ++dels;
+            else
+                ++subs;
+
             ++i; ++j;
         }
         else {
             ++i; ++j;
         }
     }
+    
+    return subs + (dels * DEL_SUBS_RATIO);
+}
 
-    return muts;
+std::vector<mutation> mutation_distance_vector(std::vector<mutation> const& node1_mutations, std::vector<mutation> const& node2_mutations) {
+    int i = 0, j = 0;
+    std::vector<mutation> mutations;
+
+    while (i < (int) node1_mutations.size() || j < (int) node2_mutations.size()) {
+        if (i == (int) node1_mutations.size()) {                
+            if (node2_mutations[j].mut != NUC_N) {
+                mutations.emplace_back(node2_mutations[j]);
+            }
+            ++j;
+        }
+        else if (j == (int) node2_mutations.size()) {
+            if (node1_mutations[i].mut != NUC_N) {
+                mutations.emplace_back(node1_mutations[i]);
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos < node2_mutations[j].pos) {
+            if (node1_mutations[i].mut != NUC_N) {
+                mutations.emplace_back(node1_mutations[i]);
+            }
+            ++i;
+        }
+        else if (node1_mutations[i].pos > node2_mutations[j].pos) {
+            if (node2_mutations[j].mut != NUC_N) {
+                mutations.emplace_back(node2_mutations[j]);
+            }
+            ++j;
+        }
+        else if (node1_mutations[i].pos == node2_mutations[j].pos && node1_mutations[i].mut != node2_mutations[j].mut && node1_mutations[i].mut != NUC_N && node2_mutations[j].mut != NUC_N) {
+            if (node1_mutations[i].mut == NUC_GAP)
+                mutations.emplace_back(node1_mutations[i]);
+            else if (node2_mutations[j].mut == NUC_GAP)
+                mutations.emplace_back(node2_mutations[j]);
+            else
+                mutations.emplace_back(node1_mutations[i]);
+
+            ++i; ++j;
+        }
+        else {
+            ++i; ++j;
+        }
+    }
+    
+    return mutations;
 }

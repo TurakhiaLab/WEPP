@@ -97,12 +97,14 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
     std::set<std::string> mutations;
     std::vector<std::set<std::string>> node_muts;
     const auto& site_read_map = a.site_read_map();
+    const auto& ref = a.reference();
 
     for (haplotype *n : haplotypes)
     {
         std::set<std::string> my_muts;
         // Replacing Deletions with their Parent Allele
-        auto hap_mutations = a.get_mutations(n->condensed_source, true);
+        auto hap_mutations = a.get_mutations(n->condensed_source, false, true);
+        auto hap_mutations_no_del = a.get_mutations(n->condensed_source, true, true);
         auto mut_itr = hap_mutations.begin();
         while (mut_itr != hap_mutations.end())
         {
@@ -111,27 +113,147 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
             else
                 mut_itr++;
         }
+        mut_itr = hap_mutations_no_del.begin();
+        while (mut_itr != hap_mutations_no_del.end())
+        {
+            if (site_read_map.find(mut_itr->pos) == site_read_map.end())
+                mut_itr = hap_mutations_no_del.erase(mut_itr);
+            else
+                mut_itr++;
+        }
+
+        std::vector<int> deletions;
         for (const mutation& m : hap_mutations)
         {
-            std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
-            mutations.insert(build);
-            my_muts.insert(std::move(build));
+            if (m.is_del())
+            {
+                deletions.emplace_back(m.pos);
+            }
+            else 
+            {
+                std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
+                mutations.insert(build);
+                my_muts.insert(std::move(build));
+            }
         }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            std::string build = ref[j - 1] + std::to_string(j) + "-";
+                            mutations.insert(build);
+                            my_muts.insert(std::move(build));
+                        }
+                    }
+                    // Replace deletions with parent allele
+                    else 
+                    {
+                        for (const auto& m: hap_mutations_no_del)
+                        {
+                            if ((m.pos >= start) && (m.pos <= deletions[i - 1])) {
+                                std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
+                                mutations.insert(build);
+                                my_muts.insert(std::move(build));
+                            }
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    std::string build = ref[j - 1] + std::to_string(j) + "-";
+                    mutations.insert(build);
+                    my_muts.insert(std::move(build));
+                }
+            }
+            // Replace deletions with parent allele
+            else 
+            {
+                for (const auto& m: hap_mutations_no_del)
+                {
+                    if ((m.pos >= start) && (m.pos <= deletions.back())) {
+                        std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
+                        mutations.insert(build);
+                        my_muts.insert(std::move(build));
+                    }
+                }
+            }
+        }
+ 
         node_muts.push_back(std::move(my_muts));
     }
 
     for (const raw_read& read: a.reads()) {
+        std::vector<int> deletions;
         for (mutation m : read.mutations)
         {
-            if (m.mut != NUC_N && !m.is_del()) {
-                std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
-                mutations.insert(build);
+            if (m.mut != NUC_N) {
+                if (m.is_del())
+                {
+                    deletions.emplace_back(m.pos);
+                }
+                else
+                {
+                    std::string build = char_from_nuc(m.ref) + std::to_string(m.pos) + char_from_nuc(m.mut);
+                    mutations.insert(build);
+                }
+            }
+        }
+
+        // Insert Deletions
+        if (deletions.size())
+        {
+            int start = deletions.front();
+            for (size_t i = 0; i < deletions.size(); i++)
+            {
+                if (!i) 
+                {
+                    start = deletions.front();
+                }
+                else if ((deletions[i] - deletions[i - 1]) > 1) 
+                {
+                    // Not considering deletions smaller than 3
+                    if (((deletions[i - 1] - start + 1) >= MIN_ALLOWED_DEL) && ((deletions[i - 1] - start + 1) <= MAX_ALLOWED_DEL))
+                    {
+                        for (int j = start; j <= deletions[i - 1]; j++) 
+                        {
+                            std::string build = ref[j - 1] + std::to_string(j) + "-";
+                            mutations.insert(build);
+                        }
+                    }
+                    start = deletions[i];
+                }
+            }
+            // Not considering deletions smaller than 3
+            if (((deletions.back() - start + 1) >= MIN_ALLOWED_DEL) && ((deletions.back() - start + 1) <= MAX_ALLOWED_DEL))
+            {
+                for (int j = start; j <= deletions.back(); j++) 
+                {
+                    std::string build = ref[j - 1] + std::to_string(j) + "-";
+                    mutations.insert(build);
+                }
             }
         }
     }
     
-    std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
-
     std::ofstream outfile(a.owned_dataset().intermediate_directory() + a.owned_dataset().file_prefix() + "barcodes.csv");
     for (const std::string &mut : mutations)
     {

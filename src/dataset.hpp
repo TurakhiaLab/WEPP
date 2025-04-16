@@ -30,6 +30,12 @@ public:
     std::string data_directory() const {
         return "./data/" + dataset_name() + "/";
     }
+    
+    uint32_t max_reads() const
+    {
+        return options["max-reads"].as<uint32_t>();
+    }
+
 
     std::string intermediate_directory() const {
         return "./intermediate/" + dataset_name() + "/";
@@ -45,6 +51,31 @@ public:
 
     std::string residual_mutations_path() const {
         return this->intermediate_directory() + "residual_mutations.txt";
+    }
+    
+    const std::vector<int>& masked_sites() const {
+        static std::vector<int> cached_mask; 
+        if (cached_mask.empty()) {
+            std::ifstream inputFile("./mask.bed");
+            if (!inputFile.is_open()) {
+                std::cerr << "Error: Unable to open mask.bed file." << std::endl;
+                return cached_mask; 
+            }
+
+            std::string line;
+            while (std::getline(inputFile, line)) {
+                std::istringstream lineStream(line);
+                std::string col1, col2;
+                int col3;
+
+                // Parse the line into columns
+                if (lineStream >> col1 >> col2 >> col3) {
+                    cached_mask.push_back(col3);
+                }
+            }
+            inputFile.close();
+        }
+        return cached_mask;
     }
 
     std::string haplotype_tsv_path() const {
@@ -112,6 +143,7 @@ public:
     }
 
     std::vector<raw_read> reads() const;
+
     std::unordered_map<std::string, std::vector<std::string>> read_reverse_merge() const;
 
     std::vector<std::string> true_haplotypes() const {
