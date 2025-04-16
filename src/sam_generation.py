@@ -160,7 +160,7 @@ read_muts, mutations = read_csv_file(results_directory + "/" + file_prefix + "_m
 hap_muts, _ = read_csv_file(results_directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Reading haplotypes File
-hap_sams = read_tsv_file(directory + "/" + file_prefix + "_haplotypes.tsv")
+hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.tsv")
 
 # Writing File
 write_sam_files(intermediate_directory + "/" + file_prefix + "_alignment.sam")
