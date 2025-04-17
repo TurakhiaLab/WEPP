@@ -10,3 +10,4 @@ dependencies:
  - freyja=1.4.2
  - gxx_linux-64=12.3.0
  - gcc_linux-64=12.3.0
+ - samtools=1.10
