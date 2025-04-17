@@ -35,4 +35,5 @@ snakemake ./results/{dataset}/{file_prefix}_run.txt --cores 16 --use-conda
 This repository contains the complete workflow, which requires the following inputs to generate results:
 1. Sequencing reads in `fastq.gz` format
 2. A phylogenetic tree in `MAT` format
-3. A primer `BED` file
+3. A reference `fasta` file 
+4. A primer `BED` file
