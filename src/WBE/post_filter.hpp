@@ -102,9 +102,9 @@ public:
 class em_post_filter: public post_filter {
 public:
     double alpha = 0.005;
-    double epsilon = 1e-3;
+    double epsilon = 1e-6;
     double min_proportion = 1 / 200.0;
-    int max_it = 50;
+    int max_it = 100;
 
     std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override;
 };

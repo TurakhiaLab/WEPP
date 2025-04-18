@@ -201,27 +201,38 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 std::vector<std::pair<haplotype*, double>>
 em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 {
-    arena.reset_haplotype_state();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
 
     const std::vector<raw_read>& reads = arena.reads();
-    std::vector<haplotype*> subset = std::move(input);
 
-    std::vector<std::vector<double>> q(subset.size(), std::vector<double>(reads.size()));
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+    std::vector<std::vector<double>> q(input.size(), std::vector<double>(reads.size()));
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, input.size()),
                       [&](tbb::blocked_range<size_t> range)
                       {
                           for (size_t i = range.begin(); i < range.end(); ++i)
                           {
                               for (size_t j = 0; j < reads.size(); ++j)
                               {
-                                  double dist = subset[i]->mutation_distance(reads[j]);
+                                  double dist = input[i]->mutation_distance(reads[j]);
                                   q[i][j] = std::pow(this->alpha, dist) * std::pow(1 - this->alpha, reads[j].end - reads[j].start + 1 - dist);
                               }
                           }
                       });
 
     double prev = 0, curr = 0;
-    std::vector<double> p(subset.size(), 1.0 / subset.size());
+    // Initialize to normal distribtuion
+    std::vector<double> p(input.size());
+    for (auto& val : p) {
+        val = dis(gen);
+    }
+    // Re-scale to 1
+    double sum = std::accumulate(p.begin(), p.end(), 0.0);
+    for (auto& val : p) {
+        val /= sum;
+    }
+
     do
     {
         prev = curr;
@@ -233,7 +244,7 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                               for (size_t j = range.begin(); j < range.end(); ++j)
                               {
                                   double sum = 0;
-                                  for (size_t l = 0; l < subset.size(); ++l)
+                                  for (size_t l = 0; l < input.size(); ++l)
                                   {
                                       sum += p[l] * q[l][j];
                                   }
@@ -241,7 +252,7 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                               }
                           });
 
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, subset.size()),
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, input.size()),
                           [&](tbb::blocked_range<size_t> range)
                           {
                               for (size_t i = range.begin(); i < range.end(); ++i)
@@ -265,39 +276,43 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                               for (size_t j = range.begin(); j < range.end(); ++j)
                               {
                                   double sum = 0;
-                                  for (size_t l = 0; l < subset.size(); ++l)
+                                  for (size_t l = 0; l < input.size(); ++l)
                                   {
                                       sum += p[l] * q[l][j];
                                   }
-                                  logl[j] = std::log(sum);
+                                  logl[j] = reads[j].degree * std::log(sum);
                               }
                           });
 
         curr = std::accumulate(logl.begin(), logl.end(), 0.0);
     } while (abs(curr - prev) > epsilon && --max_it);
 
+    // Select haplotypes with abundance > min_proportion
+    std::vector<std::pair<haplotype *, double>> em_nodes;
     for (size_t i = 0; i < p.size(); ++i)
     {
-        subset[i]->score = p[i];
+        em_nodes.emplace_back(std::make_pair(input[i], p[i]));
     }
-    std::sort(subset.begin(), subset.end(), score_comparator());
-    auto it = subset.begin();
+
+    std::sort(em_nodes.begin(), em_nodes.end(),
+    [](const std::pair<haplotype*, double>& a, const std::pair<haplotype*, double>& b) {
+        return a.second > b.second;
+    });
+    auto it = em_nodes.begin();
     double total = 0;
-    while (it != subset.end() && (*it)->score / ((*it)->score + total) >= min_proportion)
+    while ((it != em_nodes.end()) && (it->second / (it->second + total) >= min_proportion))
     {
-        total += (*it)->score;
+        total += it->second;
         ++it;
     }
-    subset.erase(it, subset.end());
+    em_nodes.erase(it, em_nodes.end());
 
-    std::vector<std::pair<haplotype *, double>> abundance;
-    std::transform(subset.begin(), subset.end(), std::back_inserter(abundance), 
-        [&](haplotype* hap) {
-            return std::make_pair(hap, hap->score / total);
-        }
-    );
+    for (auto& node_score: em_nodes)
+    {
+        node_score.second /= total;
+    }
 
-    return abundance;
+    return em_nodes;
 }
 
 std::vector<std::pair<haplotype*, double>>

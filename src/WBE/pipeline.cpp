@@ -9,7 +9,7 @@ void detect_peaks(const dataset& d) {
     else
         main = std::make_unique<lineage_root_filter>();
     
-    auto post = std::make_unique<freyja_post_filter>();
+    auto post = std::make_unique<em_post_filter>();
     post->num_filter_rounds = MAX_NEIGHBOR_ITERATIONS;
 
     pipeline p{d, std::move(main), std::move(post)};
@@ -72,9 +72,9 @@ void pipeline::run_from_last_initial(bool is_full_run) {
 
         a.dump_haplotype_proportion(full);
         a.dump_lineage_proportion(full);
-        a.resolve_unaccounted_mutations(full);
-        a.dump_haplotypes(full);
-        a.dump_read2haplotype_mapping(full);
+        //a.resolve_unaccounted_mutations(full);
+        //a.dump_haplotypes(full);
+        //a.dump_read2haplotype_mapping(full);
 
         std::cout << "--- RUN COMPLETED" << std::endl;
     }
