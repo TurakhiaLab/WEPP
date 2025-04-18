@@ -233,6 +233,7 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         val /= sum;
     }
 
+    int max_iteration = max_it; 
     do
     {
         prev = curr;
@@ -285,7 +286,9 @@ em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                           });
 
         curr = std::accumulate(logl.begin(), logl.end(), 0.0);
-    } while (abs(curr - prev) > epsilon && --max_it);
+        if (!prev)
+            prev = 1e-12;
+    } while ((abs(curr - prev) / abs(prev)) >= epsilon && --max_iteration);
 
     // Select haplotypes with abundance > min_proportion
     std::vector<std::pair<haplotype *, double>> em_nodes;
