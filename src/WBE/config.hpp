@@ -9,7 +9,7 @@ static constexpr bool USE_COLUMN_MERGING  = true;
 static constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
 constexpr int PHRED_SCORE_THRESHOLD = 20;
 // Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-constexpr double FREQ_READ_THRESHOLD = 0.005; 
+constexpr double FREQ_READ_THRESHOLD = 0.005;
 static constexpr int SUBSAMPLE_ITERS = 1000;
 
 static constexpr int MAX_CACHED_EPP_SIZE = 2048;
@@ -27,8 +27,9 @@ static constexpr int MAX_NEIGHBORS_WEPP = 50;
 static constexpr int MAX_NEIGHBORS_FREYJA = 500;
 static constexpr int MAX_NEIGHBOR_MUTATION = 2;
 // Update this to switch between Freyja and WEPP
-static constexpr int MAX_NEIGHBOR_ITERATIONS = 10;
-static constexpr bool FULL_TREE = true;
+static constexpr int MAX_NEIGHBOR_ITERATIONS = 1;
+static constexpr bool FULL_TREE = false;
+static constexpr double EM_AF_THRESH = 0.01;
 
 // Update based on real data or simulated data
 static constexpr bool SIMULATED_DATA = true;
@@ -37,7 +38,7 @@ static constexpr bool SIMULATED_DATA = true;
 static constexpr bool FULL_RUN = true;
 
 // Update the path to local conda
-static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh"; 
+static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
 
 // Used for styding cluster trend in time series data
 static constexpr int CLUSTER_DIST = 2;

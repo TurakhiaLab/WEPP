@@ -7,7 +7,7 @@ void detect_peaks(const dataset& d) {
     if (FULL_TREE)
         main = std::make_unique<wepp_filter>();
     else
-        main = std::make_unique<lineage_root_filter>();
+        main = std::make_unique<em_filter>();
     
     auto post = std::make_unique<em_post_filter>();
     post->num_filter_rounds = MAX_NEIGHBOR_ITERATIONS;
