@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="WEPP_logo.svg" width="300" height="300">
+  <img src="WEPP_logo.svg" width="300">
 </p>
 
 <h1 align="center">
