@@ -18,7 +18,8 @@ rule qc:
         "../envs/qc.yml"
     params:
         seq_type=lambda wildcards: config.get("SEQUENCING_TYPE", "s"),
-        primer_bed=lambda wildcards: config.get("PRIMER_BED", "none.bed")
+        primer_bed=lambda wildcards: config.get("PRIMER_BED", "none.bed"),
+        ref=lambda wildcards: config["REF"]
     threads:
         workflow.cores
     shell:
@@ -26,5 +27,5 @@ rule qc:
         in_path=$(realpath data/{wildcards.dataset}/)
         out_path=$(realpath intermediate/{wildcards.dataset})
 
-        python src/WBE/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --threads {threads} --reference wuhan.fa --prefix {wildcards.file_prefix}
+        python src/WBE/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --threads {threads} --reference {params.ref} --prefix {wildcards.file_prefix}
         """
