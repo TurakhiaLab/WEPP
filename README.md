@@ -38,3 +38,4 @@ This repository contains the complete workflow, which requires the following inp
 2. A phylogenetic tree in `MAT` format
 3. A reference `fasta` file 
 4. A primer `BED` file
+5. [OPTIONAL] A `mask.bed` file in `data/{dataset}` where the third column specifies sites to be excluded from analysis
