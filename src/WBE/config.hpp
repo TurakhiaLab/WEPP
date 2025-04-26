@@ -9,7 +9,7 @@ static constexpr bool USE_COLUMN_MERGING  = true;
 static constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
 constexpr int PHRED_SCORE_THRESHOLD = 20;
 // Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-constexpr double FREQ_READ_THRESHOLD = 0.005; 
+constexpr double FREQ_READ_THRESHOLD = 0.005;
 static constexpr int SUBSAMPLE_ITERS = 1000;
 
 static constexpr int MAX_CACHED_EPP_SIZE = 2048;
@@ -37,7 +37,7 @@ static constexpr bool SIMULATED_DATA = true;
 static constexpr bool FULL_RUN = true;
 
 // Update the path to local conda
-static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh"; 
+static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
 
-// Used for styding cluster trend in time series data
-static constexpr int CLUSTER_DIST = 2;
+// Update index_position of clade: Use 1 for SARS-CoV-2 and 0 for others
+static constexpr int CLADE_IDX = 1;

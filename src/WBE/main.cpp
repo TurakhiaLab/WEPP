@@ -8,7 +8,6 @@
 #include "util.hpp"
 #include "pipeline.hpp"
 #include "sam2pb.hpp"
-#include "analyze_peaks.hpp"
 
 Timer timer;
 

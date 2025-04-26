@@ -33,13 +33,6 @@ def parse_args():
 def resolve_path(path, launch_dir):
     return path if path.startswith('/') or path.startswith('~') else os.path.join(launch_dir, path)
 
-def get_sample_name(filename):
-    name = os.path.basename(filename).split('.')[0].split('_')[0]
-    if name in all_sample_names:
-        raise ValueError(f"Duplicate sample name detected: {name}")
-    all_sample_names.append(name)
-    return name
-
 def find_fastq_files(input_dir, paired):
     fastq_files = sorted(glob.glob(os.path.join(input_dir, "*.fastq*")))
     if paired:
@@ -54,8 +47,7 @@ def find_fastq_files(input_dir, paired):
                 fq2 = fq
         if not fq1 or not fq2:
             raise ValueError("Both R1 and R2 files must be present and correctly named (e.g., *_R1.fastq, *_R2.fastq)")
-        sample = get_sample_name(fq1)
-        return {sample: (fq1, fq2)}
+        return fq1, fq2
     
     else:
         if len(fastq_files) != 1:
@@ -64,22 +56,29 @@ def find_fastq_files(input_dir, paired):
         fname = os.path.basename(fq)
         if re.search(r"_R[12]", fname):
             raise ValueError("Single-end FASTQ should not be named with _R1/_R2")
-        sample = get_sample_name(fq)
-        return {sample: (fq, None)}
+        return fq, None
 
 def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix):
-    ref_base = reference.replace(".fa", "")
+    ref_base = os.path.splitext(reference)[0]
+    ref_mmi = f"{ref_base}.mmi"
+    ref_mmi_path = os.path.join("./database", os.path.basename(ref_mmi))
     out_sam = os.path.join(output_dir, prefix + "_aligned_reads.sam")
+
+    # Check if the .mmi index exists in ./database/
+    if not os.path.exists(ref_mmi_path):
+        print(f"Index file {ref_mmi_path} not found. Building in {output_dir} ...")
+        ref_mmi_path = os.path.join(output_dir, os.path.basename(ref_mmi))
+        subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
 
     cmd = ["minimap2", "-a", "--sam-hit-only", "--MD", "-2"]
     if platform == "Illumina":
         cmd += ["-x", "sr"]
         if r2:
-            cmd += [f"{ref_base}.mmi", r1, r2]
+            cmd += [ref_mmi_path, r1, r2]
         else:
-            cmd += [f"{ref_base}.mmi", r1]
+            cmd += [ref_mmi_path, r1]
     elif platform == "ONT":
-        cmd += ["-x", "map-ont", f"{ref_base}.mmi", r1]
+        cmd += ["-x", "map-ont", ref_mmi_path, r1]
     cmd += ["-t", str(threads), "-o", out_sam]
 
     subprocess.run(cmd, check=True)
@@ -127,13 +126,12 @@ def main():
     print(f"{platform} mode")
 
     primer_bed_file = resolve_path(args.primers, "./database")
-    reference_file = resolve_path(args.reference, "./database")
-    fastq_files = find_fastq_files(args.input_dir, is_paired)
+    reference_file = resolve_path(args.reference, args.input_dir)
+    r1, r2 = find_fastq_files(args.input_dir, is_paired)
 
-    sample_name, (r1, r2) = next(iter(fastq_files.items()))
     sam_file = reference_alignment(args.output_dir, r1, r2, platform, reference_file, args.threads, args.prefix)
     trimming(args.output_dir, sam_file, primer_bed_file, args.threads, args.prefix)
-    print(f"QC done on {sample_name}")
+    print(f"QC Completed")
 
 
 if __name__ == "__main__":

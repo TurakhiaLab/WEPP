@@ -517,9 +517,9 @@ lineage_root_filter::filter(arena& arena)
             [&](haplotype* hap) {
                 bool is_root = false;
                 for (MAT::Node* node: arena.source_nodes(hap)) {
-                    if (node->clade_annotations[1] != "" && 
-                        node->clade_annotations[1].rfind("misc", 0) == std::string::npos &&
-                        node->clade_annotations[1].rfind("proposed", 0) == std::string::npos) {
+                    if (node->clade_annotations[CLADE_IDX] != "" && 
+                        node->clade_annotations[CLADE_IDX].rfind("misc", 0) == std::string::npos &&
+                        node->clade_annotations[CLADE_IDX].rfind("proposed", 0) == std::string::npos) {
                         is_root = true;
                         break;
                     }
