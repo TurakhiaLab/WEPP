@@ -40,7 +40,7 @@ static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
 constexpr int PHRED_SCORE_THRESHOLD = 20;
 
 // Update index_position of clade: Use 1 for SARS-CoV-2 and 0 for others
-static constexpr int CLADE_IDX = 0;
+static constexpr int CLADE_IDX = 1;
 
 // Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 constexpr double FREQ_READ_THRESHOLD = 0.005;
