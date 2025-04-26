@@ -63,7 +63,7 @@ public:
     const std::vector<int>& masked_sites() const {
         static std::vector<int> cached_mask; 
         if (cached_mask.empty()) {
-            std::ifstream inputFile("./mask.bed");
+            std::ifstream inputFile(this->data_directory() + "/mask.bed");
             if (!inputFile.is_open()) {
                 // assume no masks
                 return cached_mask; 
