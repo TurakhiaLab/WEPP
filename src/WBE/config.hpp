@@ -7,9 +7,6 @@ static constexpr double SCORE_EPSILON = 1e-9;
 static constexpr bool USE_READ_CORRECTION = true;
 static constexpr bool USE_COLUMN_MERGING  = true;
 static constexpr bool MAP_TO_MAJORITY_INSTEAD_OF_N = false;
-constexpr int PHRED_SCORE_THRESHOLD = 20;
-// Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-constexpr double FREQ_READ_THRESHOLD = 0.005;
 static constexpr int SUBSAMPLE_ITERS = 1000;
 
 static constexpr int MAX_CACHED_EPP_SIZE = 2048;
@@ -39,5 +36,11 @@ static constexpr bool FULL_RUN = true;
 // Update the path to local conda
 static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
 
+// Update for changing read quality threshold
+constexpr int PHRED_SCORE_THRESHOLD = 20;
+
 // Update index_position of clade: Use 1 for SARS-CoV-2 and 0 for others
-static constexpr int CLADE_IDX = 1;
+static constexpr int CLADE_IDX = 0;
+
+// Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+constexpr double FREQ_READ_THRESHOLD = 0.005;
