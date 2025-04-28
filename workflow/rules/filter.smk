@@ -9,7 +9,8 @@ rule filter:
         "intermediate/{dataset}/{file_prefix}_depth.tsv"
     output:
         # other results too, but probably should add all at some point
-        "results/{dataset}/{file_prefix}_run.txt"
+        # "results/{dataset}/{file_prefix}_run.txt"
+        "intermediate/{dataset}/{file_prefix}_run_tmp.txt"
     conda:
         "../envs/wbe.yml"
     threads:
@@ -19,4 +20,4 @@ rule filter:
     shell:
         "mkdir -p results/{wildcards.dataset} && "
         "./build/wbe detectPeaks -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'"
-        " | tee {params.tmp_file} && mv {params.tmp_file} {output}"
+        " | tee {params.tmp_file}"

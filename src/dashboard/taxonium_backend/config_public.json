@@ -1,0 +1,49 @@
+{
+  "enable_ns_download": true,
+  "source": "INSDC",
+  "title": "Cov2Tree",
+  "customNames": {
+    "num_tips": "Descendant sequences",
+    "meta_pango_lineage_usher": "PANGO lineage"
+  },
+  "name_accessor": "name",
+  "covspectrum_links": true,
+  "enable_genbank_acknowledgement": true,
+  "defaultColorByField": "meta_pango_lineage_usher",
+  "keys_to_display": [
+    "genotype",
+    "meta_date",
+    "meta_genbank_accession",
+    "meta_pango_lineage_usher",
+    "meta_country"
+  ],
+  "overlay": "TODO",
+  "search_types": [
+    { "name": "name", "label": "Name", "type": "text_match" },
+    {
+      "name": "meta_pango_lineage_usher",
+      "label": "PANGO lineage",
+      "type": "text_exact"
+    },
+    {
+      "name": "meta_genbank_accession",
+      "label": "Genbank accession",
+      "type": "text_per_line"
+    },
+    { "name": "meta_country", "label": "Country", "type": "text_match" },
+    { "name": "mutation", "label": "Mutation", "type": "mutation" },
+    { "name": "genotype", "label": "Genotype", "type": "genotype" },
+    { "name": "revertant", "label": "Revertant", "type": "revertant" },
+    { "name": "num_tips", "label": "Number of tips", "type": "number" },
+    { "name": "boolean", "label": "Boolean", "type": "boolean" }
+  ],
+  "colorBy": {
+    "colorByOptions": [
+      "meta_pango_lineage_usher",
+      "meta_country",
+      "genotype",
+      "None"
+    ]
+  },
+  "x_accessors": ["x_dist", "x_time"]
+}

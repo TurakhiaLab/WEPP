@@ -3,6 +3,7 @@ include: "rules/freyja.smk"
 include: "rules/preprocess.smk"
 include: "rules/sam2pb.smk"
 include: "rules/filter.smk"
+include: "rules/dashboard.smk"
 
 # example invocation
 # snakemake results/dataset/run.txt --sdm conda --cores 64
