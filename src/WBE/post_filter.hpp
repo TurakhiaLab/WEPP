@@ -68,52 +68,8 @@ public:
     }
 };
 
-class identity_post_filter: public post_filter {
-public:
-    std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override {
-        std::vector<std::pair<haplotype*, double>> ret;
-        std::transform(input.begin(), input.end(), std::back_inserter(ret), 
-            [&](haplotype* in)  {
-                return std::make_pair(in, 1.0 / input.size());
-            }
-        );
-
-        return ret;
-    }
-};
-
-
 class freyja_post_filter: public post_filter {
     void dump_barcode(arena& a, const std::vector<haplotype*>& inputs);
 public:
     std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override;
-};
-
-
-class likelihood_post_filter: public post_filter {
-public:
-    double sigma = 4.0;
-    double coeff = log(1 / (sigma * sqrt(2 * M_PI)));
-    size_t max_peaks = 150;
-
-    std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override;
-};
-
-class em_post_filter: public post_filter {
-public:
-    double alpha = 0.005;
-    double epsilon = 1e-3;
-    double min_proportion = 1 / 200.0;
-    int max_it = 50;
-
-    std::vector<std::pair<haplotype*, double>> filter(arena& arena, std::vector<haplotype*> input) override;
-};
-
-class kmeans_post_filter: public post_filter {
-public:
-    int max_it = 15, explore_rad = 5;
-    double stay_factor = 0.75;
-    double min_abundance = 1 / 200.0;
-
-    std::vector<std::pair<haplotype *, double>> filter(arena &arena, std::vector<haplotype *> input) override;
 };
