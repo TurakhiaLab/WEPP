@@ -1,13 +1,10 @@
 TREE: pruned_public-2023-12-25.all.masked.pb.gz
 REF: wuhan.fa
 
-# TO DO : DASHBOARD ENABLED : TRUE/FALSE
-# if True, add the jsonl file into intermediate 
+
 DASHBOARD_ENABLED: True
 
-# TODO --> USHER_TAXONIUM_FILE_PATH available and if DASHBOARD_ENABLED is true. if true. if false, =-> generate
-
-# USHER_TAXONIUM_FILE_PATH: /path/file.jsonl
+USHER_TAXONIUM_FILE_PATH: ''
 
 dataset: test
 
