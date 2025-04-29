@@ -34,7 +34,7 @@ freyja_post_filter::dump_barcode(arena& a, const std::vector<haplotype*>& haplot
 
     std::vector<std::string> mutation_vec(mutations.begin(), mutations.end());
 
-    std::ofstream outfile(a.owned_dataset().intermediate_directory() + a.owned_dataset().file_prefix() + "barcodes.csv");
+    std::ofstream outfile(a.owned_dataset().intermediate_directory() + a.owned_dataset().file_prefix() + "_barcodes.csv");
     for (const std::string &mut : mutations)
     {
         outfile << "," << mut;
@@ -70,7 +70,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
                 "freyja demix "
                     "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
                     "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "
-                    "--barcodes '../../" + dataset.intermediate_directory() + dataset.file_prefix() + "barcodes.csv' "
+                    "--barcodes '../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_barcodes.csv' "
                     "--output '../../" + dataset.intermediate_directory() + "freyja_output_latest.txt' --eps 0.005 --af " + std::to_string(af_thresh) +
                 "\"";
     if (std::system(command.c_str()) != 0)
