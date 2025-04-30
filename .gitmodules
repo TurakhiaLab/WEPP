@@ -4,3 +4,6 @@
 [submodule "src/C-WAP"]
 	path = src/C-WAP
 	url = https://github.com/pgangwar-ucsd/C-WAP.git
+[submodule "src/dashboard"]
+	path = src/dashboard
+	url = https://github.com/pratikkatte/Wastewater-Dasboard.git
