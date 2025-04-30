@@ -54,7 +54,7 @@ rule taxonium_backend:
             echo "creating uploads directory" | tee -a {params.log}
             if [ ! -d "/workspace/results/uploads" ]; then
                 mkdir /workspace/results/uploads
-                cp /workspace/src/dashboard/NC_045512v2.* /workspace/results/uploads/.
+                cp /workspace/src/dashboard/data/NC_045512v2.* /workspace/results/uploads/.
             fi
 
             echo "Installing dashboard dependencies..." | tee -a {params.log}
@@ -62,7 +62,7 @@ rule taxonium_backend:
 
             echo "Starting the Node.js server..." | tee -a {params.log}
 
-            node src/dashboard/taxonium_backend/server.js --port 8080 --data_file {input[0]} &
+            node src/dashboard/taxonium_backend/server.js --port 8080 --data_file {input[0]} --integrated &
 
             # Wait until port 8080 is open
             until ss -tuln | grep ':8080' > /dev/null; do
@@ -76,7 +76,7 @@ rule taxonium_backend:
         else
             echo "Starting dashboard..." | tee -a {params.log}
             cp -r src/dashboard/dashboard/dist/* /usr/share/nginx/html
-            cp src/dashboard/dashboard/nginx-react.conf /etc/nginx/sites-available/default
+            cp src/dashboard/nginx/nginx-react.conf /etc/nginx/sites-available/default
             nginx &
 
             until ss -tuln | grep -w '80' > /dev/null; do
