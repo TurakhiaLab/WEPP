@@ -232,6 +232,15 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
         haps[i]->orig_score = haps[i]->score;
     }
 
+    // Making sure "DUMMY-CONDENSED" is NOT considered
+    auto dummy_itr = std::find_if(haps.begin(), haps.end(), [](haplotype* h) { return h->id == "DUMMY-CONDENSED"; });
+    if (dummy_itr != haps.end())
+    {
+        (*dummy_itr)->orig_score = 0;
+        (*dummy_itr)->score = 0;
+        (*dummy_itr)->mapped = true;
+    }
+    
     /* initial sort into scores */
     tbb::parallel_sort(haps.begin(), haps.end(), score_comparator());
 
@@ -463,7 +472,7 @@ wepp_filter::filter(arena& arena)
 
     // cartesian map
     cartesian_map(arena, initial, arena.reads());
-    
+
     // iterative removal 
     std::set<haplotype*> peaks, nbrs;
     while (!step(arena, initial, peaks)) { }
@@ -483,7 +492,7 @@ wepp_filter::filter(arena& arena)
             int i = 0;
             for (haplotype *node : multisource_radius)
             {
-                bool const found = peaks.find(node) != peaks.end() || curr_neighbors.find(node) != curr_neighbors.end();
+                bool const found = peaks.find(node) != peaks.end() || curr_neighbors.find(node) != curr_neighbors.end() || node->id == "DUMMY-CONDENSED";
                 if (!found)
                 {
                     node->mapped = true;
