@@ -58,14 +58,6 @@ public:
                 std::set<haplotype *, score_comparator> build;
                 for (haplotype* hap: this_round) {
                     std::set<haplotype *, score_comparator> nbrs = arena.closest_neighbors(hap, max_rad, max_nbrs);
-                    
-                    // Making sure "DUMMY-CONDENSED" is NOT considered
-                    auto dummy_itr = std::find_if(nbrs.begin(), nbrs.end(), 
-                        [](haplotype* h) { return h->id == "DUMMY-CONDENSED"; });
-                    if (dummy_itr != nbrs.end()) {
-                        nbrs.erase(dummy_itr);
-                    }
-
                     build.insert(nbrs.begin(), nbrs.end());
                 }
                 input = std::vector<haplotype*>(build.begin(), build.end());

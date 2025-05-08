@@ -78,13 +78,22 @@ std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> read_sample_vcf(
 }
 
 MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::unordered_set<int>& site_read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings) {
-    //REMOVE sites not covered by reads
     std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
-
     MAT::Tree T;
-    auto new_node = T.create_node("DUMMY-CONDENSED", -1.0, ref_root->clade_annotations.size());
-    node_mappings[new_node] = std::vector<MAT::Node*>();
-    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(ref_root, new_node));
+
+    // Create ref_root as root of new tree
+    auto new_node = T.create_node(ref_root->identifier, -1.0, ref_root->clade_annotations.size());
+    //Add mutations to new_node
+    for (const auto& mut: ref_root->mutations) {
+        if (site_read_map.find(mut.position) != site_read_map.end())
+            new_node->mutations.emplace_back(mut);
+    }
+    //Add new_node to the node_mappings
+    node_mappings[new_node] = {ref_root};
+    //Add children to remaining_nodes    
+    for (auto child: ref_root->children)
+        remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
+
     
     //Add the new_node to the node_mappings
     while(remaining_nodes.size() > 0) {
