@@ -20,14 +20,34 @@ def read_csv_file(file):
 
 def read_csv_abundance_file(file):
     hap_abun = {}
+    hap_lineage = {}
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            hap, abun = row[0], row[1] 
+            hap, lineage, abun = row[0], row[1], row[2] 
             hap_abun[hap] = float(abun)
-    return hap_abun
+            hap_lineage[hap] = lineage
+    return hap_abun, hap_lineage
+
+def read_csv_uncertainty_file(file):
+    hap_nodes = defaultdict(set)
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            hap, *nodes = row
+            hap_nodes[hap].update(nodes)
+    return hap_nodes
 
 def read_tsv_file(file):
+    # Increase CSV field size limit
+    max_int = sys.maxsize
+    while True:
+        try:
+            csv.field_size_limit(max_int)
+            break
+        except OverflowError:
+            max_int = int(max_int / 10)
+
     hap_sams = defaultdict(set)
     with open(file, newline='') as tsvfile:
         reader = csv.reader(tsvfile, delimiter='\t')
@@ -67,7 +87,9 @@ def write_sam_files(input_sam_file):
                                             w_file_reads.write(f":unaccounted{mutations[mut]}")
                                         else:
                                             w_file_reads.write(f",unaccounted{mutations[mut]}")
-                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}")
+                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}")
+                            if (len(hap_nodes[hap])):
+                                w_file_reads.write(f"\tUH:Z:{','.join(hap_nodes[hap])}")
                             w_file_reads.write("\n")
                     else:
                         tokens = line.split()
@@ -121,7 +143,9 @@ def write_sam_files(input_sam_file):
                             w_file_haps.write(f":unaccounted{mutations[mut]}")
                         else:
                             w_file_haps.write(f",unaccounted{mutations[mut]}")
-            w_file_haps.write(f"\tHS:Z:{hap_abun[hap]}")
+            w_file_haps.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}")
+            if (len(hap_nodes[hap])):
+                w_file_haps.write(f"\tUH:Z:{','.join(hap_nodes[hap])}")
             w_file_haps.write("\n")
         
         #Write haplotypes now
@@ -171,7 +195,10 @@ read_muts, mutations = read_csv_file(results_directory + "/" + file_prefix + "_m
 hap_muts, _ = read_csv_file(results_directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Reading haplotype_abundance File
-hap_abun = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
+hap_abun, hap_lineage = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
+
+# Reading haplotype_uncertainty File
+hap_nodes = read_csv_uncertainty_file(results_directory + "/" + file_prefix + "_haplotype_uncertainty.csv")
 
 # Reading haplotypes File
 hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.tsv")

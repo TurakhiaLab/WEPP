@@ -202,6 +202,8 @@ public:
 
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
     
+    void dump_haplotype_uncertainty(const std::vector<std::pair<haplotype*, double>> & abundance); 
+    
     void dump_lineage_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
     
     void resolve_unaccounted_mutations(const std::vector<std::pair<haplotype*, double>> & abundance);  
