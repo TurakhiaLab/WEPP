@@ -64,11 +64,18 @@ def write_sam_files(input_sam_file):
     
     with open(write_file_sam_reads, mode='w', newline='') as w_file_reads:
         add_RG = True
+        ref_name = ""
         with open(input_sam_file, 'r') as r_file_reads:
             for line in r_file_reads:
                 line = line.strip()
                 if line.startswith('@'):
                     w_file_reads.write(line+"\n")
+                    # Find reference name
+                    if line.startswith('@SQ'):
+                        fields = line.split()
+                        for field in fields:
+                            if field.startswith('SN:'):
+                                ref_name = field[3:]
                 else:
                     if add_RG:
                         add_RG = False
@@ -127,7 +134,7 @@ def write_sam_files(input_sam_file):
 
     with open(write_file_sam_haps, mode='w', newline='') as w_file_haps:
         first_hap, first_row = next(iter(hap_sams.items()))
-        w_file_haps.write(f"@SQ\tSN:NC_045512.2\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
+        w_file_haps.write(f"@SQ\tSN:{ref_name}\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
         # Write unaccounted groups of mutations
         for mut, idx in mutations.items():
             w_file_haps.write(f"@CO\tUM:unaccounted{idx}\tUS:{mut}\n")

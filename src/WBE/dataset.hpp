@@ -117,6 +117,30 @@ public:
         return this->results_directory() + this->file_prefix() + "_" + this->file_prefix() + "_haplotype_growth.csv";
     }
 
+    const std::string& reference_name() const {
+        static std::string ref_header;
+        if (ref_header.empty()) {
+            std::ifstream fasta_f(this->ref_path());
+            if (!fasta_f.is_open())
+            {
+                std::cerr << "Error: Unable to open file " << ref_path() << std::endl;
+                exit(1);
+            }
+            std::getline(fasta_f, ref_header);
+        
+            // Remove leading '>'
+            if (!ref_header.empty() && ref_header[0] == '>') {
+                ref_header = ref_header.substr(1);  // drop the '>'
+            }
+            else {
+                std::cerr << "Error: Fasta format NOT correct " << ref_path() << std::endl;
+                exit(1);
+            }
+        }
+
+        return ref_header;
+    }
+
     const std::string& reference() const {
         static std::optional<std::string> saved;
         if (!saved) {

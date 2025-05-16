@@ -719,6 +719,7 @@ void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &a
 {
     std::ofstream tsv(this->ds.haplotype_tsv_path());
     std::string tsv_print;
+    auto ref_name = ds.reference_name();
     
     for (size_t i = 0; i < abundance.size(); i++)
     {
@@ -736,7 +737,7 @@ void arena::dump_haplotypes(const std::vector<std::pair<haplotype *, double>> &a
         }
         if (hap_sequence.size() - start_idx + 1)
             md += std::to_string(hap_sequence.size() - start_idx + 1);
-        tsv_print = hap->id + "\t0\tNC_045512.2\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\t" + md + "\tRG:Z:group\n";
+        tsv_print = hap->id + "\t0\t" + ref_name + "\t1\t60\t" + std::to_string(this->reference().size()) + "M\t*\t0\t0\t" + hap_sequence + "\t" + std::string(hap_sequence.length(), '?') + "\t" + md + "\tRG:Z:group\n";
         tsv << tsv_print;
     }
 }
