@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">
-  Wastewater-based Epidemiology using Phylogenetic Placement
+  Wastewater-based Epidemiology using Phylogenetic Placements
 </h1>
 
 
