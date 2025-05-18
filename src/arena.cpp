@@ -1013,7 +1013,37 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
     std::string csv_print;
     for (const auto &n_p : abundance)
     {
-        csv_print = n_p.first->id + "," + std::to_string(n_p.second);
+        // Get lineage name
+        std::string lineage_name;
+        for (auto anc = condensed_node_mappings[n_p.first].front(); anc; anc = anc->parent)
+        {
+            if (anc->annotations.size()) {
+                lineage_name = anc->annotations.front();
+                break;
+            }
+        }
+
+        // Write in a file
+        csv_print = n_p.first->id + "," + lineage_name + "," +std::to_string(n_p.second);
+        csv_print += "\n";
+        csv << csv_print;
+    }
+}
+
+void arena::dump_haplotype_uncertainty(const std::vector<std::pair<haplotype *, double>> &abundance)
+{
+    std::ofstream csv(this->ds.haplotype_uncertainty_path());
+    std::string csv_print;
+    for (const auto &n_p : abundance)
+    {
+        auto all_uncertain_nodes = condensed_node_mappings[n_p.first];
+        for (size_t i = 0; i < all_uncertain_nodes.size(); i++)
+        {
+            if (!i)
+                csv_print = all_uncertain_nodes[i]->identifier;
+            else
+                csv_print += "," + all_uncertain_nodes[i]->identifier;
+        }
         csv_print += "\n";
         csv << csv_print;
     }

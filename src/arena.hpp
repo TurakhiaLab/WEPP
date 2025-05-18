@@ -196,6 +196,8 @@ public:
     void print_full_report(const std::vector<std::pair<haplotype*, double>> & abundance);
 
     void dump_haplotype_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
+
+    void dump_haplotype_uncertainty(const std::vector<std::pair<haplotype*, double>> & abundance);
     
     void dump_lineage_proportion(const std::vector<std::pair<haplotype*, double>> & abundance); 
     

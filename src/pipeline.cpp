@@ -72,6 +72,7 @@ void pipeline::run_from_last_initial(bool is_full_run) {
         std::cout << "--- post filter took " << t.seconds() << " seconds " << std::endl;
 
         a.dump_haplotype_proportion(full);
+        a.dump_haplotype_uncertainty(full);
         a.dump_lineage_proportion(full);
         a.resolve_unaccounted_mutations(full);
         a.dump_haplotypes(full);

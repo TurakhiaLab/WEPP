@@ -20,14 +20,34 @@ def read_csv_file(file):
 
 def read_csv_abundance_file(file):
     hap_abun = {}
+    hap_lineage = {}
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            hap, abun = row[0], row[1] 
+            hap, lineage, abun = row[0], row[1], row[2] 
             hap_abun[hap] = float(abun)
-    return hap_abun
+            hap_lineage[hap] = lineage
+    return hap_abun, hap_lineage
+
+def read_csv_uncertainty_file(file):
+    hap_nodes = defaultdict(set)
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            hap, *nodes = row
+            hap_nodes[hap].update(nodes)
+    return hap_nodes
 
 def read_tsv_file(file):
+    # Increase CSV field size limit
+    max_int = sys.maxsize
+    while True:
+        try:
+            csv.field_size_limit(max_int)
+            break
+        except OverflowError:
+            max_int = int(max_int / 10)
+
     hap_sams = defaultdict(set)
     with open(file, newline='') as tsvfile:
         reader = csv.reader(tsvfile, delimiter='\t')
@@ -44,11 +64,18 @@ def write_sam_files(input_sam_file):
     
     with open(write_file_sam_reads, mode='w', newline='') as w_file_reads:
         add_RG = True
+        ref_name = ""
         with open(input_sam_file, 'r') as r_file_reads:
             for line in r_file_reads:
                 line = line.strip()
                 if line.startswith('@'):
                     w_file_reads.write(line+"\n")
+                    # Find reference name
+                    if line.startswith('@SQ'):
+                        fields = line.split()
+                        for field in fields:
+                            if field.startswith('SN:'):
+                                ref_name = field[3:]
                 else:
                     if add_RG:
                         add_RG = False
@@ -67,7 +94,9 @@ def write_sam_files(input_sam_file):
                                             w_file_reads.write(f":unaccounted{mutations[mut]}")
                                         else:
                                             w_file_reads.write(f",unaccounted{mutations[mut]}")
-                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}")
+                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}")
+                            if (len(hap_nodes[hap])):
+                                w_file_reads.write(f"\tUH:Z:{','.join(hap_nodes[hap])}")
                             w_file_reads.write("\n")
                     else:
                         tokens = line.split()
@@ -105,7 +134,7 @@ def write_sam_files(input_sam_file):
 
     with open(write_file_sam_haps, mode='w', newline='') as w_file_haps:
         first_hap, first_row = next(iter(hap_sams.items()))
-        w_file_haps.write(f"@SQ\tSN:NC_045512.2\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
+        w_file_haps.write(f"@SQ\tSN:{ref_name}\tLN:{len(first_row[-3])}\n@CO\tHP_SEQ\n")
         # Write unaccounted groups of mutations
         for mut, idx in mutations.items():
             w_file_haps.write(f"@CO\tUM:unaccounted{idx}\tUS:{mut}\n")
@@ -121,7 +150,9 @@ def write_sam_files(input_sam_file):
                             w_file_haps.write(f":unaccounted{mutations[mut]}")
                         else:
                             w_file_haps.write(f",unaccounted{mutations[mut]}")
-            w_file_haps.write(f"\tHS:Z:{hap_abun[hap]}")
+            w_file_haps.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}")
+            if (len(hap_nodes[hap])):
+                w_file_haps.write(f"\tUH:Z:{','.join(hap_nodes[hap])}")
             w_file_haps.write("\n")
         
         #Write haplotypes now
@@ -152,7 +183,7 @@ def write_sam_files(input_sam_file):
 
 #Check arguments
 if len(sys.argv) != 4:
-    print("USAGE: python src/sam_generation.py <results_directory> <intermediate_directory> <file_prefix>")
+    print("USAGE: python src/WBE/sam_generation.py <results_directory> <intermediate_directory> <file_prefix>")
     sys.exit(1)
 
 # Start time
@@ -171,7 +202,10 @@ read_muts, mutations = read_csv_file(results_directory + "/" + file_prefix + "_m
 hap_muts, _ = read_csv_file(results_directory + "/" + file_prefix + "_mutation_haplotypes.csv")
 
 # Reading haplotype_abundance File
-hap_abun = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
+hap_abun, hap_lineage = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
+
+# Reading haplotype_uncertainty File
+hap_nodes = read_csv_uncertainty_file(results_directory + "/" + file_prefix + "_haplotype_uncertainty.csv")
 
 # Reading haplotypes File
 hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.tsv")
