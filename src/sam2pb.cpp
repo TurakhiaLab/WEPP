@@ -29,7 +29,7 @@
 constexpr double frequency_read_cutoff = FREQ_READ_THRESHOLD;
 constexpr int phred_score_cutoff = PHRED_SCORE_THRESHOLD;
 
-const std::string CHROM = "NC_045512v2";
+std::string CHROM;
 
 
 static void 
@@ -67,6 +67,7 @@ void sam2PB(const dataset& d) {
     timer.start();
     
     std::string ref_seq = d.reference();
+    CHROM = d.reference_name();
 
     //std::ofstream outfile_freyja_vcf(freyja_vcf_file, std::ios::out | std::ios::binary);
     //std::ofstream outfile_freyja_depth(freyja_depth_file, std::ios::out | std::ios::binary);

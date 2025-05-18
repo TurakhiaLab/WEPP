@@ -134,6 +134,11 @@ public:
         return tree.value();
     }
     
+    const std::string& reference_name() const {
+        static std::string name = "Pseduo-Root";
+        return name;
+    }
+
     const std::string& reference() const {
         // CONSENSUS Sequence is actually reference sequence in our PanMAT
         static std::optional<std::string> saved;
