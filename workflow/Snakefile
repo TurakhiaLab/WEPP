@@ -1,8 +1,20 @@
+# Load default config from ./config/config.yaml
+configfile: "./config/config.yaml"
+
 include: "rules/qc.smk"
 include: "rules/freyja.smk"
 include: "rules/preprocess.smk"
 include: "rules/sam2pb.smk"
 include: "rules/filter.smk"
 
-# example invocation
-# snakemake results/dataset/run.txt --sdm conda --cores 64
+DIR = config.get("DIR")
+FILE_PREFIX = config.get("FILE_PREFIX")
+
+if not DIR or not FILE_PREFIX:
+    raise ValueError("Please provide DIR and FILE_PREFIX in --config argument")
+
+print(f"\nDIR={DIR}, FILE_PREFIX={FILE_PREFIX}\nTREE={config.get("TREE")}\nREF={config.get("REF")}\nSEQUENCING_TYPE={config.get("SEQUENCING_TYPE")}\nPRIMER_BED={config.get("PRIMER_BED")}\nMIN_AF={config.get("MIN_AF")}\nMIN_Q={config.get("MIN_Q")}\nMAX_READS={config.get("MAX_READS")}\nCLADE_IDX={config.get("CLADE_IDX")}\n\n")
+
+rule all:
+    input:
+        f"results/{DIR}/{FILE_PREFIX}_run.txt"

@@ -1,3 +1,7 @@
+# Current Run Arguments
+DIR: "manuscript_swampy_nov_2023_test"
+FILE_PREFIX: "my_vcf"
+
 TREE: pruned_public-2023-12-25.all.masked.pb.gz
 REF: NC_045512v2.fa
 
@@ -8,10 +12,10 @@ SEQUENCING_TYPE: "d"
 PRIMER_BED: "nimagenV2.bed"
 
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-Min_AF: "0.005"
+MIN_AF: "0.005"
 
 # Mask any allele with base quality score below this threshold
-Min_Q: "20"
+MIN_Q: "20"
 
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
