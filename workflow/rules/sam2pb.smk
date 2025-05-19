@@ -1,25 +1,23 @@
-configfile: config.get("config_path","config/config.yaml")
-
 rule sorted_sam:
     input:
-        "intermediate/{dataset}/{file_prefix}_resorted.bam"
+        "intermediate/{DIR}/{FILE_PREFIX}_resorted.bam"
     output:
-        "intermediate/{dataset}/{file_prefix}_alignment.sam"
+        "intermediate/{DIR}/{FILE_PREFIX}_alignment.sam"
     conda:
         "../envs/wbe.yml"
     shell:
-        "samtools view -h -o intermediate/{wildcards.dataset}/{wildcards.file_prefix}_alignment.sam intermediate/{wildcards.dataset}/{wildcards.file_prefix}_resorted.bam"
+        "samtools view -h -o intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_alignment.sam intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_resorted.bam"
 
 rule sam2pb:
     input:
         "build/wbe",
-        "intermediate/{dataset}/{file_prefix}_alignment.sam"
+        "intermediate/{DIR}/{FILE_PREFIX}_alignment.sam"
     output:
-        "intermediate/{dataset}/{file_prefix}_reads.pb"
+        "intermediate/{DIR}/{FILE_PREFIX}_reads.pb"
     conda:
         "../envs/wbe.yml"
     threads:
         workflow.cores
     shell:
-        "mkdir -p intermediate/{wildcards.dataset} && "
-        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'" + " -m " + config.get("MAX_READS", str(int(1e9))) + " -a " + config["Min_AF"] + " -q " + config["Min_Q"] + " -c " + config["CLADE_IDX"]
+        "mkdir -p intermediate/{wildcards.DIR} && "
+        "./build/wbe sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.FILE_PREFIX}' -f " + config["REF"] + " -d '{wildcards.DIR}'" + " -m " + str(config.get("MAX_READS", str(int(1e9)))) + " -a " + str(config["MIN_AF"]) + " -q " + str(config["MIN_Q"]) + " -c " + str(config["CLADE_IDX"])
