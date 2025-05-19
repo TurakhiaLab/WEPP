@@ -12,14 +12,6 @@ public:
 };
 
 class wepp_filter: public initial_filter {
-    // optimization settings (no effect on final outpiut)
-    size_t max_cached_epp_size = MAX_CACHED_EPP_SIZE;
-    bool high_memory_cartesian_map = HIGH_MEMORY_CARTESIAN_MAP;
-    // a mutex corresponds to how many haplotypes?
-    int mutex_bin_size = MUTEX_BIN_SIZE;
-    // a thread will process about xx total chunks in its lifespan
-    int grain_size_factor = GRAIN_SIZE_FACTOR;
-
     // given a read index
     // what is its maximum parismony score?
     // i.e max_parismony[i] = best parsimony of ith read

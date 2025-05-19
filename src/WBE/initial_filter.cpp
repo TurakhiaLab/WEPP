@@ -147,13 +147,13 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
     int num_threads = arena.owned_dataset().num_threads();
     // avoid many flushes of score and reallocations of the score vector
     // this does come at the cost of some threads missing out on work at the end
-    int grain_size = std::max((int)(reads.size() / num_threads / this->grain_size_factor), 1);
+    int grain_size = std::max((int)(reads.size() / num_threads / GRAIN_SIZE_FACTOR), 1);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size(), grain_size),
                       [&](tbb::blocked_range<size_t> k)
                       {
                           std::vector<std::pair<double, std::array<int, NUM_RANGE_BINS>>> score;
-                          if (this->high_memory_cartesian_map) {
+                          if (HIGH_MEMORY_CARTESIAN_MAP) {
                               score.resize(haps.size()); // otherwise, not used and buffered directly
                           }
 
@@ -167,7 +167,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                               double const delta = node_score(max_val, max_indices.size(), reads[r].degree);
                               {
                                   int bucket = reads[r].start / bin_size;
-                                  if (this->high_memory_cartesian_map) {
+                                  if (HIGH_MEMORY_CARTESIAN_MAP) {
                                       haplotype *arena_base = &arena.haplotypes()[0];
                                       for (haplotype *hap : max_indices)
                                       {
@@ -188,7 +188,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 
                               this->max_parismony[r] = max_val;
                               this->parsimony_multiplicity[r] = max_indices.size();
-                              if (max_indices.size() <= max_cached_epp_size)
+                              if (max_indices.size() <= MAX_CACHED_EPP_SIZE)
                               {
                                   // ensure it is sorted
                                   std::sort(max_indices.begin(), max_indices.end());
@@ -196,7 +196,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
                               }
                           }
 
-                          if (this->high_memory_cartesian_map)
+                          if (HIGH_MEMORY_CARTESIAN_MAP)
                           {
                               // only use a global mutex in this case
                               tbb::queuing_mutex::scoped_lock my_lock{my_mutex};
@@ -316,7 +316,7 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     size_t first = (*epps)[0] - &arena.haplotypes()[0];
     for (size_t q = 0; q < epps->size(); ++q) {
         size_t const j = (*epps)[q] - &arena.haplotypes()[0];
-        if (first / this->mutex_bin_size != j / this->mutex_bin_size) {
+        if (first / MUTEX_BIN_SIZE != j / MUTEX_BIN_SIZE) {
             chunks.emplace_back(i, c); 
             i = q;
             first = j;
@@ -331,7 +331,7 @@ wepp_filter::remove_read(arena& arena, int read_index, std::vector<tbb::queuing_
     std::rotate(chunks.begin(), chunks.begin() + random_val, chunks.end());
 
     for (const auto& [i, c] : chunks) {
-        size_t j = ((*epps)[i] - &arena.haplotypes()[0]) / this->mutex_bin_size;
+        size_t j = ((*epps)[i] - &arena.haplotypes()[0]) / MUTEX_BIN_SIZE;
         mutex_t::scoped_lock lock{mutex[j]};
         
         for (size_t k = i; k < i + c; ++k) {
@@ -347,7 +347,7 @@ wepp_filter::singular_step(arena& arena, haplotype* hap)
     std::vector<int> correspondents = find_correspondents(arena, hap);
 
     /* 2. map all said reads onto entire remaining set, adjusting deltas */
-    std::vector<tbb::queuing_mutex> mutexes((arena.haplotypes().size() + this->mutex_bin_size - 1) / this->mutex_bin_size);
+    std::vector<tbb::queuing_mutex> mutexes((arena.haplotypes().size() + MUTEX_BIN_SIZE - 1) / MUTEX_BIN_SIZE);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, correspondents.size()),
                       [&](tbb::blocked_range<size_t> range)
