@@ -1,24 +1,21 @@
-TREE: rsvA.2025-04-25.pb.gz
-REF: NC_038235.1.fasta
+TREE: pruned_public-2023-12-25.all.masked.pb.gz
+REF: NC_045512v2.fa
 
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
-# Allele frequency based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-AF: 0.005
-
 # Bed file should be present in 'database'
-PRIMER_BED: "none.bed"
+PRIMER_BED: "nimagenV2.bed"
 
-# Min base quality score accepted in reads
+# Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+Min_AF: "0.005"
+
+# Mask any allele with base quality score below this threshold
 Min_Q: "20"
-
-# Clade index for inferring lineages from MAT: Generally 1 for SARS-CoV-2 and 0 for other pathogens
-# Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use 0 for annotation_1 and 1 for annotation_2
-CLADE_IDX: "0" 
-
-# Path to local conda installation
-CONDA_PATH: "~/miniforge3"
 
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
+
+# Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs
+# Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
+CLADE_IDX: "1"
