@@ -107,6 +107,14 @@ public:
         return ds.reference();
     }
 
+    const double min_af() {
+        return ds.min_af();
+    }
+    
+    const uint32_t clade_idx() {
+        return ds.clade_idx();
+    }
+
     size_t genome_size() {
         return ds.reference().size();
     }

@@ -34,13 +34,13 @@ void pipeline::run() {
     }
 
     // save peaks
-    save(running, ds.first_checkpoint_path());
+    save(running, ds.checkpoint_path());
 
     this->run_from_last_initial(true);
 }
 
 void pipeline::run_from_last_initial(bool is_full_run) {
-    std::vector<haplotype *> running = this->recover(ds.first_checkpoint_path());
+    std::vector<haplotype *> running = this->recover(ds.checkpoint_path());
     {
         std::cout << "----- [running post filter] -----" << std::endl;
         std::cout << "--- in: " << running.size() << " haplotypes" << std::endl;

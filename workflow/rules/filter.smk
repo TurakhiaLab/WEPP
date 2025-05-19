@@ -18,5 +18,5 @@ rule filter:
         tmp_file=lambda wildcards: f"intermediate/{wildcards.dataset}/{wildcards.file_prefix}_run_tmp.txt"
     shell:
         "mkdir -p results/{wildcards.dataset} && "
-        "./build/wbe detectPeaks -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'"
+        "./build/wbe detectPeaks -T {threads} -i " + config["TREE"] + " -p '{wildcards.file_prefix}' -f " + config["REF"] + " -d '{wildcards.dataset}'" + " -a " + config["Min_AF"] + " -c " + config["CLADE_IDX"] +
         " | tee {params.tmp_file} && mv {params.tmp_file} {output}"

@@ -508,6 +508,7 @@ wepp_filter::filter(arena& arena)
 std::vector<haplotype*> 
 lineage_root_filter::filter(arena& arena)
 {
+    auto clade_idx = arena.clade_idx();
     arena.reset_haplotype_state();
     std::vector<haplotype*> initial = arena.haplotype_pointers();
     initial.erase(
@@ -517,9 +518,9 @@ lineage_root_filter::filter(arena& arena)
             [&](haplotype* hap) {
                 bool is_root = false;
                 for (MAT::Node* node: arena.source_nodes(hap)) {
-                    if (node->clade_annotations[CLADE_IDX] != "" && 
-                        node->clade_annotations[CLADE_IDX].rfind("misc", 0) == std::string::npos &&
-                        node->clade_annotations[CLADE_IDX].rfind("proposed", 0) == std::string::npos) {
+                    if (node->clade_annotations[clade_idx] != "" && 
+                        node->clade_annotations[clade_idx].rfind("misc", 0) == std::string::npos &&
+                        node->clade_annotations[clade_idx].rfind("proposed", 0) == std::string::npos) {
                         is_root = true;
                         break;
                     }

@@ -32,15 +32,3 @@ static constexpr bool SIMULATED_DATA = false;
 
 // Update if you are debugging and only want to run Iterative Freyja
 static constexpr bool FULL_RUN = true;
-
-// Update the path to local conda
-static const std::string CONDA_PATH = "~/miniforge3/etc/profile.d/conda.sh";
-
-// Update for changing read quality threshold
-constexpr int PHRED_SCORE_THRESHOLD = 20;
-
-// Update index_position of clade: Use 1 for SARS-CoV-2 and 0 for others
-static constexpr int CLADE_IDX = 0;
-
-// Update based on sequencing technology: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-constexpr double FREQ_READ_THRESHOLD = 0.005;

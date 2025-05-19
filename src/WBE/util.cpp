@@ -144,13 +144,19 @@ boost::program_options::variables_map parseWBEcommand(boost::program_options::pa
     ("input-mat,i", po::value<std::string>()->default_value(""),
      "Input mutation-annotated tree file")
     ("dataset,d", po::value<std::string>()->default_value("./"),
-      "The dataset name to use")
+      "The dataset folder to use")
     ("max-reads,m", po::value<uint32_t>()->default_value(1e9),
      "The maximum number of reads to use. Default is 1e9.")
     ("file-prefix,p", po::value<std::string>()->default_value("my_vcf"),
     "Prefix to be used for dumping all intermediate files.")
     ("ref-fasta,f", po::value<std::string>()->default_value(""),
      "Input fasta file representing reference sequence")
+    ("min-af,a", po::value<std::string>()->default_value("0.005"),
+     "Allele Frequency threshold for masking errorneous alleles: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%.")
+    ("min-phred,q", po::value<u_int32_t>()->default_value(20),
+     "Phred Score threshold for masking low quality alleles")
+    ("clade-idx,c", po::value<u_int32_t>()->default_value(1),
+     "Path to local conda environment.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the

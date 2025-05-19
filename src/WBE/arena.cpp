@@ -346,7 +346,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         std::string lineage_name = "";
         for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
         {
-            const auto &clade = anc->clade_annotations[CLADE_IDX];
+            const auto &clade = anc->clade_annotations[this->clade_idx()];
             if (clade != "")
             {
                 lineage_name = clade;
@@ -376,7 +376,7 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
         std::string lineage_name;
         for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
         {
-            const auto &clade = anc->clade_annotations[CLADE_IDX];
+            const auto &clade = anc->clade_annotations[this->clade_idx()];
             if (clade != "")
             {
                 lineage_name = clade;
@@ -403,7 +403,7 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
         std::string lineage_name;
         for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
         {
-            const auto &clade = anc->clade_annotations[CLADE_IDX];
+            const auto &clade = anc->clade_annotations[this->clade_idx()];
             if (clade != "")
             {
                 lineage_name = clade;
@@ -448,7 +448,7 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
         std::string lineage_name;
         for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
         {
-            const auto &clade = anc->clade_annotations[CLADE_IDX];
+            const auto &clade = anc->clade_annotations[this->clade_idx()];
             if (clade != "")
             {
                 lineage_name = clade;

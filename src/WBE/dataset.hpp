@@ -23,7 +23,19 @@ public:
     uint32_t max_reads() const {
         return options["max-reads"].as<uint32_t>();
     }
+    
+    uint32_t min_phred() const {
+        return options["min-phred"].as<uint32_t>();
+    }
+    
+    uint32_t clade_idx() const {
+        return options["clade-idx"].as<uint32_t>();
+    }
 
+    double min_af() const {
+        return std::stof(options["min-af"].as<std::string>());
+    }
+    
     std::string dataset_name() const {
         return options["dataset"].as<std::string>();
     }
@@ -85,8 +97,8 @@ public:
         return cached_mask;
     }
     
-    std::string first_checkpoint_path() const {
-        return this->intermediate_directory() + this->file_prefix() + "_first_checkpoint.txt";
+    std::string checkpoint_path() const {
+        return this->intermediate_directory() + this->file_prefix() + "_checkpoint.txt";
     }
 
     std::string haplotype_read_path() const {
