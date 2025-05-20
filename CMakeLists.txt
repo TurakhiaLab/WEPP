@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.8) 
 cmake_policy(SET CMP0069 NEW)
-project(wbe)
+project(wepp)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "RelWithDebInfo")
@@ -41,20 +41,20 @@ find_package(Boost COMPONENTS program_options iostreams filesystem date_time REQ
 #find_package(OpenMP REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
-file(GLOB WBE_SRCS "src/WBE/*.cpp" "src/WBE/*.hpp")
+file(GLOB WBE_SRCS "src/WEPP/*.cpp" "src/WEPP/*.hpp")
 
 if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
-        TARGET wbe
+        TARGET wepp
         PROTOS sam.proto)
 
     protobuf_generate(
         LANGUAGE cpp
-        TARGET wbe
+        TARGET wepp
         PROTOS parsimony.proto)
 
-    add_executable(wbe
+    add_executable(wepp
 	    ${WBE_SRCS} ${PANMAT_SRCS}
     )
     
@@ -70,7 +70,7 @@ else()
         SAM_SRCS SAM_HDRS
         sam.proto)
 
-    add_executable(wbe
+    add_executable(wepp
 	    ${WBE_SRCS}
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -83,5 +83,5 @@ else()
     )
 endif()
 
-target_link_libraries(wbe PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES})
+target_link_libraries(wepp PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES})
 target_link_libraries(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS})
