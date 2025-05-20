@@ -1,26 +1,104 @@
-<p align="center">
-  <img src="WEPP_logo.svg" width="300">
-</p>
+<div align="center">
+    
+# Wastewater-based Epidemiology using Phylogenetic Placements
 
-<h1 align="center">
-  Wastewater-based Epidemiology using Phylogenetic Placements
-</h1>
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
+
+[![License][license-badge]][license-link]
+[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
+[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
+
+<div align="center">
+  <img src="images/WEPP_logo.svg" width="300"/>
+</div>
+
+</div>
+
+## Table of Contents
+- [Introduction](#intro)
+- [Installation](#install)
+  - [Summary](#summary) 
+  - [Using Install Script](#script)
+  - [Using Dockerfile](#docker)
+- [Run WEPP](#run)
+  - [Default mode](#default)
+  - [Iterative mode](#iterative)
+- [Contributions](#contribution)
+- [Citing WEPP](#cite)
+
+<br>
 
 
-## Installation (Follow steps 2-3 if you want to use docker)
-1. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`. Switch the branch if needed and check if the `src/Freyja` is not empty. If it is empty then go inside `src/Freyja` and use
+## <a name="intro"></a> Introduction
+
+WEPP (**T**all and **Wi**de A**lig**nments at **H**igh **T**hroughput) 
+
+By default, TWILIGHT requires an unaligned sequence file in FASTA format and an input guide tree in Newick format to generate the output alignment in FASTA format (Fig. 1a, <a name="default"></a>**default mode**). 
+
+<div align="center">
+    <div><b>Figure 1: Overview of WEPP alogorithm</b></div>
+    <img src="docs/WEPP_overview.svg" width="800"/>
+</div>
+
+
+## <a name="install"></a> Installation
+### <a name="summary"></a> Installation summary (choose your installation method)
+
+WEPP offers multiple installation methods:
+- Install script for directly WEPP running on your system
+- Docker (built from the provided Dockerfile) is recommended to prevents any conflict with existing packages
+
+### <a name="script"></a> Using installation script (requires sudo access if certain common libraries are not already installed)  
+
+Users without sudo access are advised to install WEPP via [Docker](#docker).
+
+**Step 1:** Clone the repository
+```bash
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
 ```
-git pull --recurse 
-```
-2. Create a docker image by going to the `docker` and running,
-```
-docker build -t {image_name} .
-```
-3. Return to the main folder and run 
-```
-docker run -it -v "$PWD":/workspace -w /workspace {image_name} /bin/bash
+**Step 2:** Install dependencies (might require sudo access)
+WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
+```bash
+- wget
+- curl
+- pip
+- build-essential 
+- python3-pandas
+- pkg-config
+- zip
+- cmake 
+- libtbb-dev
+- libprotobuf-dev
+- protobuf-compiler
 ```
 
+For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
+```bash
+sudo apt install -y {package_names}
+```
+
+### <a name="docker"></a> Using Dockerfile
+The Dockerfile installs all the dependencies and tools for WEPP. 
+
+**Step 1:** Clone the repository
+```bash
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
+```
+**Step 2:** Build a docker image (ensure Docker is installed first)
+```
+cd docker
+docker build -t wepp .
+cd ../
+```
+**Step 3:** Start and run docker container
+```
+docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
+```
+
+## <a name="run"></a> Run WEPP
 ## Running
 We assume that all the different wastewater samples are stored in the `data` folder under different `DIR` names. Each wastewater `DIR` should have the following files:
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
@@ -50,6 +128,3 @@ snakemake --cores 32 --use-conda
 ```
 snakemake --config PRIMER_BED=none.bed MIN_Q=10 --cores 32 --use-conda
 ```
-
-**WEPP** is a novel phylogenetic method for detecting pathogen variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. 
-

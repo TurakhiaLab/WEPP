@@ -11,18 +11,18 @@ rule install:
     output:
         "build/Makefile"
     conda:
-        "../envs/wbe.yml"
+        "../envs/wepp.yml"
     shell:
         "./workflow/scripts/install.sh"
 
-rule build_wbe:
+rule build_wepp:
     input:
         "build/Makefile",
         build_inps
     output:
-        "build/wbe"
+        "build/wepp"
     conda:
-        "../envs/wbe.yml"
+        "../envs/wepp.yml"
     threads:
         workflow.cores
     shell:

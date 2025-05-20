@@ -27,8 +27,8 @@ int main (int argc, char** argv) {
     std::string cnames[] = {"COMMAND","detectPeaks","sam2PB"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
-        "Detects peaks on selected lineages\n\n",
-        "Converts given sam to pb for running the pipeline\n\n"
+        "Detects peaks from the MAT\n\n",
+        "Converts given sam to pb for running WEPP\n\n"
     };
     try {
         po::store(parsed, vm);
