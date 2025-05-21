@@ -21,9 +21,10 @@
   - [Summary](#summary) 
   - [Using Install Script](#script)
   - [Using Dockerfile](#docker)
-- [Run WEPP](#run)
-  - [Default mode](#default)
-  - [Iterative mode](#iterative)
+- [Running WEPP](#running)
+  - [Organizing Data](#data)
+  - [WEPP Arguments](#arguments)
+  - [Run Command](#snakemake)
 - [Contributions](#contribution)
 - [Citing WEPP](#cite)
 
@@ -43,7 +44,7 @@ By default, TWILIGHT requires an unaligned sequence file in FASTA format and an 
 
 
 ## <a name="install"></a> Installation
-### <a name="summary"></a> Summary (choose your installation method)
+### <a name="summary"></a> Summary (Select your installation method)
 
 WEPP offers multiple installation methods:
 - Install script for directly WEPP running on your system
@@ -99,15 +100,15 @@ cd ..
 docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
 ```
 
-## <a name="run"></a> Running WEPP
-### <a name="default"></a> Organizing Data
+## <a name="running"></a> Running WEPP
+### <a name="data"></a> Organizing Data
 We assume that all the different wastewater samples are stored in the `data` folder under different `DIR` names. Each wastewater `DIR` should have the following files:
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 2. Reference Genome (REF)
 3. Mutation Annotated Tree (TREE)
 4. [OPTIONAL] Genome Masking File: `mask.bed` whose third column specifies sites to be excluded from analysis.
 
-### <a name="default"></a> Snakemake Arguments
+### <a name="arguments"></a> WEPP Arguments
 WEPP's snakemake pipeline requires the following parameters passed either through the config file (`config/config.yaml`) or command line using the `--config` argument. The command line arguments take precedence over the config file.
 1. `DIR` - Folder with the samples 
 2. `FILE_PREFIX` - Prefix for all intermediate files 
@@ -120,7 +121,7 @@ WEPP's snakemake pipeline requires the following parameters passed either throug
 9. `MAX_READS` - Maximum number of reads considered for analysis. Helpful for reducing run time
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT
 
-### <a name="default"></a> Run Command
+### <a name="snakemake"></a> Run Command
 Example:
 1. Using parameters from the config file
 ```
@@ -131,3 +132,9 @@ snakemake --cores 32 --use-conda
 ```
 snakemake --config PRIMER_BED=none.bed MIN_Q=10 --cores 32 --use-conda
 ```
+
+##  <a name="contribution"></a> Contributions
+We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
+
+##  <a name="cite"></a> Citing WEPP
+TBA.
