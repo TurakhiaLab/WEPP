@@ -28,7 +28,7 @@ int main (int argc, char** argv) {
     std::string chelp[] = {
         "DESCRIPTION\n\n",
         "Detects Peaks from the MAT\n\n",
-        "Converts given sam to pb for running WEPP\n\n"
+        "Applies QC before running WEPP\n\n"
     };
     try {
         po::store(parsed, vm);
@@ -38,6 +38,8 @@ int main (int argc, char** argv) {
         for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
+        initializeConvDesc();
+        std::cerr << "\n" << conv_desc << "\n";
         //0 when no command is selected because that's what passes tests.
         exit(0);
     }
@@ -52,12 +54,16 @@ int main (int argc, char** argv) {
         for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
+        initializeConvDesc();
+        std::cerr << "\n" << conv_desc << "\n";
         exit(0);
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
         for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
+        initializeConvDesc();
+        std::cerr << "\n" << conv_desc << "\n";
         exit(1);
     }
 

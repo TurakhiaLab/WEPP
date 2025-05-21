@@ -1,7 +1,7 @@
 from os.path import join
 
 build_inps = []
-for root, _, files in os.walk("src/WBE"):
+for root, _, files in os.walk("src/WEPP"):
     for f in files:
         build_inps.append(join(root, f))
 
