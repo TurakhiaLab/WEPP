@@ -41,7 +41,7 @@ Figure 1B shows that WEPP starts by placing raw sequencing reads parsimoniously 
 
 <div align="center">
     <div><b>Figure 1: Overview of WEPP alogorithm</b></div>
-    <img src="images/WEPP_Overview.svg" width="800"/>
+    <img src="images/WEPP_Overview.png" width="800"/>
 </div>
 
 
@@ -115,17 +115,17 @@ docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
 
 ## <a name="running"></a> Running WEPP
 ### <a name="data"></a> Organizing Data
-We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command(#snakemake)). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
+We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
 Each created `DIR` inside `data` is expected to contain the following files:
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 2. Reference Genome fasta
 3. Mutation-Annotated Tree (MAT)
 4. [OPTIONAL] Genome Masking File: `mask.bed` whose third column specifies sites to be excluded from analysis.
 
-Visualization of WEPP's workflow structure
+Visualization of WEPP's workflow directories
 ```text
 📁 WEPP
-└───📁data                                # Contains data to run [User Created]
+└───📁data                                # Contains data to analyze [User Created]
     ├───📁SARS-CoV-2_test_1               # SARS-CoV-2 run wastewater samples
          ├───sars_cov_2_reads.fastq.gz    # Single-ended reads 
          ├───sars_cov_2_reference.fa
