@@ -28,5 +28,5 @@ rule qc:
         in_path=$(realpath data/{wildcards.DIR}/)
         out_path=$(realpath intermediate/{wildcards.DIR})
 
-        python src/WBE/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
+        python src/WEPP/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
         """
