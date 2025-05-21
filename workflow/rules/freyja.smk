@@ -16,5 +16,5 @@ rule freyja:
         cd ../..
         freyja variants ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_resorted.bam --variants ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_variants.tsv --depths ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_depth.tsv --ref ./data/{wildcards.DIR}/{params.ref} --minq {params.minq}
         # Correct ivar deletion errors
-        python3 src/WBE/ivar_correction.py '{wildcards.DIR}' '{wildcards.FILE_PREFIX}'
+        python3 src/WEPP/ivar_correction.py '{wildcards.DIR}' '{wildcards.FILE_PREFIX}'
         """
