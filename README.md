@@ -40,8 +40,8 @@ Figure 1B shows that WEPP starts by placing raw sequencing reads parsimoniously 
 
 
 <div align="center">
+    <img src="images/WEPP_Overview.png" width="600">
     <div><b>Figure 1: Overview of WEPP alogorithm</b></div>
-    <img src="images/WEPP_Overview.png" width="800"/>
 </div>
 
 
