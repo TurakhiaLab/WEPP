@@ -11,7 +11,7 @@ all_sample_names = []
 
 def print_usage():
     print("Example usage: ")
-    print("\tpython3 qc_preprocess.py --platform i --primers path/to/bed --in path/to/fastq/ --out path/to/output --threads n --reference ref --prefix pre")
+    print("\tpython3 src/WEPP/qc_preprocess.py --platform i --primers bed_name --in path_to_fastq --out path_to_output --threads n --reference ref --prefix prefix")
     print("\nPlatform options:")
     print("\t-h\t\t: Show this help message and exit.")
     print("\t-i\t\t: Illumina platform, paired-end mode")
@@ -61,14 +61,11 @@ def find_fastq_files(input_dir, paired):
 def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix):
     ref_base = os.path.splitext(reference)[0]
     ref_mmi = f"{ref_base}.mmi"
-    ref_mmi_path = os.path.join("./database", os.path.basename(ref_mmi))
+    ref_mmi_path = os.path.join(output_dir, os.path.basename(ref_mmi))
     out_sam = os.path.join(output_dir, prefix + "_aligned_reads.sam")
 
-    # Check if the .mmi index exists in ./database/
-    if not os.path.exists(ref_mmi_path):
-        print(f"Index file {ref_mmi_path} not found. Building in {output_dir} ...")
-        ref_mmi_path = os.path.join(output_dir, os.path.basename(ref_mmi))
-        subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
+    print(f"Building Index file in {output_dir} ...")
+    subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
 
     cmd = ["minimap2", "-a", "--sam-hit-only", "--MD", "-2"]
     if platform == "Illumina":
@@ -125,7 +122,7 @@ def main():
     platform, is_paired = platform_info
     print(f"{platform} mode")
 
-    primer_bed_file = resolve_path(args.primers, "./database")
+    primer_bed_file = resolve_path(args.primers, "./primers")
     reference_file = resolve_path(args.reference, args.input_dir)
     r1, r2 = find_fastq_files(args.input_dir, is_paired)
 

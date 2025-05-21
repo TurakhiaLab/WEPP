@@ -1,14 +1,10 @@
-# Current Run Arguments
-DIR: "manuscript_swampy_nov_2023_test"
-FILE_PREFIX: "my_vcf"
-
 TREE: pruned_public-2023-12-25.all.masked.pb.gz
 REF: NC_045512v2.fa
 
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
-# Bed file should be present in 'database'
+# Bed file should be present in 'primers'
 PRIMER_BED: "nimagenV2.bed"
 
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
