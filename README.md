@@ -1,6 +1,6 @@
 <div align="center">
     
-# Wastewater-based Epidemiology using Phylogenetic Placements
+# Wastewater-Based Epidemiology using Phylogenetic Placements
 
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
@@ -16,7 +16,7 @@
 </div>
 
 ## Table of Contents
-- [Introduction](#intro)
+- [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
 - [Installation](#install)
   - [Summary](#summary) 
   - [Using Install Script](#script)
@@ -43,7 +43,7 @@ By default, TWILIGHT requires an unaligned sequence file in FASTA format and an 
 
 
 ## <a name="install"></a> Installation
-### <a name="summary"></a> Installation summary (choose your installation method)
+### <a name="summary"></a> Summary (choose your installation method)
 
 WEPP offers multiple installation methods:
 - Install script for directly WEPP running on your system
@@ -72,11 +72,12 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - libtbb-dev
 - libprotobuf-dev
 - protobuf-compiler
+- snakemake
 ```
 
 For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
 ```bash
-sudo apt install -y {package_names}
+sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake
 ```
 
 ### <a name="docker"></a> Using Dockerfile
@@ -91,21 +92,22 @@ cd WEPP
 ```
 cd docker
 docker build -t wepp .
-cd ../
+cd ..
 ```
 **Step 3:** Start and run docker container
 ```
 docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
 ```
 
-## <a name="run"></a> Run WEPP
-## Running
+## <a name="run"></a> Running WEPP
+### <a name="default"></a> Organizing Data
 We assume that all the different wastewater samples are stored in the `data` folder under different `DIR` names. Each wastewater `DIR` should have the following files:
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 2. Reference Genome (REF)
 3. Mutation Annotated Tree (TREE)
 4. [OPTIONAL] Genome Masking File: `mask.bed` whose third column specifies sites to be excluded from analysis.
 
+### <a name="default"></a> Snakemake Arguments
 WEPP's snakemake pipeline requires the following parameters passed either through the config file (`config/config.yaml`) or command line using the `--config` argument. The command line arguments take precedence over the config file.
 1. `DIR` - Folder with the samples 
 2. `FILE_PREFIX` - Prefix for all intermediate files 
@@ -118,6 +120,7 @@ WEPP's snakemake pipeline requires the following parameters passed either throug
 9. `MAX_READS` - Maximum number of reads considered for analysis. Helpful for reducing run time
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT
 
+### <a name="default"></a> Run Command
 Example:
 1. Using parameters from the config file
 ```
