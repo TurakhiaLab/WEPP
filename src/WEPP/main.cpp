@@ -16,7 +16,7 @@ int main (int argc, char** argv) {
 
     po::options_description global("Command options");
     global.add_options()
-    ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
+    ("command", po::value<std::string>(), "Command to execute. Valid options are detectPeaks and sam2PB.")
     ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
     po::positional_options_description pos;
     pos.add("command",1 ).add("subargs", -1);
@@ -27,7 +27,7 @@ int main (int argc, char** argv) {
     std::string cnames[] = {"COMMAND","detectPeaks","sam2PB"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
-        "Detects peaks from the MAT\n\n",
+        "Detects Peaks from the MAT\n\n",
         "Converts given sam to pb for running WEPP\n\n"
     };
     try {
@@ -42,10 +42,10 @@ int main (int argc, char** argv) {
         exit(0);
     }
     if (cmd == "detectPeaks") { 
-        dataset ds{parseWBEcommand(parsed)};
+        dataset ds{parseWEPPcommand(parsed)};
         detect_peaks(ds);
     } else if (cmd == "sam2PB") {
-        dataset ds{parseWBEcommand(parsed)};
+        dataset ds{parseWEPPcommand(parsed)};
         sam2PB(ds);
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
