@@ -5,7 +5,7 @@ from collections import defaultdict
 
 #Check arguments
 if len(sys.argv) != 3:
-    print("USAGE: python src/WBE/ivar_correction.py <dataset> <file_prefix>")
+    print("USAGE: python src/WEPP/ivar_correction.py <dataset> <file_prefix>")
     sys.exit(1)
 
 dataset = sys.argv[1]

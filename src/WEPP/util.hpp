@@ -16,7 +16,7 @@ MAT::Tree
 create_condensed_tree(MAT::Node* ref_root, const std::unordered_set<int>&site_read_map, std::unordered_map<MAT::Node*, std::vector<MAT::Node*>> &node_mappings);
 
 boost::program_options::variables_map 
-parseWBEcommand(boost::program_options::parsed_options parsed);
+parseWEPPcommand(boost::program_options::parsed_options parsed);
 
 int 
 mutation_distance(std::vector<MAT::Mutation> node1_mutations, std::vector<MAT::Mutation> node2_mutations);
