@@ -18,10 +18,10 @@
 ## Table of Contents
 - [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
 - [Installation](#install)
-  - [Summary](#summary) 
-  - [Using Install Script](#script)
-  - [Using Dockerfile](#docker)
-- [Running WEPP](#running)
+  - [Option-1: Install Script](#script)
+  - [Option-2: Dockerfile](#docker)
+- [Quick Start](#example)
+- [User Guide](#guide)
   - [Organizing Data](#data)
   - [WEPP Arguments](#arguments)
   - [Run Command](#snakemake)
@@ -33,10 +33,9 @@
 
 ## <a name="intro"></a> Introduction
 
-WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements)  is a phylogeny-based pipeline that detects the set of haplotypes, along with their estimated proportions, that best explain a given wastewater sample (Figure 1A). It processes raw wastewater sequencing reads and a mutation-annotated tree (MAT) containing clinical sequences of the pathogen being analyzed. The pipeline reports lineage abundances, unaccounted alleles, and parsimonious read-to-haplotype mappings—all of which can be explored through an interactive, user-friendly dashboard (Figure 1C).By enabling haplotype-level resolution within the context of a comprehensive global phylogeny built from clinical sequencing data, WEPP extends the capabilities of wastewater-based epidemiology (WBE) to a broader range of applications. These include: (i) detecting intra-lineage clusters circulating within the local catchment area, (ii) inferring introductions of new transmission clusters across regions, (iii) identifying unaccounted alleles that may signal emerging variants, and (iv) performing detailed read-level analysis of wastewater samples.
+WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection from wastewater, WEPP enables a broad range of epidemiological applications that were previously feasible only through clinical sequencing data. It also detects potential novel variants via unaccounted mutations, which can be further explored at the read level using an interactive dashboard (Figure 1C).
 
-Figure 1B shows that WEPP starts by placing raw sequencing reads parsimoniously onto the mutation-annotated tree (MAT). It then scores and selects a subset of nodes and their neighboring haplotypes to create an initial candidate pool. This candidate pool is then passed to a deconvolution algorithm, based on Freyja to estimate the relative abundance of each haplotype, and iteratively refines the candidate set. In each iteration, a new candidate pool is constructed from haplotypes above a frequency threshold and their respective neighbors, followed by another round of deconvolution. This process repeats until convergence or until a maximum number of iterations is reached. Finally, WEPP uses an outlier detection algorithm on the residue of the deconvolution algorithm to detect unaccouned alleles–—mutations with large discrepancies between observed and expected frequencies.
-
+WEPP’s core algorithm begins by placing the complete set of sequencing reads parsimoniously onto the MAT, followed by identifying candidate haplotype nodes—referred to as "peaks" (Figure 1B). This initial candidate set is expanded by including neighboring haplotypes to form a broader candidate pool. The pool is then passed to a deconvolution algorithm to estimate the relative abundance of each haplotype. The algorithm iteratively refines this pool by selecting haplotypes above a threshold proportion and including their neighbors in subsequent rounds until convergence.
 
 
 <div align="center">
@@ -46,13 +45,11 @@ Figure 1B shows that WEPP starts by placing raw sequencing reads parsimoniously 
 
 
 ## <a name="install"></a> Installation
-### <a name="summary"></a> Summary (Select your installation method)
+WEPP offers two installation methods:
+1. Install Script for directly running WEPP on your system
+2. Docker (built from the provided Dockerfile) is recommended to prevents any conflict with existing packages
 
-WEPP offers multiple installation methods:
-- Install script for directly WEPP running on your system
-- Docker (built from the provided Dockerfile) is recommended to prevents any conflict with existing packages
-
-### <a name="script"></a> Using installation script (requires sudo access if certain common libraries are not already installed)  
+### <a name="script"></a> Install Script (requires sudo access if certain common libraries are not already installed)  
 
 Users without sudo access are advised to install WEPP via [Docker](#docker).
 
@@ -63,7 +60,7 @@ cd WEPP
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
-```bash
+```test
 - wget
 - curl
 - pip
@@ -94,7 +91,7 @@ export PATH="$HOME/miniconda3/bin:$PATH"
 source ~/.bashrc
 ```
 
-### <a name="docker"></a> Using Dockerfile
+### <a name="docker"></a> Dockerfile
 The Dockerfile installs all the dependencies and tools for WEPP. 
 
 **Step 1:** Clone the repository
@@ -103,17 +100,33 @@ git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
 ```
 **Step 2:** Build a docker image (ensure Docker is installed first)
-```
-cd docker
-docker build -t wepp .
-cd ..
+```bash
+cd docker && docker build -t wepp . && cd ..
 ```
 **Step 3:** Start and run docker container
-```
+```bash
 docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
 ```
 
-## <a name="running"></a> Running WEPP
+##  <a name="example"></a> Quick Start
+The following steps will download a real wastewater RSVA dataset and analyze it with WEPP.
+**Step 1:** Download the test dataset
+```bash
+mkdir -p data/RSVA_real && cd data/RSVA_real
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz && wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz && wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz && gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
+mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz && mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz && cd ../../
+```
+This will save the datasets on a separate data/RSVA_real folder within the repository
+
+**Step 2:**  Run the pipeline
+```bash
+snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 --cores 32 --use-conda
+```
+
+**Step 3:**  Analyze Results
+All results generated by WEPP can be found in the `results/RSVA_real` directory.
+
+## <a name="guide"></a> User Guide
 ### <a name="data"></a> Organizing Data
 We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
 Each created `DIR` inside `data` is expected to contain the following files:
@@ -125,7 +138,7 @@ Each created `DIR` inside `data` is expected to contain the following files:
 Visualization of WEPP's workflow directories
 ```text
 📁 WEPP
-└───📁data                                # Contains data to analyze [User Created]
+└───📁data                                # [User Created] Contains data to analyze 
     ├───📁SARS-CoV-2_test_1               # SARS-CoV-2 run wastewater samples
          ├───sars_cov_2_reads.fastq.gz    # Single-ended reads 
          ├───sars_cov_2_reference.fa
@@ -137,7 +150,7 @@ Visualization of WEPP's workflow directories
          ├───rsva_reference.fa 
          └───rsva_mat.pb.gz
 
-└───📁intermediate                        # Contains files generated by WEPP [WEPP Generated]
+└───📁intermediate                        # [WEPP Generated] Contains intermediate files generated by WEPP 
     ├───📁SARS-CoV-2_test_1                
          ├───file_1
          └───file_2
@@ -145,7 +158,7 @@ Visualization of WEPP's workflow directories
          ├───file_1
          └───file_2
 
-└───📁results                             # Contains WEPP results [WEPP Generated]
+└───📁results                             # [WEPP Generated] Contains final WEPP results
     ├───📁SARS-CoV-2_test_1                
          ├───file_1
          └───file_2
@@ -168,15 +181,15 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
 
 ### <a name="snakemake"></a> Run Command
-WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specified the number of threads used by the workflow.
+WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specified the number of threads used by the workflow.
 Examples:
 1. Using all the parameters from the config file
-```
+```bash
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
 ```
 
 2. Overriding MIN_Q and PRIMER_BED through command line
-```
+```bash
 snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
 ```
 
