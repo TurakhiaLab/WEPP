@@ -530,15 +530,28 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
     // Read residual_mutations
     std::string file_path = this->ds.residual_mutations_path();
     std::ifstream file(file_path);  
-    std::vector<std::tuple<int, char, float>> mutations; 
+    std::vector<std::tuple<int, char, std::string>> mutations; 
 
     if (file.is_open()) {
         std::string line;
         // Read each line and store it in the mutations
         while (std::getline(file, line)) {
-            std::size_t comma_pos = line.find(',');
-            std::string mutation_part = line.substr(0, comma_pos);
-            float value = std::stof(line.substr(comma_pos + 1));
+            std::size_t first_comma = line.find(',');
+            std::string mutation_part = line.substr(0, first_comma);
+            std::string rest = line.substr(first_comma + 1);
+            std::vector<std::string> parts;
+            std::size_t char_pos = 0;
+            while ((char_pos = rest.find(',')) != std::string::npos) {
+                parts.push_back(rest.substr(0, char_pos));
+                rest.erase(0, char_pos + 1);
+            }
+            parts.push_back(rest);
+            // Construct value string from remaining parts
+            std::string value = parts[0];
+            for (size_t i = 1; i < parts.size(); ++i) {
+                value += ":" + parts[i];
+            }
+
             int pos = std::stoi(mutation_part.substr(0, mutation_part.size() - 1));
             char nuc = mutation_part.back();
             mutations.emplace_back(std::make_tuple(pos, nuc, value));
@@ -562,16 +575,16 @@ void arena::resolve_unaccounted_mutations(const std::vector<std::pair<haplotype 
         for (size_t i = r.begin(); i < r.end(); ++i) {
             raw_read rp = reads[i];
             // Get residual sites covered by rp
-            std::vector<std::tuple<int, char, float>> residual_sites_covered;
+            std::vector<std::tuple<int, char, std::string>> residual_sites_covered;
             std::copy_if(mutations.begin(), mutations.end(), std::back_inserter(residual_sites_covered),
-                     [rp](const std::tuple<int, char, float>& mutation) {
+                     [rp](const std::tuple<int, char, std::string>& mutation) {
                          return std::get<0>(mutation) >= rp.start && std::get<0>(mutation) <= rp.end;
                      });
 
             // Get residual_mutations_covered covered by reads and convert them to 'N'
             std::vector<std::string> residual_mutations_covered, residual_mutations_masked;
             for (const auto& mut_tuple: residual_sites_covered) {
-                std::string curr_residual_mut = std::to_string(std::get<0>(mut_tuple)) + std::get<1>(mut_tuple) + ":" + std::to_string(std::get<2>(mut_tuple));
+                std::string curr_residual_mut = std::to_string(std::get<0>(mut_tuple)) + std::get<1>(mut_tuple) + ":" + std::get<2>(mut_tuple);
                 bool site_found = false;
                 for (auto &mut: rp.mutations) {
                     if (mut.position == std::get<0>(mut_tuple)) {
