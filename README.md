@@ -55,8 +55,7 @@ Users without sudo access are advised to install WEPP via [Docker](#docker).
 
 **Step 1:** Clone the repository
 ```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
-cd WEPP
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
@@ -83,12 +82,9 @@ sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas
 
 If your system doesn't have Conda, you can install it with:
 ```bash
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-chmod +x Miniconda3-latest-Linux-x86_64.sh
-./Miniconda3-latest-Linux-x86_64.sh
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && chmod +x Miniconda3-latest-Linux-x86_64.sh && ./Miniconda3-latest-Linux-x86_64.sh
 
-export PATH="$HOME/miniconda3/bin:$PATH"
-source ~/.bashrc
+export PATH="$HOME/miniconda3/bin:$PATH" && source ~/.bashrc
 ```
 
 ### <a name="docker"></a> Dockerfile
@@ -96,8 +92,7 @@ The Dockerfile installs all the dependencies and tools for WEPP.
 
 **Step 1:** Clone the repository
 ```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
-cd WEPP
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
 ```
 **Step 2:** Build a docker image (ensure Docker is installed first)
 ```bash
@@ -110,6 +105,7 @@ docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
 
 ##  <a name="example"></a> Quick Start
 The following steps will download a real wastewater RSVA dataset and analyze it with WEPP.
+
 **Step 1:** Download the test dataset
 ```bash
 mkdir -p data/RSVA_real && cd data/RSVA_real
