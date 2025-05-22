@@ -18,8 +18,8 @@
 ## Table of Contents
 - [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
 - [Installation](#install)
-  - [Option-1: Install Script](#script)
-  - [Option-2: Dockerfile](#docker)
+  - [Option-1: Dockerfile](#docker)
+  - [Option-2: Install Script](#script)
 - [Quick Start](#example)
 - [User Guide](#guide)
   - [Organizing Data](#data)
@@ -33,9 +33,9 @@
 
 ## <a name="intro"></a> Introduction
 
-WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection from wastewater, WEPP enables a broad range of epidemiological applications that were previously feasible only through clinical sequencing data. It also detects potential novel variants via unaccounted mutations, which can be further explored at the read level using an interactive dashboard (Figure 1C).
+WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection, WEPP enables critical epidemiological applications previously feasible only through clinical sequencing. It also flags potential novel variants via unaccounted mutations, which can be examined at the read level using the interactive dashboard (Figure 1C).
 
-WEPP’s core algorithm begins by placing the complete set of sequencing reads parsimoniously onto the MAT, followed by identifying candidate haplotype nodes—referred to as "peaks" (Figure 1B). This initial candidate set is expanded by including neighboring haplotypes to form a broader candidate pool. The pool is then passed to a deconvolution algorithm to estimate the relative abundance of each haplotype. The algorithm iteratively refines this pool by selecting haplotypes above a threshold proportion and including their neighbors in subsequent rounds until convergence.
+WEPP’s algorithm begins with parsimonious placement of all reads onto the MAT, followed by identifying candidate haplotype nodes, or “Peaks” (Figure 1B). This set is expanded with neighboring haplotypes of selected Peaks to form a candidate pool, which is passed to a deconvolution algorithm to estimate haplotype abundances. This pool is iteratively refined by retaining haplotypes above a threshold and adding their neighbors until convergence.
 
 
 <div align="center">
@@ -46,10 +46,26 @@ WEPP’s core algorithm begins by placing the complete set of sequencing reads p
 
 ## <a name="install"></a> Installation
 WEPP offers two installation methods:
-1. Install Script for directly running WEPP on your system
-2. Docker (built from the provided Dockerfile) is recommended to prevents any conflict with existing packages
+1. Docker (built from the provided Dockerfile) is recommended to prevent any conflict with existing packages
+2. Install Script can be directly used for running WEPP on your system
 
-### <a name="script"></a> Install Script (requires sudo access if certain common libraries are not already installed)  
+### <a name="docker"></a> Option-1: Dockerfile
+The Dockerfile installs all the dependencies and tools for WEPP. 
+
+**Step 1:** Clone the repository
+```bash
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
+```
+**Step 2:** Build a Docker image (ensure Docker is installed first)
+```bash
+cd docker && docker build -t wepp . && cd ..
+```
+**Step 3:** Start and run Docker container
+```bash
+docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
+```
+
+### <a name="script"></a> Option-2: Install Script (requires sudo access if certain common libraries are not already installed)  
 
 Users without sudo access are advised to install WEPP via [Docker](#docker).
 
@@ -59,7 +75,7 @@ git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEP
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
-```test
+```text
 - wget
 - curl
 - pip
@@ -87,22 +103,6 @@ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && ch
 export PATH="$HOME/miniconda3/bin:$PATH" && source ~/.bashrc
 ```
 
-### <a name="docker"></a> Dockerfile
-The Dockerfile installs all the dependencies and tools for WEPP. 
-
-**Step 1:** Clone the repository
-```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
-```
-**Step 2:** Build a docker image (ensure Docker is installed first)
-```bash
-cd docker && docker build -t wepp . && cd ..
-```
-**Step 3:** Start and run docker container
-```bash
-docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
-```
-
 ##  <a name="example"></a> Quick Start
 The following steps will download a real wastewater RSVA dataset and analyze it with WEPP.
 
@@ -112,7 +112,7 @@ mkdir -p data/RSVA_real && cd data/RSVA_real
 wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz && wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz && wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz && gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
 mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz && mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz && cd ../../
 ```
-This will save the datasets on a separate data/RSVA_real folder within the repository
+This will save the datasets on a separate data/RSVA_real folder within the repository.
 
 **Step 2:**  Run the pipeline
 ```bash
@@ -129,7 +129,7 @@ Each created `DIR` inside `data` is expected to contain the following files:
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 2. Reference Genome fasta
 3. Mutation-Annotated Tree (MAT)
-4. [OPTIONAL] Genome Masking File: `mask.bed` whose third column specifies sites to be excluded from analysis.
+4. [OPTIONAL] Genome Masking File: `mask.bed`, whose third column specifies sites to be excluded from analysis.
 
 Visualization of WEPP's workflow directories
 ```text
@@ -177,7 +177,7 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
 
 ### <a name="snakemake"></a> Run Command
-WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specified the number of threads used by the workflow.
+WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
 Examples:
 1. Using all the parameters from the config file
 ```bash
