@@ -1,0 +1,48 @@
+name: ci
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  Run-WEPP:
+    name: Deploy Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          key: ${{ github.ref }}
+          path: .cache
+
+      - name: Install mkdocs
+        run: |
+          pip install mkdocs-material
+          pip install "mkdocs-material[imaging]"
+          mkdocs gh-deploy --force
+
+      - name: Download Dataset
+        run: |
+          mkdir -p data/RSVA_real && cd data/RSVA_real
+          wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz && wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz && wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz && gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
+          mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz && mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz && cd ../../
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev snakemake protobuf-compiler
+
+      - name: Run WEPP
+        run: |
+          snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 --cores 32 --use-conda
