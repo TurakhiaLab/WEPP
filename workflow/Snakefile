@@ -30,5 +30,5 @@ rule test:
     input:
         "build/wepp"
     shell:
-        "./{input} -h"
+        "./{input} help"
 
