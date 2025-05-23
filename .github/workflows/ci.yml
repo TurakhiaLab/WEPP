@@ -32,16 +32,6 @@ jobs:
       #    pip install "mkdocs-material[imaging]"
       #    mkdocs gh-deploy --force
 
-      - name: Download Dataset
-        run: |
-          mkdir -p data/RSVA_real
-          cd data/RSVA_real
-          wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz 
-          gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
-          mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz 
-          mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz 
-          cd ../../
-      
       - name: Install Dependencies
         run: |
           sudo apt update
@@ -54,4 +44,4 @@ jobs:
 
       - name: Run WEPP
         run: |
-          snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 --cores 32 --use-conda --conda-frontend conda
+          snakemake test --cores 1 --use-conda --conda-frontend conda
