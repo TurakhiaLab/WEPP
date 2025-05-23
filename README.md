@@ -120,11 +120,11 @@ sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas
 
 If your system doesn't have Conda, you can install it with:
 ```bash
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-chmod +x Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh -b
-export PATH="$HOME/miniconda3/bin:$PATH"
-source ~/.bashrc
+wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
+bash Miniforge3.sh -b -p "${HOME}/conda"
+
+source "${HOME}/conda/etc/profile.d/conda.sh"
+source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
 
 ##  <a name="example"></a> Quick Start
