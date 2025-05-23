@@ -10,11 +10,25 @@ include: "rules/filter.smk"
 DIR = config.get("DIR")
 FILE_PREFIX = config.get("FILE_PREFIX")
 
-if not DIR or not FILE_PREFIX:
-    raise ValueError("Please provide DIR and FILE_PREFIX in --config argument")
+# Extract rules from command-line arguments
+requested_rules = set()
+for arg in sys.argv[1:]:
+    if not arg.startswith("-"):
+        requested_rules.add(arg)
 
-print(f"\nDIR={DIR}, FILE_PREFIX={FILE_PREFIX}\nTREE={config.get("TREE")}\nREF={config.get("REF")}\nSEQUENCING_TYPE={config.get("SEQUENCING_TYPE")}\nPRIMER_BED={config.get("PRIMER_BED")}\nMIN_AF={config.get("MIN_AF")}\nMIN_Q={config.get("MIN_Q")}\nMAX_READS={config.get("MAX_READS")}\nCLADE_IDX={config.get("CLADE_IDX")}\n\n")
+if "test" not in requested_rules:
+    if not DIR or not FILE_PREFIX:
+        raise ValueError("Please provide DIR and FILE_PREFIX in --config argument")
+    
+    print(f"\nDIR={DIR}, FILE_PREFIX={FILE_PREFIX}\nTREE={config.get("TREE")}\nREF={config.get("REF")}\nSEQUENCING_TYPE={config.get("SEQUENCING_TYPE")}\nPRIMER_BED={config.get("PRIMER_BED")}\nMIN_AF={config.get("MIN_AF")}\nMIN_Q={config.get("MIN_Q")}\nMAX_READS={config.get("MAX_READS")}\nCLADE_IDX={config.get("CLADE_IDX")}\n\n")
 
 rule all:
     input:
         f"results/{DIR}/{FILE_PREFIX}_run.txt"
+
+rule test:
+    input:
+        "build/wepp"
+    shell:
+        "./{input} -h"
+
