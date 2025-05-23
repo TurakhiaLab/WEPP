@@ -18,9 +18,9 @@
 ## Table of Contents
 - [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
 - [Installation](#install)
-  - [Option-1: Install via Dockerfile](#docker)
-  - [Option-2: Install via DockerHub](#dockerhub)
-  - [Option-3: Install via Source Script](#script)
+  - [Option-1: Install via DockerHub](#dockerhub)
+  - [Option-2: Install via Dockerfile](#docker)
+  - [Option-3: Install via Shell Commands](#script)
 - [Quick Start](#example)
 - [User Guide](#guide)
   - [Organizing Data](#data)
@@ -46,11 +46,32 @@ WEPP’s algorithm begins with parsimonious placement of all reads onto the MAT,
 
 
 ## <a name="install"></a> Installation
-WEPP offers two installation methods:
-1. Docker (built from the provided Dockerfile) is recommended to prevent any conflict with existing packages
-2. Install Script can be directly used for running WEPP on your system
+WEPP offers multiple installation methods. Using a [Docker](https://docs.docker.com/engine/install/) is recommended to prevent any conflict with existing packages.
+1. Docker image from DockerHub
+2. Dockerfile 
+3. Shell Commands 
 
-### <a name="docker"></a> Option-1: Install via Dockerfile
+### <a name="dockerhub"></a> Option-1: Install via DockerHub
+The Docker image includes all dependencies required to run WEPP.
+
+**Step 1:** Get the image from DockerHub 
+```bash
+docker pull pranavgangwar/wepp:latest
+```
+**Step 2:** Start and run Docker container
+```bash
+# Use this command if your datasets can be downloaded from the Web
+docker run -it pranavgangwar/wepp:latest
+
+# Use this command if your datasets are present in your current directory
+docker run -it -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
+```
+**Step 3:** Confirm it is working properly by running 
+```bash
+snakemake test --cores 1 --use-conda
+```
+
+### <a name="docker"></a> Option-2: Install via Dockerfile
 The Dockerfile contains all dependencies required to run WEPP.
 
 **Step 1:** Clone the repository
@@ -58,7 +79,7 @@ The Dockerfile contains all dependencies required to run WEPP.
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
 cd WEPP
 ```
-**Step 2:** Build a Docker image (ensure Docker is installed first)
+**Step 2:** Build a Docker Image
 ```bash
 cd docker
 docker build -t wepp . 
@@ -66,27 +87,14 @@ cd ..
 ```
 **Step 3:** Start and run Docker container
 ```bash
-docker run -it -v "$PWD":/workspace -w /workspace wepp /bin/bash
+# Use this command if your datasets can be downloaded from the Web
+docker run -it wepp
+
+# Use this command if your datasets are present in your current directory
+docker run -it -v "$PWD":/workspace -w /workspace wepp
 ```
 
-### <a name="dockerhub"></a> Option-2: Install via DockerHub
-The Docker image includes all dependencies required to run WEPP.
-
-**Step 1:** Clone the repository
-```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
-cd WEPP
-```
-**Step 2:** get the image from DockerHub (ensure Docker is installed first)
-```bash
-docker pull pranavgangwar/wepp:latest
-```
-**Step 3:** Start and run Docker container
-```bash
-docker run -it -v "$PWD":/workspace -w /workspace pranavgangwar/wepp:latest /bin/bash
-```
-
-### <a name="script"></a> Option-3: Install via Source Script (requires sudo access if certain common libraries are not already installed)  
+### <a name="script"></a> Option-3: Install via Shell Commands (requires sudo access if certain common libraries are not already installed)  
 
 Users without sudo access are advised to install WEPP via [Docker](#docker).
 
