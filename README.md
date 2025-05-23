@@ -55,11 +55,14 @@ The Dockerfile contains all dependencies required to run WEPP.
 
 **Step 1:** Clone the repository
 ```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
+cd WEPP
 ```
 **Step 2:** Build a Docker image (ensure Docker is installed first)
 ```bash
-cd docker && docker build -t wepp . && cd ..
+cd docker
+docker build -t wepp . 
+cd ..
 ```
 **Step 3:** Start and run Docker container
 ```bash
@@ -71,7 +74,8 @@ The Docker image includes all dependencies required to run WEPP.
 
 **Step 1:** Clone the repository
 ```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
 ```
 **Step 2:** get the image from DockerHub (ensure Docker is installed first)
 ```bash
@@ -82,13 +86,14 @@ docker pull pranavgangwar/wepp:latest
 docker run -it -v "$PWD":/workspace -w /workspace pranavgangwar/wepp:latest /bin/bash
 ```
 
-### <a name="script"></a> Option-2: Install via Source Script (requires sudo access if certain common libraries are not already installed)  
+### <a name="script"></a> Option-3: Install via Source Script (requires sudo access if certain common libraries are not already installed)  
 
 Users without sudo access are advised to install WEPP via [Docker](#docker).
 
 **Step 1:** Clone the repository
 ```bash
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git && cd WEPP
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
@@ -115,9 +120,11 @@ sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas
 
 If your system doesn't have Conda, you can install it with:
 ```bash
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && chmod +x Miniconda3-latest-Linux-x86_64.sh && ./Miniconda3-latest-Linux-x86_64.sh
-
-export PATH="$HOME/miniconda3/bin:$PATH" && source ~/.bashrc
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+chmod +x Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b
+export PATH="$HOME/miniconda3/bin:$PATH"
+source ~/.bashrc
 ```
 
 ##  <a name="example"></a> Quick Start
@@ -125,9 +132,13 @@ The following steps will download a real wastewater RSVA dataset and analyze it 
 
 **Step 1:** Download the test dataset
 ```bash
-mkdir -p data/RSVA_real && cd data/RSVA_real
-wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz && wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz && wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz && gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
-mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz && mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz && cd ../../
+mkdir -p data/RSVA_real
+cd data/RSVA_real
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
+gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
+mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz
+mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz
+cd ../../
 ```
 This will save the datasets on a separate data/RSVA_real folder within the repository.
 
