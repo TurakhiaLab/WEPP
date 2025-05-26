@@ -2,7 +2,7 @@ name: ci
 on:
   push:
     branches:
-      - main
+      - wepp_freyja
 
 permissions:
   contents: write
