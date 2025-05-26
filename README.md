@@ -56,7 +56,7 @@ The Dockerfile contains all dependencies required to run WEPP.
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
 cd WEPP
-git checkout wepp_freyja
+git checkout wepp_em
 ```
 **Step 2:** Build a Docker Image
 ```bash
@@ -81,7 +81,7 @@ Users without sudo access are advised to install WEPP via [Docker](#docker).
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
-git checkout wepp_freyja
+git checkout wepp_em
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:

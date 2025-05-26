@@ -60,6 +60,11 @@ public:
     std::vector<haplotype*> filter(arena& arena);
 };
 
+class em_filter: public initial_filter {
+    public:
+        std::vector<haplotype*> filter(arena& arena);
+};
+
 class lineage_root_filter: public initial_filter {
 public:
     std::vector<haplotype*> filter(arena& arena);

@@ -23,9 +23,8 @@ static constexpr int MAX_PEAKS = 300;
 static constexpr int MAX_NEIGHBORS_WEPP = 50;
 static constexpr int MAX_NEIGHBORS_FREYJA = 500;
 static constexpr int MAX_NEIGHBOR_MUTATION = 2;
-// Update this to switch between Freyja and WEPP
 static constexpr int MAX_NEIGHBOR_ITERATIONS = 1;
-static constexpr bool FULL_TREE = false;
+static constexpr double EM_AF_THRESH = 0.01;
 
 // Update based on real data or simulated data
 static constexpr bool SIMULATED_DATA = false;

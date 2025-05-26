@@ -506,6 +506,111 @@ wepp_filter::filter(arena& arena)
 }
 
 std::vector<haplotype*> 
+em_filter::filter(arena& arena)
+{
+    auto ref = arena.reference();
+    std::unordered_map<int, std::vector<std::pair<char, double>>> read_mutations;
+    for (const raw_read& read: arena.reads()) {
+        std::unordered_map<int, char> mutations;
+        for (MAT::Mutation mut : read.mutations)
+        {
+            mutations[mut.position] = MAT::get_nuc(mut.mut_nuc);
+        }
+
+        for (int i = read.start; i <= read.end; i++)
+        {
+            char allele;
+            if (mutations.find(i) == mutations.end())
+            {
+                allele = ref[i-1];
+            }
+            else
+            {
+                allele = mutations[i];
+            }
+            
+            // NOT 'N'
+            if (allele != 'N')
+            {
+                if (read_mutations.find(i) == read_mutations.end())
+                {
+                    read_mutations[i] = std::vector<std::pair<char, double>>{std::make_pair(allele, read.degree)};
+                }
+                else 
+                {
+                    bool found = false;
+                    for (auto& mut_count: read_mutations[i])
+                    {
+                        if (mut_count.first == allele)
+                        {
+                            mut_count.second += read.degree;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        read_mutations[i].emplace_back(std::make_pair(allele, read.degree));
+                    }
+                }
+            }
+        }
+    }
+
+    // Getting read AF for every allele
+    for (auto& site_muts: read_mutations)
+    {
+        double depth = std::accumulate(
+            site_muts.second.begin(),
+            site_muts.second.end(),
+            0.0,
+            [](double acc, const std::pair<char, double>& p) {
+                return acc + p.second;
+            }
+        );
+
+        for (auto& allele_count: site_muts.second)
+        {
+            allele_count.second /= depth;
+        }
+    }
+
+    arena.reset_haplotype_state();
+    std::vector<haplotype*> initial = arena.haplotype_pointers();
+    initial.erase(
+        std::remove_if(
+            initial.begin(),
+            initial.end(),
+            [&](haplotype* hap) {
+                for (const auto& mut : hap->stack_muts) {
+                    auto it = read_mutations.find(mut.position);
+                    if (it == read_mutations.end())
+                        return true;  // Site NOT seen in reads
+    
+                    const char alt_nuc = MAT::get_nuc(mut.mut_nuc);
+                    const auto& allele_freqs = it->second;
+    
+                    // Check if any allele matches and passes threshold
+                    bool found = std::any_of(
+                        allele_freqs.begin(),
+                        allele_freqs.end(),
+                        [&](const std::pair<char, double>& af) {
+                            return af.first == alt_nuc && af.second >= EM_AF_THRESH;
+                        });
+    
+                    if (!found)
+                        return true;  // Allele NOT seen or low AF
+                }
+                return false;  // Keep haplotype
+            }
+        ),
+        initial.end()
+    );
+
+    return initial;
+}
+
+std::vector<haplotype*> 
 lineage_root_filter::filter(arena& arena)
 {
     auto clade_idx = arena.clade_idx();

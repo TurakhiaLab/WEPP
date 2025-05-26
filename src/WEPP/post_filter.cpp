@@ -109,3 +109,123 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
 
     return freyja_nodes;
 }
+
+std::vector<std::pair<haplotype*, double>>
+em_post_filter::filter(arena& arena, std::vector<haplotype*> input)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+    const std::vector<raw_read>& reads = arena.reads();
+
+    std::vector<std::vector<double>> q(input.size(), std::vector<double>(reads.size()));
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, input.size()),
+                      [&](tbb::blocked_range<size_t> range)
+                      {
+                          for (size_t i = range.begin(); i < range.end(); ++i)
+                          {
+                              for (size_t j = 0; j < reads.size(); ++j)
+                              {
+                                  double dist = input[i]->mutation_distance(reads[j]);
+                                  q[i][j] = std::pow(this->alpha, dist) * std::pow(1 - this->alpha, reads[j].end - reads[j].start + 1 - dist);
+                              }
+                          }
+                      });
+
+    double prev = 0, curr = 0;
+    // Initialize to normal distribtuion
+    std::vector<double> p(input.size());
+    for (auto& val : p) {
+        val = dis(gen);
+    }
+    // Re-scale to 1
+    double sum = std::accumulate(p.begin(), p.end(), 0.0);
+    for (auto& val : p) {
+        val /= sum;
+    }
+
+    int max_iteration = max_it; 
+    do
+    {
+        prev = curr;
+
+        std::vector<double> denom(reads.size());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
+                          [&](tbb::blocked_range<size_t> range)
+                          {
+                              for (size_t j = range.begin(); j < range.end(); ++j)
+                              {
+                                  double sum = 0;
+                                  for (size_t l = 0; l < input.size(); ++l)
+                                  {
+                                      sum += p[l] * q[l][j];
+                                  }
+                                  denom[j] = sum;
+                              }
+                          });
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, input.size()),
+                          [&](tbb::blocked_range<size_t> range)
+                          {
+                              for (size_t i = range.begin(); i < range.end(); ++i)
+                              {
+                                  double sum = 0;
+                                  size_t count = 0;
+                                  for (size_t j = 0; j < reads.size(); ++j)
+                                  {
+                                      sum += reads[j].degree * p[i] * q[i][j] / denom[j];
+                                      count += reads[j].degree;
+                                  }
+                                  // don't even need multiple p
+                                  p[i] = sum / count;
+                              }
+                          });
+
+        std::vector<double> logl(reads.size());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()),
+                          [&](tbb::blocked_range<size_t> range)
+                          {
+                              for (size_t j = range.begin(); j < range.end(); ++j)
+                              {
+                                  double sum = 0;
+                                  for (size_t l = 0; l < input.size(); ++l)
+                                  {
+                                      sum += p[l] * q[l][j];
+                                  }
+                                  logl[j] = reads[j].degree * std::log(sum);
+                              }
+                          });
+
+        curr = std::accumulate(logl.begin(), logl.end(), 0.0);
+        if (!prev)
+            prev = 1e-12;
+    } while ((abs(curr - prev) / abs(prev)) >= epsilon && --max_iteration);
+
+    // Select haplotypes with abundance > min_proportion
+    std::vector<std::pair<haplotype *, double>> em_nodes;
+    for (size_t i = 0; i < p.size(); ++i)
+    {
+        em_nodes.emplace_back(std::make_pair(input[i], p[i]));
+    }
+
+    std::sort(em_nodes.begin(), em_nodes.end(),
+    [](const std::pair<haplotype*, double>& a, const std::pair<haplotype*, double>& b) {
+        return a.second > b.second;
+    });
+    auto it = em_nodes.begin();
+    double total = 0;
+    while ((it != em_nodes.end()) && (it->second / (it->second + total) >= min_proportion))
+    {
+        total += it->second;
+        ++it;
+    }
+    em_nodes.erase(it, em_nodes.end());
+
+    for (auto& node_score: em_nodes)
+    {
+        node_score.second /= total;
+    }
+
+    return em_nodes;
+}
