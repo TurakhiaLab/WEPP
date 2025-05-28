@@ -7,7 +7,8 @@ rule filter:
         "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv"
     output:
         # other results too, but probably should add all at some point
-        "results/{DIR}/{FILE_PREFIX}_run.txt"
+        # "results/{DIR}/{FILE_PREFIX}_run.txt"
+        "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt"
     conda:
         "../envs/wepp.yml"
     threads:
@@ -17,4 +18,4 @@ rule filter:
     shell:
         "mkdir -p results/{wildcards.DIR} && "
         "./build/wepp detectPeaks -T {threads} -i " + config["TREE"] + " -p '{wildcards.FILE_PREFIX}' -f " + config["REF"] + " -d '{wildcards.DIR}'" + " -a " + str(config["MIN_AF"]) + " -c " + str(config["CLADE_IDX"]) +
-        " | tee {params.tmp_file} && mv {params.tmp_file} {output}"
+        " | tee {params.tmp_file}"
