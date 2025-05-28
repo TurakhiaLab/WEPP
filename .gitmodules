@@ -1,3 +1,6 @@
 [submodule "src/Freyja"]
 	path = src/Freyja
 	url = https://github.com/pgangwar-ucsd/Freyja.git
+[submodule "src/Dashboard"]
+	path = src/Dashboard
+	url = https://github.com/pratikkatte/Wastewater-Dasboard.git
