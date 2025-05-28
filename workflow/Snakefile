@@ -6,6 +6,7 @@ include: "rules/freyja.smk"
 include: "rules/preprocess.smk"
 include: "rules/sam2pb.smk"
 include: "rules/filter.smk"
+include: "rules/dashboard.smk"
 
 DIR = config.get("DIR")
 FILE_PREFIX = config.get("FILE_PREFIX")
