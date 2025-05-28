@@ -24,7 +24,7 @@ int main (int argc, char** argv) {
     std::string cnames[] = {"COMMAND","detectPeaks","sam2PB"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
-        "Detects Peaks from the MAT\n\n",
+        "Detects Peaks from the PanMAT\n\n",
         "Applies QC before running WEPP\n\n"
     };
     try {
