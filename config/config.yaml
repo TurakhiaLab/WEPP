@@ -1,17 +1,17 @@
-TREE: sars_8M_annotated_nextclade.panman
+TREE: MAT.pb.gz
+REF: REF.fa
 
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
-SEQUENCING_TYPE: "s"
+SEQUENCING_TYPE: "d"
 
-# Allele frequency based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
-AF: 0.005
+# Bed file should be present in 'primers'
+PRIMER_BED: "none.bed"
 
-# Path to local conda installation
-CONDA_PATH: "~/miniforge3"
+# Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+MIN_AF: "0.005"
 
-## OPTIONAL PARAMETERS
-# Bed file should be present in 'database'
-PRIMER_BED: "nimagenV2.bed"
+# Mask any allele with base quality score below this threshold
+MIN_Q: "20"
 
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"

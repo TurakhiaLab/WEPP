@@ -1,4 +1,3 @@
-from os import listdir 
 from os.path import join
 
 build_inps = []
@@ -16,31 +15,22 @@ rule install:
     output:
         "build/Makefile"
     conda:
-        "../envs/wbe.yml"
+        "../envs/wepp.yml"
     shell:
         "./workflow/scripts/install.sh"
 
-rule build_wbe:
+rule build_wepp:
     input:
         "build/Makefile",
         build_inps
     output:
-        "build/wbe"
+        "build/wepp"
     conda:
-        "../envs/wbe.yml"
+        "../envs/wepp.yml"
     threads:
         workflow.cores
-    params:
-        af_thresh=lambda wildcards: config["AF"],
-        conda_path=lambda wildcards: config["CONDA_PATH"]
     shell:
         """
-        # Update FREQ_READ_THRESHOLD in config.hpp
-        sed -i 's#FREQ_READ_THRESHOLD.*$#FREQ_READ_THRESHOLD = {params.af_thresh};#' src/config.hpp
-        
-        # Update CONDA_PATH in config.hpp
-        sed -i 's#CONDA_PATH.*$#CONDA_PATH = "{params.conda_path}/etc/profile.d/conda.sh";#' src/config.hpp
-        
         echo "Starting build..."
         cd build && make -j || exit 1
         """

@@ -981,7 +981,9 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
     std::cout << "----- [final report] -----" << std::endl
               << std::endl;
 
-    print_flipped_mutation_distance(abundance);
+    if (SIMULATED_DATA) {
+        print_flipped_mutation_distance(abundance);
+    }
 
     std::unordered_map<std::string, double> a_map;
     for (const auto &p : abundance)

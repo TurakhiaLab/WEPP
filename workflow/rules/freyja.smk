@@ -1,17 +1,20 @@
 rule freyja:
     input:
-        "intermediate/{dataset}/{file_prefix}_resorted.bam"
+        "intermediate/{DIR}/{FILE_PREFIX}_resorted.bam"
     output:
-        "intermediate/{dataset}/{file_prefix}_corrected_variants.tsv",
-        "intermediate/{dataset}/{file_prefix}_depth.tsv"
+        "intermediate/{DIR}/{FILE_PREFIX}_corrected_variants.tsv",
+        "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv"
     conda:
-        "../envs/wbe.yml"
+        "../envs/wepp.yml"
+    params:
+        ref=lambda wildcards: config["REF"],
+        minq=lambda wildcards: config["MIN_Q"]
     shell:
         """
         cd ./src/Freyja
         make dev
         cd ../..
-        freyja variants ./intermediate/{wildcards.dataset}/{wildcards.file_prefix}_resorted.bam --variants ./intermediate/{wildcards.dataset}/{wildcards.file_prefix}_variants.tsv --depths ./intermediate/{wildcards.dataset}/{wildcards.file_prefix}_depth.tsv
-        # Correct ivar deletion errors 
-        python3 src/ivar_correction.py '{wildcards.dataset}' '{wildcards.file_prefix}'
+        freyja variants ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_resorted.bam --variants ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_variants.tsv --depths ./intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_depth.tsv --ref ./data/{wildcards.DIR}/{params.ref} --minq {params.minq}
+        # Correct ivar deletion errors
+        python3 src/ivar_correction.py '{wildcards.DIR}' '{wildcards.FILE_PREFIX}'
         """

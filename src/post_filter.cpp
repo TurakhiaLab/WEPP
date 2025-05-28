@@ -282,8 +282,8 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     auto const& dataset = arena.owned_dataset();
 
     double af_thresh = 0.0;
-    if (FREQ_READ_THRESHOLD > 0.01)
-        af_thresh = FREQ_READ_THRESHOLD;
+    if (arena.min_af() > 0.01)
+        af_thresh = arena.min_af();
     
     std::string command = "bash -c \""
         "cd ./src/Freyja/ && "

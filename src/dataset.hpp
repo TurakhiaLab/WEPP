@@ -36,6 +36,13 @@ public:
         return options["max-reads"].as<uint32_t>();
     }
 
+    uint32_t min_phred() const {
+        return options["min-phred"].as<uint32_t>();
+    }
+    
+    double min_af() const {
+        return std::stof(options["min-af"].as<std::string>());
+    }
 
     std::string intermediate_directory() const {
         return "./intermediate/" + dataset_name() + "/";
