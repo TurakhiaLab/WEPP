@@ -138,11 +138,15 @@ public:
                 std::cerr << "Error: Unable to open file " << ref_path() << std::endl;
                 exit(1);
             }
-            std::getline(fasta_f, ref_header);
+            std::string line;
+            std::getline(fasta_f, line);
         
-            // Remove leading '>'
-            if (!ref_header.empty() && ref_header[0] == '>') {
-                ref_header = ref_header.substr(1);  // drop the '>'
+            // Remove leading '>' and only extracting first token
+            if (!line.empty() && line[0] == '>') {
+                line = line.substr(1);
+                // Extract only the first token (accession)
+                std::istringstream iss(line);
+                iss >> ref_header;
             }
             else {
                 std::cerr << "Error: Fasta format NOT correct " << ref_path() << std::endl;
