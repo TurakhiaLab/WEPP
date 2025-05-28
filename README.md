@@ -97,6 +97,7 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - libprotobuf-dev
 - protobuf-compiler
 - snakemake
+- capnproto
 - conda
 ```
 
