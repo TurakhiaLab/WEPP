@@ -183,7 +183,7 @@ def write_sam_files(input_sam_file):
 
 #Check arguments
 if len(sys.argv) != 4:
-    print("USAGE: python src/WBE/sam_generation.py <results_directory> <intermediate_directory> <file_prefix>")
+    print("USAGE: python src/sam_generation.py <results_directory> <intermediate_directory> <file_prefix>")
     sys.exit(1)
 
 # Start time

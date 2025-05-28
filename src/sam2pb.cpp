@@ -26,8 +26,8 @@
 // freyja-depth - how many reads/chunks were there starting at a given nucleotide
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 // also for pairs of mutation frequencies
-constexpr double frequency_read_cutoff = FREQ_READ_THRESHOLD;
-constexpr int phred_score_cutoff = PHRED_SCORE_THRESHOLD;
+static double frequency_read_cutoff ;
+static int phred_score_cutoff;
 
 std::string CHROM;
 
@@ -58,9 +58,9 @@ dump_sub_table(const sub_table& sub, std::string const& name) {
 
 void sam2PB(const dataset& d) {
     std::string proto_filename = d.pb_path();
-    //std::string freyja_vcf_file = d.directory() + d.file_prefix() + "_reads_freyja.vcf";
-    //std::string freyja_depth_file = d.directory() + d.file_prefix() + "_reads_freyja.depth";
     std::string sam_file = d.sam_path();
+    phred_score_cutoff = d.min_phred();
+    frequency_read_cutoff = d.min_af();
 
     //Reading reference genome
     timer timer;

@@ -97,6 +97,10 @@ public:
         return ds.reference();
     }
 
+    const double min_af() {
+        return ds.min_af();
+    }
+
     size_t genome_size() {
         return this->reference().size();
     }

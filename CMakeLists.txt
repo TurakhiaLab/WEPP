@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.8) 
 
-project(wbe)
+project(wepp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -ggdb3 -Wno-unused-function  -Wno-deprecated-declarations -lboost_filesystem -lboost_system -lboost_program_options") 
 set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address -O0 -ggdb3 -fno-eliminate-unused-debug-symbols")
@@ -38,7 +38,7 @@ endif()
 include_directories(${CAPNP_INCLUDE_DIRS})
 add_definitions(${CAPNP_DEFINITIONS})
 
-file(GLOB WBE_SRCS "src/*.cpp" "src/*.hpp")
+file(GLOB WEPP_SRCS "src/*.cpp" "src/*.hpp")
     
 # Include JSONCPP
 include(${CMAKE_TOOLCHAIN_FILE})
@@ -49,7 +49,7 @@ file(GLOB PANMAT_SRCS "src/panman/panman.cpp" "src/panman/panmanUtils.hpp" "src/
 if(DEFINED CapnProto_PATH)
 	capnp_generate(
 		LANGUAGE cpp
-		TARGET wbe  
+		TARGET wepp  
 		PROTOS panman.capnp
     )
 else()
@@ -62,12 +62,12 @@ endif()
 if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
-        TARGET wbe
+        TARGET wepp
         PROTOS sam.proto
     )
     
-    add_executable(wbe
-	    ${WBE_SRCS} ${PANMAT_SRCS}
+    add_executable(wepp
+	    ${WEPP_SRCS} ${PANMAT_SRCS}
     )
 else()
     protobuf_generate_cpp(
@@ -75,8 +75,8 @@ else()
         sam.proto
     )
    
-    add_executable(wbe
-	    ${WBE_SRCS} ${PANMAT_SRCS}
+    add_executable(wepp
+	    ${WEPP_SRCS} ${PANMAT_SRCS}
         ${SAM_SRCS} ${PROTO_SRCS} ${CAPNP_SRCS}
 		${SAM_HDRS} ${PROTO_HDRS} ${CAPNP_HDRS} 
     )
@@ -86,5 +86,5 @@ else()
     )
 endif()
 
-TARGET_LINK_LIBRARIES(wbe PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) 
+TARGET_LINK_LIBRARIES(wepp PRIVATE stdc++ JsonCpp::JsonCpp ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ${CAPNP_LIBRARIES}) 
 TARGET_LINK_LIBRARIES(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS})

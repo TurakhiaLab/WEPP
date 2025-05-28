@@ -36,45 +36,49 @@ std::vector<std::string> read_sample_vcf(const std::string& vcf_filename_samples
     return vcf_samples;
 }
 
-boost::program_options::variables_map parseWBEcommand(boost::program_options::parsed_options parsed) {
-    namespace po = boost::program_options;
-
+namespace po = boost::program_options;
+po::options_description conv_desc("Arguments");
+void initializeConvDesc() {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-    po::variables_map vm;
-    po::options_description conv_desc("Given Switch options");
+    std::string num_threads_message =
+        "Number of threads to use when possible [DEFAULT uses all available cores, " +
+        std::to_string(num_cores) + " detected on this machine]";
+
     conv_desc.add_options()
-    ("input-mat,i", po::value<std::string>()->default_value(""),
-     "Input mutation-annotated tree file")
-    ("dataset,d", po::value<std::string>(), 
-     "Dataset name")
-    ("file-prefix,v", po::value<std::string>()->default_value("my_vcf"),
-    "Prefix to be used for dumping all intermediate files.")
-     ("max-reads,m", po::value<uint32_t>()->default_value(1e9),
-     "The maximum number of reads to use. Default is 1e9.")
-    ("align-sam,s", po::value<std::string>()->default_value(""),
-     "Input sam file representing reference sequence")
-    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-    ("help,h", "Print help messages");
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
+        ("input-mat,i", po::value<std::string>()->default_value(""), "Input mutation-annotated tree.")
+        ("dataset,d", po::value<std::string>()->default_value(""), "Data folder containing reads.")
+        ("max-reads,m", po::value<uint32_t>()->default_value(1e9), "Maximum number of reads.")
+        ("file-prefix,p", po::value<std::string>()->default_value(""), "Prefix for intermediate files.")
+        ("min-af,a", po::value<std::string>()->default_value("0.005"), "Allele Frequency threshold for masking errorneous alleles.")
+        ("min-phred,q", po::value<u_int32_t>()->default_value(20), "Phred Score threshold for masking low quality alleles.")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        ("help,h", "Print help messages");
+}
+
+po::variables_map parseWEPPcommand(po::parsed_options parsed) {
+    initializeConvDesc();
+
+    po::variables_map vm;
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
-    // Run the parser, with try/catch for help
     try {
-        po::store(po::command_line_parser(opts)
-                  .options(conv_desc)
-                  .run(), vm);
+        po::store(po::command_line_parser(opts).options(conv_desc).run(), vm);
         po::notify(vm);
-    } catch(std::exception &e) {
-        std::cerr << conv_desc << e.what() << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
+        if (vm.count("help")) {
+            std::cout << conv_desc << std::endl;
             exit(0);
+        }
+    } catch (std::exception &e) {
+        std::cerr << conv_desc << std::endl;
+        if (vm.count("help")) {
+            std::cout << conv_desc << std::endl;
+            exit(0);
+        }
         else
             exit(1);
     }
+
     return vm;
 }
 
