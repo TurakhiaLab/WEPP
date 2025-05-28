@@ -1,38 +1,200 @@
-<p align="center">
-  <img src="WEPP_logo.svg" width="300">
-</p>
+<div align="center">
+    
+# Wastewater-Based Epidemiology using Phylogenetic Placements
 
-<h1 align="center">
-  Wastewater-based Epidemiology using Phylogenetic Placements
-</h1>
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
+
+[![License][license-badge]][license-link]
+[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
+[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
+
+<div align="center">
+  <img src="images/WEPP_logo.svg" width="300"/>
+</div>
+
+</div>
+
+## Table of Contents
+- [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
+- [Installation](#install)
+  - [Option-1: Install via Dockerfile](#docker)
+  - [Option-2: Install via Shell Commands](#script)
+- [User Guide](#guide)
+  - [Organizing Data](#data)
+  - [WEPP Arguments](#arguments)
+  - [Run Command](#snakemake)
+- [Contributions](#contribution)
+- [Citing WEPP](#cite)
+
+<br>
 
 
-## Installation (Follow steps 2-3 if you want to use docker)
-1. `git clone --recurse-submodules https://github.com/TurakhiaLab/SARS2-WBE.git`. Switch the branch if needed and check if the `src/Freyja` is not empty. If it is empty then go inside `src/Freyja` and use
+## <a name="intro"></a> Introduction
+
+WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection, WEPP enables critical epidemiological applications previously feasible only through clinical sequencing. It also flags potential novel variants via unaccounted mutations, which can be examined at the read level using the interactive dashboard (Figure 1C).
+
+WEPP’s algorithm begins with parsimonious placement of all reads onto the MAT, followed by identifying candidate haplotype nodes, or “Peaks” (Figure 1B). This set is expanded with neighboring haplotypes of selected Peaks to form a candidate pool, which is passed to a deconvolution algorithm to estimate haplotype abundances. This pool is iteratively refined by retaining haplotypes above a threshold and adding their neighbors until convergence.
+
+
+<div align="center">
+    <img src="images/WEPP_Overview.png" width="600">
+    <div><b>Figure 1: Overview of WEPP</b></div>
+</div>
+
+
+## <a name="install"></a> Installation
+WEPP offers multiple installation methods. Using a [Docker](https://docs.docker.com/engine/install/) is recommended to prevent any conflict with existing packages.
+1. Dockerfile 
+2. Shell Commands 
+
+### <a name="docker"></a> Option-1: Install via Dockerfile
+The Dockerfile contains all dependencies required to run WEPP.
+
+**Step 1:** Clone the repository
+```bash
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
+cd WEPP
+git checkout wepp_panmat
 ```
-git pull --recurse 
+**Step 2:** Build a Docker Image
+```bash
+cd docker
+docker build -t wepp . 
+cd ..
 ```
-2. Create a docker image by going to the `docker` and running,
-```
-docker build -t {image_name} .
-```
-3. Return to the main folder and run 
-```
-docker run -it -v "$PWD":/workspace -w /workspace {image_name} /bin/bash
+**Step 3:** Start and run Docker container
+```bash
+# Use this command if your datasets can be downloaded from the Web
+docker run -it wepp
+
+# Use this command if your datasets are present in your current directory
+docker run -it -v "$PWD":/workspace -w /workspace wepp
 ```
 
-## Running
-We consider that all the reads belong to a `dataset` and all the files begin with a `file_prefix`.  
-1. Place the reads under the `./data/{dataset}/` folder ending with the name `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
-2. Create a config/config.yaml file that contains the name of the PanMAT under the key "TREE". It should also be placed in the `./data/{dataset}` folder. Pick the primer bed file from the database folder. You can use `none.bed` file if you do not have any primers.
-3. Run snakemake. Do not forget the --use-conda flag. Optionally, you can specific configuration options here instead.
+### <a name="script"></a> Option-2: Install via Shell Commands (requires sudo access if certain common libraries are not already installed)  
+
+Users without sudo access are advised to install WEPP via [Docker](#docker).
+
+**Step 1:** Clone the repository
+```bash
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
+git checkout wepp_panmat
 ```
-snakemake ./results/{dataset}/{file_prefix}_run.txt --cores 16 --use-conda
+**Step 2:** Install dependencies (might require sudo access)
+WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
+```text
+- wget
+- curl
+- pip
+- build-essential 
+- python3-pandas
+- pkg-config
+- zip
+- cmake 
+- libtbb-dev
+- libprotobuf-dev
+- protobuf-compiler
+- snakemake
+- conda
 ```
 
-**WEPP** is a novel phylogenetic method for detecting the SARS CoV-2 variants from the wastewater. Since, WEPP is based on a Phylogentic method, it can be used to detect the variants at the resolution of haplotypes. We have two version of WEPP - one is based on MAT called WEPP-MAT and the other uses PANMAT called WEPP-PANMAT.  
+For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
+```bash
+sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake
+```
 
-This repository contains the complete workflow, which requires the following inputs to generate results:
-1. Sequencing reads in `fastq.gz` format
-2. A phylogenetic tree in `PanMAT` format
-3. A primer `BED` file
+Capnproto can be installed with:
+```bash
+curl -LO https://capnproto.org/capnproto-c++-0.10.4.tar.gz && \
+tar zxf capnproto-c++-0.10.4.tar.gz && \
+cd capnproto-c++-0.10.4 && \
+./configure && \
+make -j && \
+sudo make install && \
+cd .. && \
+rm -rf capnproto-c++-0.10.4 capnproto-c++-0.10.4.tar.gz
+```
+
+If your system doesn't have Conda, you can install it with:
+```bash
+wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
+bash Miniforge3.sh -b -p "${HOME}/conda"
+
+source "${HOME}/conda/etc/profile.d/conda.sh"
+source "${HOME}/conda/etc/profile.d/mamba.sh"
+```
+
+## <a name="guide"></a> User Guide
+### <a name="data"></a> Organizing Data
+We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
+Each created `DIR` inside `data` is expected to contain the following files:
+1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
+2. Reference Genome fasta
+3. Mutation-Annotated Tree (MAT)
+4. [OPTIONAL] Genome Masking File: `mask.bed`, whose third column specifies sites to be excluded from analysis.
+
+Visualization of WEPP's workflow directories
+```text
+📁 WEPP
+└───📁data                                # [User Created] Contains data to analyze 
+    ├───📁SARS-CoV-2_test_1               # SARS-CoV-2 run wastewater samples
+         ├───sars_cov_2_reads.fastq.gz    # Single-ended reads 
+         ├───sars_cov_2_reference.fa
+         ├───mask.bed                     # OPTIONAL 
+         └───sars_cov_2_mat.pb.gz
+    ├────📁RSVA_test_1                    # RSVA run wastewater samples 
+         ├───rsva_reads_R1.fastq.gz       # Paired-ended reads
+         ├───rsva_reads_R2.fastq.gz       # Paired-ended reads
+         ├───rsva_reference.fa 
+         └───rsva_mat.pb.gz
+
+└───📁intermediate                        # [WEPP Generated] Contains intermediate stage files 
+    ├───📁SARS-CoV-2_test_1                
+         ├───file_1
+         └───file_2
+    ├────📁RSVA_test_1                      
+         ├───file_1
+         └───file_2
+
+└───📁results                             # [WEPP Generated] Contains final WEPP results
+    ├───📁SARS-CoV-2_test_1                
+         ├───file_1
+         └───file_2
+    ├────📁RSVA_test_1                      
+         ├───file_1
+         └───file_2
+```
+
+### <a name="arguments"></a> WEPP Arguments
+The WEPP Snakemake pipeline requires the following arguments, which can be provided either via the configuration file (`config/config.yaml`) or passed directly on the command line using the `--config` argument. The command line arguments take precedence over the config file.
+1. `DIR` - Folder name containing the wastewater reads
+2. `FILE_PREFIX` - File Prefix for all intermediate files 
+3. `REF` - Reference Genome in fasta
+4. `TREE` - Mutation-Annotated Tree
+5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
+6. `PRIMER_BED` - BED file for primers from the `primers` folder
+7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked. 
+8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
+
+### <a name="snakemake"></a> Run Command
+WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
+
+Examples:
+1. Using all the parameters from the config file
+```bash
+snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
+```
+
+2. Overriding MIN_Q and PRIMER_BED through command line
+```bash
+snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
+```
+
+##  <a name="contribution"></a> Contributions
+We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
+
+##  <a name="cite"></a> Citing WEPP
+TBA.

@@ -1,0 +1,57 @@
+name: ci
+on:
+  push:
+    branches:
+      - wepp_panmat
+
+permissions:
+  contents: write
+
+jobs:
+  Run-WEPP:
+    name: Deploy Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          key: ${{ github.ref }}
+          path: .cache
+
+      #- name: Install mkdocs
+      #  run: |
+      #    pip install mkdocs-material
+      #    pip install "mkdocs-material[imaging]"
+      #    mkdocs gh-deploy --force
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake
+
+          curl -LO https://capnproto.org/capnproto-c++-0.10.4.tar.gz && \
+          tar zxf capnproto-c++-0.10.4.tar.gz && \
+          cd capnproto-c++-0.10.4 && \
+          ./configure && \
+          make -j && \
+          sudo make install && \
+          cd .. && \
+          rm -rf capnproto-c++-0.10.4 capnproto-c++-0.10.4.tar.gz
+
+          wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
+          bash Miniforge3.sh -b -p "${HOME}/conda"
+          
+          source "${HOME}/conda/etc/profile.d/conda.sh"
+          source "${HOME}/conda/etc/profile.d/mamba.sh"
+
+      - name: Run WEPP
+        run: |
+          snakemake test --cores 1 --use-conda --conda-frontend conda
