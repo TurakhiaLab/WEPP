@@ -44,6 +44,9 @@ theme:
       primary: teal
       accent: pink
 
+extra_css:
+  - styles/logo.css
+
 plugins:
   - social
   - search
