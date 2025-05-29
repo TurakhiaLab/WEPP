@@ -8,7 +8,6 @@ theme:
   logo: images/WEPP_icon.png
   favicon: images/WEPP_icon.png
   features:
-    # - announce.dismiss
     - content.tabs.link
     - content.code.annotation
     - content.code.copy
@@ -27,7 +26,11 @@ theme:
     - navigation.expand
     - search.highlight
     - search.suggest
+
+  language: en
+
   palette:
+    # Light Mode
     - scheme: default
       toggle:
         icon: material/weather-night
@@ -35,6 +38,7 @@ theme:
       primary: teal   
       accent:  pink
 
+    # Dark Mode
     - scheme: slate
       toggle:
         icon: material/weather-sunny
@@ -43,6 +47,7 @@ theme:
       accent: pink
 
 plugins:
+  - social
   - search
 
 extra:
@@ -53,15 +58,26 @@ extra:
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
   - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 use_directory_urls: false
 nav:
   - Home: index.md
+
+copyright: |
+  &copy; 2025 <a href="https://github.com/TurakhiaLab"  target="_blank" rel="noopener">Turakhia Lab</a>
