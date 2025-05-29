@@ -1,59 +1,48 @@
+# <b>Welcome to WEPP Wiki</b>
 <div align="center">
-    
-# Wastewater-Based Epidemiology using Phylogenetic Placements
-
-[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
-[license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
-
-[![License][license-badge]][license-link]
-[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
-[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
-
-<div align="center">
-  <img src="docs/images/WEPP_logo.svg" width="300"/>
+    <img src="images/WEPP_logo.svg" width="300">
 </div>
 
-</div>
-
-## Table of Contents
-- [Introduction](#intro) ([Wiki](https://turakhia.ucsd.edu/WEPP))
-- [Installation](#install)
-  - [Option-1: Install via DockerHub](#dockerhub)
-  - [Option-2: Install via Dockerfile](#dockerfile)
-  - [Option-3: Install via Shell Commands](#script)
-- [Quick Start](#example)
-- [User Guide](#guide)
-  - [Organizing Data](#data)
-  - [WEPP Arguments](#arguments)
-  - [Run Command](#snakemake)
-- [Contributions](#contribution)
-- [Citing WEPP](#cite)
-
-<br>
-
-
-## <a name="intro"></a> Introduction
-
+## <b>Introduction</b> 
+### <b>Overview</b><a name="overview"></a>
 WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection, WEPP enables critical epidemiological applications previously feasible only through clinical sequencing. It also flags potential novel variants via unaccounted mutations, which can be examined at the read level using the interactive dashboard (Figure 1C).
 
 WEPP begins by placing reads on the mutation-annotated tree (MAT) and identifying an initial set of candidate haplotypes. It expands this set by including neighbors around each selected haplotype to form a candidate pool, which is passed to a deconvolution algorithm to estimate haplotype abundances. Haplotypes above a frequency threshold are retained, and their neighbors are again added to form a new pool. This process is repeated iteratively until the haplotype set stabilizes or the maximum number of iterations is reached (Figure 1B).
 
 
 <div align="center">
-    <img src="docs/images/WEPP_Overview.png" width="600">
+    <img src="images/WEPP_Overview.png" width="600">
     <div><b>Figure 1: Overview of WEPP</b></div>
 </div>
 
+### <b>Key Features</b>
 
-## <a name="install"></a> Installation
+#### <b>Haplotype Proportion Estimation</b>  
+WEPP's *Phylogenetic Placement* of reads enables accurate estimation of haplotype proportions from wastewater samples. These estimates can be interactively explored using the integrated dashboard (Figure 1C(i)), which displays each haplotype’s abundance, associated lineage, and phylogenetic uncertainty via ***Uncertain Nodes*** - neighboring nodes that cannot be confidently disambiguated.
+
+#### <b>Lineage Proportion Estimation</b>  
+WEPP infers lineage proportions by combining abundances of haplotypes belonging to each lineage. This approach accounts for intra-lineage diversity, resulting in more accurate and robust estimates.
+
+#### <b>Unccounted Alleles </b>
+WEPP reports a list of ***Unaccounted Alleles*** - alleles observed in wastewater that are not explained by the selected haplotypes, along with the inferred haplotype(s) they are most likely associated with (Figure 1C(ii)). These *Unaccounted Alleles* can serve as early indicators of novel variants and often resemble the 'cryptic' mutations described in previous studies.
+
+#### <b>Read-Level Analysis </b>
+WEPP supports detailed analysis of sequencing reads in the context of selected haplotypes (Figure 1C(iii)). It also facilitates interpretation of *Unaccounted Alleles* by examining their presence in reads relative to the haplotypes they are mapped to. Additional information about individual reads or haplotypes can be accessed by selecting them within the interactive panel (Figure 1C(iv)).
+ 
+
+## <b>Installation</b> <a name="install"></a>
+
 WEPP offers multiple installation methods. Using a [Docker](https://docs.docker.com/engine/install/) is recommended to prevent any conflict with existing packages.
+
 1. Docker image from DockerHub
 2. Dockerfile 
-3. Shell Commands
+3. Shell Commands 
 
-⚠️ The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
+!!!Note
+     ⚠️The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
-### <a name="dockerhub"></a> Option-1: Install via DockerHub
+
+### **Option-1: Install via DockerHub** <a name=dockerhub></a> 
 The Docker image includes all dependencies required to run WEPP.
 
 **Step 1:** Get the image from DockerHub 
@@ -73,7 +62,7 @@ docker run -it -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 snakemake test --cores 1 --use-conda
 ```
 
-### <a name="dockerfile"></a> Option-2: Install via Dockerfile
+### **Option-2: Install via Dockerfile** <a name=dockerfile></a> 
 The Dockerfile contains all dependencies required to run WEPP.
 
 **Step 1:** Clone the repository
@@ -96,7 +85,7 @@ docker run -it wepp
 docker run -it -v "$PWD":/workspace -w /workspace wepp
 ```
 
-### <a name="script"></a> Option-3: Install via Shell Commands (requires sudo access)  
+### **Option-3: Install via Shell Commands (requires sudo access)** <a name=script></a>
 Users without sudo access are advised to install WEPP via [Docker Image](#dockerhub).
 
 **Step 1:** Clone the repository
@@ -136,7 +125,7 @@ source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
 
-##  <a name="example"></a> Quick Start
+## <b>Quick Start</b> <a name="example"></a>
 The following steps will download a real wastewater RSVA dataset and analyze it with WEPP.
 
 **Step 1:** Download the test dataset
@@ -160,10 +149,13 @@ snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primer
 
 All results generated by WEPP can be found in the `results/RSVA_real` directory.
 
-## <a name="guide"></a> User Guide
-### <a name="data"></a> Organizing Data
+
+## <b>User Guide</b> <a name="guide"></a>
+### Organizing Data<a name="data"></a>
 We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
+
 Each created `DIR` inside `data` is expected to contain the following files:
+
 1. Sequencing Reads: Ending with `*R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 2. Reference Genome fasta
 3. Mutation-Annotated Tree (MAT)
@@ -201,8 +193,9 @@ Visualization of WEPP's workflow directories
          └───file_2
 ```
 
-### <a name="arguments"></a> WEPP Arguments
+### WEPP Arguments<a name="arguments"></a>
 The WEPP Snakemake pipeline requires the following arguments, which can be provided either via the configuration file (`config/config.yaml`) or passed directly on the command line using the `--config` argument. The command line arguments take precedence over the config file.
+
 1. `DIR` - Folder name containing the wastewater reads
 2. `FILE_PREFIX` - File Prefix for all intermediate files 
 3. `REF` - Reference Genome in fasta
@@ -214,10 +207,11 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
 
-### <a name="snakemake"></a> Run Command
+### Run Command<a name="snakemake"></a>
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
 
 Examples:
+
 1. Using all the parameters from the config file
 ```bash
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
@@ -228,8 +222,8 @@ snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-c
 snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
 ```
 
-##  <a name="contribution"></a> Contributions
-We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
+## <b>Contributions</b>
+We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
 
-##  <a name="cite"></a> Citing WEPP
+## <b>Citing WEPP</b>
 TBA.
