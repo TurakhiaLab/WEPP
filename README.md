@@ -66,6 +66,8 @@ docker pull pranavgangwar/wepp:latest
 docker run -it pranavgangwar/wepp:latest
 
 # Use this command if your datasets are present in your current directory
+# -p <host_port>:<container_port> → Maps container port to a port on your host (for accessing the dashboard)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 docker run -it -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
 **Step 3:** Confirm proper working by running 
@@ -92,8 +94,10 @@ cd ..
 # Use this command if your datasets can be downloaded from the Web
 docker run -it wepp
 
-# Use this command if your datasets are present in your current directory
-docker run -it -v "$PWD":/workspace -w /workspace wepp
+# Run this command if your datasets are in the current directory.
+# -p <host_port>:<container_port> → Maps container port to a port on your host (for accessing the dashboard)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
+docker run -it -v "$PWD":/workspace -w /workspace -p 80:80 wepp
 ```
 
 ### <a name="script"></a> Option-3: Install via Shell Commands (requires sudo access)  
