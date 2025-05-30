@@ -12,7 +12,6 @@ rule process_taxonium:
         """
          if [ "{params.taxonium_jsonl_file}" = '' ]; then
                 
-                echo "Dashboard is enabled. creating taxonium file"
                 echo "data/{wildcards.DIR}/{params.tree} {output}"
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output} \

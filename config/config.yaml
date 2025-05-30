@@ -1,8 +1,8 @@
-TREE: MAT.pb.gz
+TREE: pruned_public-2023-12-25.all.masked.pb.gz
 REF: REF.fa
 
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
-SEQUENCING_TYPE: "d"
+SEQUENCING_TYPE: "s"
 
 # Bed file should be present in 'primers'
 PRIMER_BED: "none.bed"
@@ -19,3 +19,8 @@ MAX_READS: "1000000000"
 # Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs
 # Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
 CLADE_IDX: "1"
+
+# True to view WEPP results on dashboard. False if not. 
+DASHBOARD_ENABLED: True 
+# Path to taxonium '.jsonl' file. 
+USHER_TAXONIUM_FILE_PATH: ""
