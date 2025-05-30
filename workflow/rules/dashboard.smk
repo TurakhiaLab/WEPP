@@ -1,5 +1,3 @@
-configfile: config.get("config_path", "config/config.yaml")
-
 rule process_taxonium:
     input:
         "build/wepp",
@@ -11,7 +9,6 @@ rule process_taxonium:
     shell:
         """
          if [ "{params.taxonium_jsonl_file}" = '' ]; then
-                
                 echo "data/{wildcards.DIR}/{params.tree} {output}"
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output} \
