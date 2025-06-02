@@ -11,7 +11,7 @@ WEPP begins by placing reads on the mutation-annotated tree (MAT) and identifyin
 
 
 <div align="center">
-    <img src="images/WEPP_Overview.png" width="600">
+    <img src="images/WEPP_Overview_Display.svg" width="600">
     <div><b>Figure 1: Overview of WEPP</b></div>
 </div>
 
