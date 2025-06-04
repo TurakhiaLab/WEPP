@@ -7,7 +7,6 @@ rule filter:
         "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv"
     output:
         # other results too, but probably should add all at some point
-        # "results/{DIR}/{FILE_PREFIX}_run.txt"
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt"
     conda:
         "../envs/wepp.yml"

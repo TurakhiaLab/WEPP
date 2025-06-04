@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
     nginx \
-    samtools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

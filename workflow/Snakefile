@@ -21,11 +21,26 @@ if "test" not in requested_rules:
     if not DIR or not FILE_PREFIX:
         raise ValueError("Please provide DIR and FILE_PREFIX in --config argument")
     
-    print(f"\nDIR={DIR}, FILE_PREFIX={FILE_PREFIX}\nTREE={config.get("TREE")}\nREF={config.get("REF")}\nSEQUENCING_TYPE={config.get("SEQUENCING_TYPE")}\nPRIMER_BED={config.get("PRIMER_BED")}\nMIN_AF={config.get("MIN_AF")}\nMIN_Q={config.get("MIN_Q")}\nMAX_READS={config.get("MAX_READS")}\nCLADE_IDX={config.get("CLADE_IDX")}\n\n")
+    print(f"""\n\n
+DIR={DIR}, FILE_PREFIX={FILE_PREFIX}
+TREE={config.get("TREE")}
+REF={config.get("REF")}
+SEQUENCING_TYPE={config.get("SEQUENCING_TYPE")}
+PRIMER_BED={config.get("PRIMER_BED")}
+MIN_AF={config.get("MIN_AF")}
+MIN_Q={config.get("MIN_Q")}
+MAX_READS={config.get("MAX_READS")}
+CLADE_IDX={config.get("CLADE_IDX")}
+DASHBOARD_ENABLED={config.get("DASHBOARD_ENABLED")}
+TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
+DASHBOARD_ENABLED={config.get("DASHBOARD_ENABLED")}
+TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
+            \n\n""")
 
 rule all:
     input:
         f"results/{DIR}/{FILE_PREFIX}_run.txt"
+
 
 rule test:
     input:
