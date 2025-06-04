@@ -217,6 +217,8 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
+11. `DASHBOARD_ENABLED` - Set to `True` to launch the interactive dashboard for viewing WEPP results. Set to `False` (default) to skip. 
+12. `USHER_TAXONIUM_FILE_PATH` - Optional path to a precomputed Taxonium `.jsonl` file. If provided, this file will be used directly instead of generating a new one from the MAT file using `usher_to_taxonium`.
 
 ### <a name="snakemake"></a> Run Command
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
@@ -230,6 +232,11 @@ snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-c
 2. Overriding MIN_Q and PRIMER_BED through command line
 ```bash
 snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
+```
+
+3. To enable and launch the dashboard after all results are generated, set `DASHBOARD_ENABLED` to `True` and re-run the workflow to start only the dashboard components without recomputing the analysis.
+```bash
+snakemake --config DIR=test FILE_PREFIX=test_run --cores 32 --use-conda --forcerun dashboard_serve
 ```
 
 ##  <a name="contribution"></a> Contributions

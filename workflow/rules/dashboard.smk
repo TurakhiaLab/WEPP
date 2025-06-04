@@ -1,34 +1,44 @@
+from pathlib import Path
+
+TREE = config["TREE"]
+TAXONIUM_PATH = config.get("USHER_TAXONIUM_FILE_PATH", '')
+if TAXONIUM_PATH:
+    TAXONIUM_FILENAME = Path(TAXONIUM_PATH).name 
+else:
+    TAXONIUM_FILENAME = Path(TREE).stem + ".jsonl"
+
 rule process_taxonium:
     input:
         "build/wepp",
     output:
-        "results/{DIR}/"+config['TREE']+'.jsonl'
+        f"results/{{DIR}}/{TAXONIUM_FILENAME}"
     params:
-        taxonium_jsonl_file=config.get("USHER_TAXONIUM_FILE_PATH", ''),
-        tree=config["TREE"],
+        taxonium_jsonl_file=TAXONIUM_PATH,
+        tree=TREE,
     shell:
         """
          if [ "{params.taxonium_jsonl_file}" = '' ]; then
-                echo "data/{wildcards.DIR}/{params.tree} {output}"
+                echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output}"
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output} \
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
             else
-                echo "Dashboard is enabled and taxonium file provided."
+                echo "Taxonium file provided. Not converting MAT to .jsonl file"
                 cp {params.taxonium_jsonl_file} {output}
             fi
         """
 
-rule taxonium_backend:
+rule dashboard_serve:
     input:
-        # "build/wepp",
-        "results/{DIR}/"+config['TREE']+".jsonl",
         "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv",
         "intermediate/{DIR}/{FILE_PREFIX}_corrected_variants.tsv",
         "intermediate/{DIR}/{FILE_PREFIX}_reads.pb",
-        "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt"
+        "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
+        taxonium_jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
     output:
         "results/{DIR}/{FILE_PREFIX}_run.txt"
+    conda:
+        "../envs/wepp.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
@@ -36,13 +46,11 @@ rule taxonium_backend:
     shell:
         """
         echo "copying the reference file and indexing..." | tee -a {params.log}
-        cp data/{wildcards.DIR}/{params.ref} ./results/{wildcards.DIR}/{params.ref}
-        samtools faidx ./results/{wildcards.DIR}/{params.ref}
+        cp /workspace/data/{wildcards.DIR}/{params.ref} /workspace/results/{wildcards.DIR}/{params.ref}
+        samtools faidx /workspace/results/{wildcards.DIR}/{params.ref}
 
-
-        # creating or appending projects.json
-        python src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input[0]} ./results/{wildcards.DIR}/{params.ref}
-
+        # Appending this project to database.
+        python /workspace/src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} /workspace/results/{wildcards.DIR}/{params.ref}
 
         echo "Dashboard is enabled. creating taxonium file. {params.dashboard}"
         if [ "{params.dashboard}" = "True" ]; then
@@ -59,10 +67,9 @@ rule taxonium_backend:
                 echo "Installing dashboard dependencies..." | tee -a {params.log}
                 cd src/Dashboard/taxonium_backend/ && yarn install && cd /workspace
 
-        
                 echo "Starting the Node.js server..." | tee -a {params.log}
 
-                node --expose-gc src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input[0]} --integrated &
+                node --expose-gc src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} --integrated &
 
                 # Wait until port 8080 is open
                 until ss -tuln | grep ':8080' > /dev/null; do
@@ -91,5 +98,6 @@ rule taxonium_backend:
             echo "Dashboard is disabled. Skipping input file processing."
         fi
         
-        mv {params.log} {output}
+        cp {params.log} {output}
         """
+
