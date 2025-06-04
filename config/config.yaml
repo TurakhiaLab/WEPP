@@ -22,5 +22,6 @@ CLADE_IDX: "1"
 
 # True to view WEPP results on dashboard. False if not. 
 DASHBOARD_ENABLED: True 
+
 # Path to taxonium '.jsonl' file. 
 USHER_TAXONIUM_FILE_PATH: ""
