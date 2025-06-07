@@ -38,7 +38,6 @@ rule process_dashboard:
         jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     output:
-        bam_dir=directory("results/{DIR}/{FILE_PREFIX}_split_bams/"),  # Added FILE_PREFIX wildcard
         log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false")
@@ -50,8 +49,7 @@ rule process_dashboard:
         if [ "{params.dashboard}" = "True" ]; then
             # Split BAM files by read groups
             echo "Splitting BAM file by read groups..."
-            mkdir -p {output.bam_dir}
-            workflow/scripts/split_bams.sh {input.bam_file} {output.bam_dir}
+            workflow/scripts/split_bams.sh {input.bam_file} /workspace/results/{wildcards.DIR} {workflow.cores}
         fi
         touch {output.log}
         """
@@ -59,17 +57,18 @@ rule process_dashboard:
 rule dashboard_serve:
     input:
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
+        "results/{DIR}/{FILE_PREFIX}_split_bam_log.txt",
         taxonium_jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
-        bam_dir="results/{DIR}/{FILE_PREFIX}_split_bams/"  # Updated to match new path
     output:
-        "results/{DIR}/{FILE_PREFIX}_run.txt"
+        "results/{DIR}/{FILE_PREFIX}_run.txt",
     conda:
         "../envs/wepp.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         taxonium_jsonl_file=TAXONIUM_PATH,
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
-        ref=config["REF"]
+        ref=config["REF"],
+        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     shell:
         """
         if [ "{params.dashboard}" = "False" ]; then
@@ -83,7 +82,7 @@ rule dashboard_serve:
         fi
 
         echo "copying the reference file and indexing..." | tee -a {params.log}
-        cp /workspace/data/{wildcards.DIR}/{params.ref} /workspace/results/{wildcards.DIR}/{params.ref}
+        cp /workspace/data/{wildcards.DIR}/{params.ref} /workspace/results/{wildcards.DIR}/{params.ref} 
         samtools faidx /workspace/results/{wildcards.DIR}/{params.ref}
 
         # Appending this project to database.
@@ -135,4 +134,6 @@ rule dashboard_serve:
         fi
         
         cp {params.log} {output}
+        # mv {params.bam_file} ../.
+
         """
