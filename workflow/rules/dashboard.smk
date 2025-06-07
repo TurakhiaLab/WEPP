@@ -9,42 +9,79 @@ else:
 
 rule process_taxonium:
     input:
-        "build/wepp",
+        "build/wepp"
     output:
-        f"results/{{DIR}}/{TAXONIUM_FILENAME}"
+        jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}"
+    conda:
+        "../envs/wepp.yml"
     params:
+        dashboard=config.get("DASHBOARD_ENABLED", "false"), 
         taxonium_jsonl_file=TAXONIUM_PATH,
         tree=TREE,
     shell:
-        """
-         if [ "{params.taxonium_jsonl_file}" = '' ]; then
-                echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output}"
+        """ 
+        if [ "{params.dashboard}" = "True" ]; then
+            if [ "{params.taxonium_jsonl_file}" = '' ]; then
+                echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output.jsonl}"
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
-                    --output {output} \
+                    --output {output.jsonl} \
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
-            else
-                echo "Taxonium file provided. Not converting MAT to .jsonl file"
-                cp {params.taxonium_jsonl_file} {output}
             fi
+        else
+            echo "Dashboard disabled. Touching output file to satisfy rule."
+            touch {output.jsonl}
+        fi
+        """
+
+rule process_dashboard:
+    input:
+        jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
+        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
+    output:
+        bam_dir=directory("results/{DIR}/{FILE_PREFIX}_split_bams/"),  # Added FILE_PREFIX wildcard
+        log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
+    params:
+        dashboard=config.get("DASHBOARD_ENABLED", "false")
+    conda:
+        "../envs/wepp.yml"
+    shell:
+        """
+        echo {input.bam_file}
+        if [ "{params.dashboard}" = "True" ]; then
+            # Split BAM files by read groups
+            echo "Splitting BAM file by read groups..."
+            mkdir -p {output.bam_dir}
+            workflow/scripts/split_bams.sh {input.bam_file} {output.bam_dir}
+        fi
+        touch {output.log}
         """
 
 rule dashboard_serve:
     input:
-        "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv",
-        "intermediate/{DIR}/{FILE_PREFIX}_corrected_variants.tsv",
-        "intermediate/{DIR}/{FILE_PREFIX}_reads.pb",
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
         taxonium_jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
+        bam_dir="results/{DIR}/{FILE_PREFIX}_split_bams/"  # Updated to match new path
     output:
         "results/{DIR}/{FILE_PREFIX}_run.txt"
     conda:
         "../envs/wepp.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
+        taxonium_jsonl_file=TAXONIUM_PATH,
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
         ref=config["REF"]
     shell:
         """
+        if [ "{params.dashboard}" = "False" ]; then
+            echo "removing .jsonl file that created. {input.taxonium_jsonl}"
+            rm {input.taxonium_jsonl}
+        fi
+
+        if [ "{params.taxonium_jsonl_file}" != '' ]; then
+            echo "Taxonium file provided. Not converting MAT to .jsonl file"
+            mv {params.taxonium_jsonl_file} {output}
+        fi
+
         echo "copying the reference file and indexing..." | tee -a {params.log}
         cp /workspace/data/{wildcards.DIR}/{params.ref} /workspace/results/{wildcards.DIR}/{params.ref}
         samtools faidx /workspace/results/{wildcards.DIR}/{params.ref}
@@ -52,7 +89,6 @@ rule dashboard_serve:
         # Appending this project to database.
         python /workspace/src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} /workspace/results/{wildcards.DIR}/{params.ref}
 
-        echo "Dashboard is enabled. creating taxonium file. {params.dashboard}"
         if [ "{params.dashboard}" = "True" ]; then
                 # Start the Node.js server in the background
             if ss -tuln | grep ':8080' > /dev/null; then
@@ -91,13 +127,12 @@ rule dashboard_serve:
                     sleep 1
                 done
                 
-                echo "Dashboard serving on port 80..." | tee -a {params.log}
+                echo "Dashboard can be accessed on browser on http://localhost:80 " | tee -a {params.log}
             fi
 
         else
-            echo "Dashboard is disabled. Skipping input file processing."
+            echo "Dashboard is disabled. Skipping Dashboard initialization."
         fi
         
         cp {params.log} {output}
         """
-
