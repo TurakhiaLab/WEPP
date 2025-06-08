@@ -35,21 +35,30 @@ rule process_taxonium:
 
 rule process_dashboard:
     input:
+        "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
         jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
-        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     output:
-        log="results/{DIR}/{FILE_PREFIX}_split_bam_log.txt"
+        log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
     params:
-        dashboard=config.get("DASHBOARD_ENABLED", "false")
+        dashboard=config.get("DASHBOARD_ENABLED", "false"),
+        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     conda:
         "../envs/wepp.yml"
     shell:
         """
-        echo {input.bam_file}
+        echo {params.bam_file}
         if [ "{params.dashboard}" = "True" ]; then
-            # Split BAM files by read groups
-            echo "Splitting BAM file by read groups..."
-            workflow/scripts/split_bams.sh {input.bam_file} /workspace/results/{wildcards.DIR} {workflow.cores}
+
+            if [ -f "{params.bam_file}" ]; then
+                # Split BAM files by read groups
+                echo "Splitting BAM file by read groups..."
+                workflow/scripts/split_bams.sh {params.bam_file} /workspace/results/{wildcards.DIR} {workflow.cores}/2
+
+                mv {params.bam_file} /workspace/.
+                mv {params.bam_file}.bai /workspace/.
+            else
+                echo "Splitting by read-groups already done!"
+            fi
         fi
         touch {output.log}
         """
@@ -68,7 +77,6 @@ rule dashboard_serve:
         taxonium_jsonl_file=TAXONIUM_PATH,
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
         ref=config["REF"],
-        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     shell:
         """
         if [ "{params.dashboard}" = "False" ]; then
@@ -134,6 +142,4 @@ rule dashboard_serve:
         fi
         
         cp {params.log} {output}
-        # mv {params.bam_file} ../.
-
         """

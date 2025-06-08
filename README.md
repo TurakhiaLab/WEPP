@@ -238,6 +238,8 @@ snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none
 ```bash
 snakemake --config DIR=test FILE_PREFIX=test_run --cores 32 --use-conda --forcerun dashboard_serve
 ```
+>**NOTE**\
+> ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
 
 ##  <a name="contribution"></a> Contributions
 We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
