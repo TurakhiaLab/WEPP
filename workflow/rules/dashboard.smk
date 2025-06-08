@@ -60,7 +60,7 @@ rule dashboard_serve:
         "results/{DIR}/{FILE_PREFIX}_split_bam_log.txt",
         taxonium_jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
     output:
-        "results/{DIR}/{FILE_PREFIX}_run.txt",
+        temp("results/{DIR}/{FILE_PREFIX}_run.txt"),
     conda:
         "../envs/wepp.yml"
     params:
