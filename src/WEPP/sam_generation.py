@@ -123,7 +123,8 @@ def write_sam_files(input_sam_file):
         # Convert sam to bam
         command_1 = f"samtools view -Sb {write_file_sam_reads} | samtools sort -o {write_file_bam_reads}"
         command_2 = f"samtools index {write_file_bam_reads}"
-        commands = [command_1, command_2]
+        command_3 = f"rm {write_file_sam_reads}"
+        commands = [command_1, command_2, command_3]
         # Execute sam to bam conversion
         for command in commands:
             result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -172,7 +173,8 @@ def write_sam_files(input_sam_file):
         # Convert sam to bam
         command_1 = f"samtools view -Sb {write_file_sam_haps} | samtools sort -o {write_file_bam_haps}"
         command_2 = f"samtools index {write_file_bam_haps}"
-        commands = [command_1, command_2]
+        command_3 = f"rm {write_file_sam_haps}"
+        commands = [command_1, command_2, command_3]
         # Execute sam to bam conversion
         for command in commands:
             result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -213,4 +215,4 @@ hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.ts
 # Writing File
 write_sam_files(intermediate_directory + "/" + file_prefix + "_alignment.sam")
 
-print(f"\nElapsed time: {time.time() - start_time} seconds")
+print(f"\nDashboard's File Generation took: {time.time() - start_time} seconds")
