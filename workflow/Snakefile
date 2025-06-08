@@ -40,11 +40,16 @@ TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
 rule all:
     input:
         f"results/{DIR}/{FILE_PREFIX}_run.txt"
-
-
+    params:
+        dashboard=config.get("DASHBOARD_ENABLED", "false"),
+    shell:
+        """
+        if [ "{params.dashboard}" = "True" ]; then
+            echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port)."
+        fi
+        """
 rule test:
     input:
         "build/wepp"
     shell:
         "./{input} help"
-
