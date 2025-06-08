@@ -28,7 +28,7 @@ rule process_taxonium:
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
             fi
         else
-            echo "Dashboard disabled. Touching output file to satisfy rule."
+            echo "Dashboard disabled."
             touch {output.jsonl}
         fi
         """
