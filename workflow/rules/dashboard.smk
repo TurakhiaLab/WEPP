@@ -38,7 +38,7 @@ rule process_dashboard:
         jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}",
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
     output:
-        log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
+        log="results/{DIR}/{FILE_PREFIX}_split_bam_log.txt"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false")
     conda:
