@@ -20,8 +20,8 @@ MAX_READS: "1000000000"
 # Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
 CLADE_IDX: "1"
 
-# True to view WEPP results on dashboard. False if not. 
+# True to view WEPP results on dashboard, otherwise False. 
 DASHBOARD_ENABLED: False 
 
-# Path to taxonium '.jsonl' file. 
-USHER_TAXONIUM_FILE_PATH: ""
+# Name of the Taxonium '.jsonl' file. 
+TAXONIUM_FILE: ""

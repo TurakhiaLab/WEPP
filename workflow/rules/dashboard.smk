@@ -1,9 +1,9 @@
 from pathlib import Path
 
 TREE = config["TREE"]
-TAXONIUM_PATH = config.get("USHER_TAXONIUM_FILE_PATH", '')
-if TAXONIUM_PATH:
-    TAXONIUM_FILENAME = Path(TAXONIUM_PATH).name 
+GIVEN_TAXONIUM = config.get("TAXONIUM_FILE", '')
+if GIVEN_TAXONIUM:
+    TAXONIUM_FILENAME = Path(GIVEN_TAXONIUM).name 
 else:
     TAXONIUM_FILENAME = Path(TREE).stem + ".jsonl"
 
@@ -16,7 +16,7 @@ rule process_taxonium:
         "../envs/wepp.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"), 
-        taxonium_jsonl_file=TAXONIUM_PATH,
+        taxonium_jsonl_file=GIVEN_TAXONIUM,
         tree=TREE,
     shell:
         """ 
@@ -26,6 +26,8 @@ rule process_taxonium:
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output.jsonl} \
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
+            else
+                cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output}
             fi
         else
             echo "Dashboard disabled."
@@ -74,7 +76,7 @@ rule dashboard_serve:
         "../envs/wepp.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
-        taxonium_jsonl_file=TAXONIUM_PATH,
+        taxonium_jsonl_file=GIVEN_TAXONIUM,
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
         ref=config["REF"],
     shell:
@@ -82,11 +84,6 @@ rule dashboard_serve:
         if [ "{params.dashboard}" = "False" ]; then
             echo "removing .jsonl file that created. {input.taxonium_jsonl}"
             rm {input.taxonium_jsonl}
-        fi
-
-        if [ "{params.taxonium_jsonl_file}" != '' ]; then
-            echo "Taxonium file provided. Not converting MAT to .jsonl file"
-            mv {params.taxonium_jsonl_file} {output}
         fi
 
         echo "copying the reference file and indexing..." | tee -a {params.log}
