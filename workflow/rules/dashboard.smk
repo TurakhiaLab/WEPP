@@ -103,7 +103,7 @@ rule dashboard_serve:
                     cp ./src/Dashboard/data/NC_045512v2.* ./results/uploads/.
                 fi
                 
-                echo "Installing dashboard dependencies..." | tee -a {params.log}
+                echo "Installing backend dependencies..." | tee -a {params.log}
                 cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
 
                 echo "Starting the Node.js server..." | tee -a {params.log}
@@ -122,6 +122,11 @@ rule dashboard_serve:
             else
                 echo "Starting dashboard..." | tee -a {params.log}
                 cp -r src/Dashboard/dashboard/dist/* /usr/share/nginx/html
+
+                # create force symlink for static absolute paths for nginx to serve
+                mkdir -p /srv/wepp
+                ln -sfn "$(realpath ./results)" /srv/wepp/results
+
                 cp src/Dashboard/nginx/nginx-react.conf /etc/nginx/sites-available/default
                 nginx &
 
