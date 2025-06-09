@@ -129,14 +129,16 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - nginx
 ```
 
-```bash
-npm install -g yarn
-pip install taxoniumtools
-```
-
 For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
 ```bash
-sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake
+sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake nodejs npm nginx
+```
+
+```bash
+# Install Yarn package manager globally
+npm install -g yarn
+# Install TaxoniumTools Python package
+pip install taxoniumtools
 ```
 
 If your system doesn't have Conda, you can install it with:
