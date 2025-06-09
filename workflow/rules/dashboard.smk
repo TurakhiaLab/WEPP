@@ -108,7 +108,7 @@ rule dashboard_serve:
 
                 echo "Starting the Node.js server..." | tee -a {params.log}
 
-                node --expose-gc src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} --integrated &
+                node --expose-gc src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
 
                 # Wait until port 8080 is open
                 until ss -tuln | grep ':8080' > /dev/null; do
