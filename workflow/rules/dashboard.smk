@@ -5,7 +5,7 @@ GIVEN_TAXONIUM = config.get("TAXONIUM_FILE", '')
 if GIVEN_TAXONIUM:
     TAXONIUM_FILENAME = Path(GIVEN_TAXONIUM).name 
 else:
-    TAXONIUM_FILENAME = Path(TREE).stem + ".jsonl"
+    TAXONIUM_FILENAME = Path(TREE).stem + ".jsonl.gz"
 
 rule process_taxonium:
     input:
@@ -27,7 +27,7 @@ rule process_taxonium:
                     --output {output.jsonl} \
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
             else
-                cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output}
+                cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output.jsonl}
             fi
         else
             echo "Dashboard disabled."
@@ -56,8 +56,8 @@ rule process_dashboard:
                 echo "Splitting BAM file by read groups..."
                 workflow/scripts/split_bams.sh {params.bam_file} /workspace/results/{wildcards.DIR} {workflow.cores}/2
 
-                mv {params.bam_file} /workspace/.
-                mv {params.bam_file}.bai /workspace/.
+                rm {params.bam_file}
+                rm {params.bam_file}
             else
                 echo "Splitting by read-groups already done!"
             fi
