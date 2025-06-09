@@ -54,17 +54,16 @@ rule process_dashboard:
             if [ -f "{params.bam_file}" ]; then
                 # Split BAM files by read groups
                 echo "Splitting BAM file by read groups..."
-                workflow/scripts/split_bams.sh {params.bam_file} /workspace/results/{wildcards.DIR} {workflow.cores}/2
+                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR} {workflow.cores}
 
                 rm {params.bam_file}
-                rm {params.bam_file}
+                rm {params.bam_file}.bai
             else
                 echo "Splitting by read-groups already done!"
             fi
         fi
         touch {output.log}
         """
-
 rule dashboard_serve:
     input:
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
@@ -87,11 +86,11 @@ rule dashboard_serve:
         fi
 
         echo "copying the reference file and indexing..." | tee -a {params.log}
-        cp /workspace/data/{wildcards.DIR}/{params.ref} /workspace/results/{wildcards.DIR}/{params.ref} 
-        samtools faidx /workspace/results/{wildcards.DIR}/{params.ref}
+        cp ./data/{wildcards.DIR}/{params.ref} ./results/{wildcards.DIR}/{params.ref} 
+        samtools faidx ./results/{wildcards.DIR}/{params.ref}
 
         # Appending this project to database.
-        python /workspace/src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} /workspace/results/{wildcards.DIR}/{params.ref}
+        python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref}
 
         if [ "{params.dashboard}" = "True" ]; then
                 # Start the Node.js server in the background
@@ -99,13 +98,13 @@ rule dashboard_serve:
                 echo "Port 8080 is already in use. Exiting."
             else
                 echo "creating uploads directory" | tee -a {params.log}
-                if [ ! -d "/workspace/results/uploads" ]; then
-                    mkdir /workspace/results/uploads
-                    cp /workspace/src/Dashboard/data/NC_045512v2.* /workspace/results/uploads/.
+                if [ ! -d "./results/uploads" ]; then
+                    mkdir ./results/uploads
+                    cp ./src/Dashboard/data/NC_045512v2.* ./results/uploads/.
                 fi
                 
                 echo "Installing dashboard dependencies..." | tee -a {params.log}
-                cd src/Dashboard/taxonium_backend/ && yarn install && cd /workspace
+                cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
 
                 echo "Starting the Node.js server..." | tee -a {params.log}
 
