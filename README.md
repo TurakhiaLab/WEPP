@@ -94,9 +94,9 @@ cd ..
 # -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
 # Replace <host_port> with your desired local port (e.g., 80 or 8080)
 # Use this command if your datasets can be downloaded from the Web
-docker run -it wepp -p 80:80 wepp
+docker run -it -p 80:80 wepp
 
-# Run this command if your datasets are in the current directory.
+# Run this command if your datasets are in the current directory
 docker run -it -v "$PWD":/workspace -w /workspace -p 80:80 wepp
 ```
 
@@ -233,12 +233,12 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
 
 Examples:
-1. Using all the parameters from the config file
+1. Using all the parameters from the config file.
 ```bash
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
 ```
 
-2. Overriding MIN_Q, PRIMER_BED, and DASHBOARD_ENABLED through command line
+2. Overriding MIN_Q, PRIMER_BED, and DASHBOARD_ENABLED through command line.
 ```bash
 snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
