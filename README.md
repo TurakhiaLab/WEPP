@@ -124,8 +124,7 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - protobuf-compiler
 - snakemake
 - conda
-- nodejs
-- npm 
+- nodejs(v18+)
 - nginx
 ```
 
@@ -134,6 +133,12 @@ For Ubuntu users with sudo access, if any of the required libraries are missing,
 sudo apt-get update
 sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake nginx
 ```
+
+Note: WEPP expects the `python` command to be available. If your system only provides python3, you can optionally set up a symlink:
+```bash
+update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+```
+
 If you do not have Node.js v18 or higher installed, follow these steps to install Node.js v22:
 ```bash
 # Update and install prerequisites
