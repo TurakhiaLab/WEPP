@@ -33,8 +33,6 @@ MAX_READS={config.get("MAX_READS")}
 CLADE_IDX={config.get("CLADE_IDX")}
 DASHBOARD_ENABLED={config.get("DASHBOARD_ENABLED")}
 TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
-DASHBOARD_ENABLED={config.get("DASHBOARD_ENABLED")}
-TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
             \n\n""")
 
 rule all:

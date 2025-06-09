@@ -62,13 +62,13 @@ docker pull pranavgangwar/wepp:latest
 ```
 **Step 2:** Start and run Docker container
 ```bash
+# -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 # Use this command if your datasets can be downloaded from the Web
-docker run -it pranavgangwar/wepp:latest
+docker run -it -p 80:80 pranavgangwar/wepp:latest
 
 # Use this command if your datasets are present in your current directory
-# -p <host_port>:<container_port> → Maps container port to a port on your host (for accessing the dashboard)
-# Replace <host_port> with your desired local port (e.g., 80 or 8080)
-docker run -it -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
+docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
 **Step 3:** Confirm proper working by running 
 ```bash
@@ -91,12 +91,12 @@ cd ..
 ```
 **Step 3:** Start and run Docker container
 ```bash
+# -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 # Use this command if your datasets can be downloaded from the Web
-docker run -it wepp
+docker run -it wepp -p 80:80 wepp
 
 # Run this command if your datasets are in the current directory.
-# -p <host_port>:<container_port> → Maps container port to a port on your host (for accessing the dashboard)
-# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 docker run -it -v "$PWD":/workspace -w /workspace -p 80:80 wepp
 ```
 
@@ -172,6 +172,7 @@ Each created `DIR` inside `data` is expected to contain the following files:
 2. Reference Genome fasta
 3. Mutation-Annotated Tree (MAT)
 4. [OPTIONAL] Genome Masking File: `mask.bed`, whose third column specifies sites to be excluded from analysis.
+5. [OPTIONAL] Taxonium `.jsonl` file to be used for visualizing results in the WEPP dashboard. 
 
 Visualization of WEPP's workflow directories
 ```text
@@ -217,8 +218,8 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
-11. `DASHBOARD_ENABLED` - Set to `True` to launch the interactive dashboard for viewing WEPP results. Set to `False` (default) to skip. 
-12. `USHER_TAXONIUM_FILE_PATH` - Optional path to a precomputed Taxonium `.jsonl` file. If provided, this file will be used directly instead of generating a new one from the MAT file using `usher_to_taxonium`.
+11. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
+12. `TAXONIUM_FILE [Optional]` - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
 
 ### <a name="snakemake"></a> Run Command
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
@@ -229,14 +230,14 @@ Examples:
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
 ```
 
-2. Overriding MIN_Q and PRIMER_BED through command line
+2. Overriding MIN_Q, PRIMER_BED, and DASHBOARD_ENABLED through command line
 ```bash
-snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
+snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
-3. To enable and launch the dashboard after all results are generated, set `DASHBOARD_ENABLED` to `True` and re-run the workflow to start only the dashboard components without recomputing the analysis.
+3. To visualize results from a previous WEPP analysis that was run without the dashboard, set `DASHBOARD_ENABLED` to `True` and re-run only the dashboard components, without reanalyzing the dataset.
 ```bash
-snakemake --config DIR=test FILE_PREFIX=test_run --cores 32 --use-conda --forcerun dashboard_serve
+snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
 ```
 >**NOTE**\
 > ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
