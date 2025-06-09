@@ -51,11 +51,13 @@ docker pull pranavgangwar/wepp:latest
 ```
 **Step 2:** Start and run Docker container
 ```bash
+# -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 # Use this command if your datasets can be downloaded from the Web
-docker run -it pranavgangwar/wepp:latest
+docker run -it -p 80:80 pranavgangwar/wepp:latest
 
 # Use this command if your datasets are present in your current directory
-docker run -it -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
+docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
 **Step 3:** Confirm proper working by running 
 ```bash
@@ -78,11 +80,13 @@ cd ..
 ```
 **Step 3:** Start and run Docker container
 ```bash
+# -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
+# Replace <host_port> with your desired local port (e.g., 80 or 8080)
 # Use this command if your datasets can be downloaded from the Web
-docker run -it wepp
+docker run -it -p 80:80 wepp
 
-# Use this command if your datasets are present in your current directory
-docker run -it -v "$PWD":/workspace -w /workspace wepp
+# Run this command if your datasets are in the current directory
+docker run -it -p 80:80 -v "$PWD":/workspace -w /workspace wepp
 ```
 
 ### **Option-3: Install via Shell Commands (requires sudo access)** <a name=script></a>
@@ -109,11 +113,21 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - protobuf-compiler
 - snakemake
 - conda
+- nodejs
+- npm 
+- nginx
 ```
 
 For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
 ```bash
-sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake
+sudo apt-get install -y wget pip curl python3-pip build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler snakemake nodejs npm nginx
+```
+
+```bash
+# Install Yarn package manager globally
+npm install -g yarn
+# Install TaxoniumTools Python package
+pip install taxoniumtools
 ```
 
 If your system doesn't have Conda, you can install it with:
@@ -142,7 +156,7 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 --cores 32 --use-conda
+snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -160,6 +174,7 @@ Each created `DIR` inside `data` is expected to contain the following files:
 2. Reference Genome fasta
 3. Mutation-Annotated Tree (MAT)
 4. [OPTIONAL] Genome Masking File: `mask.bed`, whose third column specifies sites to be excluded from analysis.
+5. [OPTIONAL] Taxonium `.jsonl` file to be used for visualizing results in the WEPP dashboard. 
 
 Visualization of WEPP's workflow directories
 ```text
@@ -200,12 +215,14 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 2. `FILE_PREFIX` - File Prefix for all intermediate files 
 3. `REF` - Reference Genome in fasta
 4. `TREE` - Mutation-Annotated Tree
-5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-6. `PRIMER_BED` - BED file for primers from the `primers` folder
+5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).
+6. `PRIMER_BED` - BED file for primers from the `primers` folder.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked. 
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
-10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
+10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
+11. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
+12. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP. 
 
 ### <b>Run Command</b> <a name="snakemake"></a>
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
@@ -217,10 +234,17 @@ Examples:
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run --cores 32 --use-conda
 ```
 
-2. Overriding MIN_Q and PRIMER_BED through command line
+2. Overriding MIN_Q, PRIMER_BED, and DASHBOARD_ENABLED through command line.
 ```bash
-snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed --cores 32 --use-conda
+snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none.bed DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
+3. To visualize results from a previous WEPP analysis that was run without the dashboard, set `DASHBOARD_ENABLED` to `True` and re-run only the dashboard components, without reanalyzing the dataset.
+```bash
+snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
+```
+
+!!!Note
+     ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
 
 ## <b>Contributions</b>
 We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
