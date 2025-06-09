@@ -124,6 +124,14 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - protobuf-compiler
 - snakemake
 - conda
+- nodejs
+- npm 
+- nginx
+```
+
+```bash
+npm install -g yarn
+pip install taxoniumtools
 ```
 
 For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
@@ -219,7 +227,7 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
 10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
 11. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
-12. `TAXONIUM_FILE [Optional]` - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
+12. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
 
 ### <a name="snakemake"></a> Run Command
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
@@ -239,8 +247,7 @@ snakemake --config DIR=RSVA_test_1 FILE_PREFIX=test_run MIN_Q=25 PRIMER_BED=none
 ```bash
 snakemake --config DIR=SARS-CoV-2_test_1 FILE_PREFIX=test_run DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
 ```
->**NOTE**\
-> ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
+⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
 
 ##  <a name="contribution"></a> Contributions
 We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP). For general inquiries and support, reach out to our team.
