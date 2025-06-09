@@ -108,7 +108,20 @@ rule dashboard_serve:
 
                 echo "Starting the Node.js server..." | tee -a {params.log}
 
-                node --expose-gc src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
+                # Get file size in MB
+                MAX_MEM=$(du -m {input.taxonium_jsonl} | cut -f1)
+
+                # Check if file is gzipped
+                if [[ "{input.taxonium_jsonl}" == *.gz ]]; then
+                    MAX_MEM=$(( MAX_MEM * 10 ))
+                fi
+
+                # Ensure at least 2048 MB, and add 1024 MB buffer
+                MAX_MEM=$(( MAX_MEM < 2048 ? 2048 : MAX_MEM + 2048 ))
+
+                echo "Allocating $MAX_MEM MB for Node.js server based on input file size..." | tee -a {params.log}
+
+                node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
 
                 # Wait until port 8080 is open
                 until ss -tuln | grep ':8080' > /dev/null; do
