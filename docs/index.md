@@ -5,9 +5,11 @@
 
 ## <b>Introduction</b> 
 ### <b>Overview</b><a name="overview"></a>
-WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection, WEPP enables critical epidemiological applications previously feasible only through clinical sequencing. It also flags potential novel variants via *Unaccounted Mutations*, which can be examined at the read level using the interactive dashboard (Figure 1B).
+WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a pathogen-agnostic pipeline that significantly enhances the resolution and capabilities of wastewater surveillance. It analyzes the wastewater sequencing reads by considering the comprehensive phylogeny of the pathogen, specifically, mutation-annotated trees (MATs) that include all globally available clinical sequences and their inferred ancestral nodes, to identify a subset of haplotypes most likely present in the sample. In addition, WEPP reports the abundance of each haplotype and its corresponding lineage, provides parsimonious mappings of individual reads to haplotypes, and flags *Unaccounted Alleles* — those observed in the sample but unexplained by selected haplotypes, which may signal the presence of novel circulating variants (Figure 1A). 
 
-WEPP begins by placing reads on the mutation-annotated tree (MAT) and identifying an initial set of candidate haplotypes. It expands this set by including neighbors around each selected haplotype to form a candidate pool, which is passed to a deconvolution algorithm to estimate haplotype abundances. Haplotypes above a frequency threshold are retained, and their neighbors are again added to form a new candidate pool. This process is repeated iteratively until the haplotype set stabilizes or the maximum number of iterations is reached (Figure 1C).
+WEPP includes an interactive visualization dashboard that allows users to visualize detected haplotypes and haplotype clusters within the context of the global phylogenetic tree and investigate haplotype and lineage abundances (Figure 1B(i)). It also allows a detailed read-level analysis by selecting a haplotype to view its characteristic mutations alongside those observed in the mapped reads (Figure 1B(ii)). Additional information about individual reads or haplotypes can be accessed by clicking on their corresponding objects, as shown in Figures 1B(iii) and 1B(iv), respectively. 
+
+WEPP performs parsimonious placement of reads on the MAT and selects a subset of haplotypes along with their nearest neighbors to form a pool of candidate haplotypes. This pool is passed to a deconvolution algorithm to estimate their relative abundances. WEPP only retains haplotypes above an abundance threshold and iteratively refines this set by adding neighbors of the retained set, followed by deconvolution. This process continues until it reaches convergence or a maximum iteration count (Figure 1C). WEPP also uses an outlier detection algorithm on the deconvolution residue to generate a list of *Unaccounted Alleles*.
 
 
 <div align="center">
@@ -17,11 +19,11 @@ WEPP begins by placing reads on the mutation-annotated tree (MAT) and identifyin
 
 ### <b>Key Features</b>
 
-#### <b>Haplotype Proportion Estimation</b>  
-WEPP's *Phylogenetic Placement* of reads enables accurate estimation of haplotype proportions from wastewater samples. These estimates can be interactively explored using the integrated dashboard (Figure 1B(i)), which displays each haplotype’s abundance, associated lineage, and phylogenetic uncertainty via *Uncertain Haplotypes* - neighboring haplotypes that cannot be confidently disambiguated.
+#### <b>Haplotype Proportions</b>  
+WEPP's *Phylogenetic Placement* of reads enables accurate estimation of haplotype proportions from wastewater samples. These estimates can be interactively explored from the phylogenetic view of the dashboard (Figure 1B(i)), which displays each haplotype’s abundance, associated lineage, and phylogenetic uncertainty via *Uncertain Haplotypes* - neighboring haplotypes that cannot be confidently disambiguated.
 
-#### <b>Lineage Proportion Estimation</b>  
-WEPP infers lineage proportions by combining abundances of haplotypes belonging to each lineage. This approach accounts for intra-lineage diversity, resulting in more accurate and robust estimates.
+#### <b>Lineage Proportions</b> 
+WEPP infers lineage proportions by aggregating haplotype abundances within each lineage, accounting for intra-lineage diversity to produce more accurate and robust estimates.
 
 #### <b>Unccounted Alleles </b>
 WEPP reports a list of *Unaccounted Alleles* - alleles observed in wastewater that are not explained by the selected haplotypes, along with the inferred haplotype(s) they are most likely associated with (Figure 1B(i)). These *Unaccounted Alleles* can serve as early indicators of novel variants and often resemble the 'cryptic' mutations described in previous studies.
