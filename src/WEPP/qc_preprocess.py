@@ -98,6 +98,7 @@ def trimming(output_dir, sam_file, primer_bed, threads, prefix):
     subprocess.run(["samtools", "sort", trimmed_path + ".bam", "-o", resorted_bam, "-@", str(threads)], check=True)
 
     # Clean up intermediate files
+    os.remove(sam_file)
     os.remove(sorted_bam)
     os.remove(trimmed_path + ".bam")
 
