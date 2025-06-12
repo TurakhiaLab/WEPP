@@ -458,7 +458,13 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
         a_map[lineage_name] += n_p.second;
     }
 
-    for (const auto &l_p : a_map)
+    // Sort the lineages
+    std::vector<std::pair<std::string, double>> sorted_lineages(a_map.begin(), a_map.end());
+    std::sort(sorted_lineages.begin(), sorted_lineages.end(), [] (const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    for (const auto &l_p : sorted_lineages)
     {
         csv_print = l_p.first + "," + std::to_string(l_p.second);
         csv_print += "\n";
