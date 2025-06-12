@@ -100,7 +100,6 @@ rule dashboard_serve:
                 echo "creating uploads directory" | tee -a {params.log}
                 if [ ! -d "./results/uploads" ]; then
                     mkdir ./results/uploads
-                    cp ./src/Dashboard/data/NC_045512v2.* ./results/uploads/.
                 fi
                 
                 echo "Installing backend dependencies..." | tee -a {params.log}
