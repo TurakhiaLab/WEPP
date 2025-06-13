@@ -84,10 +84,6 @@ cd ..
 ```bash
 # -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
 # Replace <host_port> with your desired local port (e.g., 80 or 8080)
-# Use this command if your datasets can be downloaded from the Web
-docker run -it -p 80:80 wepp
-
-# Run this command if your datasets are in the current directory
 docker run -it -p 80:80 -v "$PWD":/workspace -w /workspace wepp
 ```
 
