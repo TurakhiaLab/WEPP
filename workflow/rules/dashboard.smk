@@ -43,7 +43,8 @@ rule process_dashboard:
         log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
-        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam"
+        bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam",
+        haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam"
     conda:
         "../envs/wepp.yml"
     shell:
@@ -54,7 +55,10 @@ rule process_dashboard:
             if [ -f "{params.bam_file}" ]; then
                 # Split BAM files by read groups
                 echo "Splitting BAM file by read groups..."
-                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR} {workflow.cores}
+                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
+
+                mv ./results/{wildcards.DIR}/{params.haplotype_bam_file} ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}
+                mv ./results/{wildcards.DIR}/{params.haplotype_bam_file}.bai ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}.bai
 
                 rm {params.bam_file}
                 rm {params.bam_file}.bai
