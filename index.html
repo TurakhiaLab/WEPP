@@ -1,0 +1,914 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="images/WEPP_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>WEPP</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="styles/logo.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="WEPP" >
+      
+        <meta  property="og:description"  content="None" >
+      
+        <meta  property="og:image"  content="./assets/images/social/index.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="None" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="WEPP" >
+      
+        <meta  name="twitter:description"  content="None" >
+      
+        <meta  name="twitter:image"  content="./assets/images/social/index.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="pink">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#welcome-to-wepp-wiki" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="WEPP" class="md-header__button md-logo" aria-label="WEPP" data-md-component="logo">
+      
+  <img src="images/WEPP_icon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            WEPP
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Home
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="pink"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="pink"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TurakhiaLab/WEPP" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TurakhiaLab/WEPP
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="WEPP" class="md-nav__button md-logo" aria-label="WEPP" data-md-component="logo">
+      
+  <img src="images/WEPP_icon.png" alt="logo">
+
+    </a>
+    WEPP
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TurakhiaLab/WEPP" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TurakhiaLab/WEPP
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="index.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Introduction
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Introduction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#haplotype-proportions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Haplotype Proportions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lineage-proportions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lineage Proportions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unccounted-alleles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Unccounted Alleles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read-level-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read-Level Analysis
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-1-install-via-dockerhub" class="md-nav__link">
+    <span class="md-ellipsis">
+      Option-1: Install via DockerHub
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-2-install-via-dockerfile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Option-2: Install via Dockerfile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-3-install-via-shell-commands-requires-sudo-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      Option-3: Install via Shell Commands (requires sudo access)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-rsv-a-dataset-runs-quickly" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example - 1: RSV-A Dataset (Runs Quickly)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-sars-cov-2-dataset-longer-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example - 2: SARS-CoV-2 Dataset (Longer Runtime)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      User Guide
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User Guide">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#organizing-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Organizing Data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wepp-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      WEPP Arguments
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run Command
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#citing-wepp" class="md-nav__link">
+    <span class="md-ellipsis">
+      Citing WEPP
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="welcome-to-wepp-wiki"><b>Welcome to WEPP Wiki</b></h1>
+<div align="center">
+    <img src="images/WEPP_logo.svg" width="300">
+</div>
+
+<h2 id="introduction"><b>Introduction</b></h2>
+<h3 id="overview"><b>Overview</b><a name="overview"></a></h3>
+<p>WEPP (<strong>W</strong>astewater-Based <strong>E</strong>pidemiology using <strong>P</strong>hylogenetic <strong>P</strong>lacements) is a pathogen-agnostic pipeline that significantly enhances the resolution and capabilities of wastewater surveillance. It analyzes the wastewater sequencing reads by considering the comprehensive phylogeny of the pathogen, specifically, mutation-annotated trees (MATs) that include all globally available clinical sequences and their inferred ancestral nodes, to identify a subset of haplotypes most likely present in the sample. In addition, WEPP reports the abundance of each haplotype and its corresponding lineage, provides parsimonious mappings of individual reads to haplotypes, and flags <em>Unaccounted Alleles</em> — those observed in the sample but unexplained by selected haplotypes, which may signal the presence of novel circulating variants (Figure 1A). </p>
+<p>WEPP includes an interactive visualization dashboard that allows users to visualize detected haplotypes and haplotype clusters within the context of the global phylogenetic tree and investigate haplotype and lineage abundances (Figure 1B(i)). It also allows a detailed read-level analysis by selecting a haplotype to view its characteristic mutations alongside those observed in the mapped reads (Figure 1B(ii)). Additional information about individual reads or haplotypes can be accessed by clicking on their corresponding objects, as shown in Figures 1B(iii) and 1B(iv), respectively. </p>
+<p>WEPP performs parsimonious placement of reads on the MAT and selects a subset of haplotypes along with their nearest neighbors to form a pool of candidate haplotypes. This pool is passed to a deconvolution algorithm to estimate their relative abundances. WEPP only retains haplotypes above an abundance threshold and iteratively refines this set by adding neighbors of the retained set, followed by deconvolution. This process continues until it reaches convergence or a maximum iteration count (Figure 1C). WEPP also uses an outlier detection algorithm on the deconvolution residue to generate a list of <em>Unaccounted Alleles</em>.</p>
+<div align="center">
+    <img src="images/WEPP_Overview_Display.svg" width="600">
+    <div><b>Figure 1: Overview of WEPP</b></div>
+</div>
+
+<h3 id="key-features"><b>Key Features</b></h3>
+<h4 id="haplotype-proportions"><b>Haplotype Proportions</b></h4>
+<p>WEPP's <em>Phylogenetic Placement</em> of reads enables accurate estimation of haplotype proportions from wastewater samples. These estimates can be interactively explored from the phylogenetic view of the dashboard (Figure 1B(i)), which displays each haplotype’s abundance, associated lineage, and phylogenetic uncertainty via <em>Uncertain Haplotypes</em> - neighboring haplotypes that cannot be confidently disambiguated.</p>
+<h4 id="lineage-proportions"><b>Lineage Proportions</b></h4>
+<p>WEPP infers lineage proportions by aggregating haplotype abundances within each lineage, accounting for intra-lineage diversity to produce more accurate and robust estimates.</p>
+<h4 id="unccounted-alleles"><b>Unccounted Alleles </b></h4>
+<p>WEPP reports a list of <em>Unaccounted Alleles</em> - alleles observed in wastewater that are not explained by the selected haplotypes, along with the inferred haplotype(s) they are most likely associated with (Figure 1B(i)). These <em>Unaccounted Alleles</em> can serve as early indicators of novel variants and often resemble the 'cryptic' mutations described in previous studies.</p>
+<h4 id="read-level-analysis"><b>Read-Level Analysis </b></h4>
+<p>WEPP supports detailed analysis of sequencing reads in the context of selected haplotypes (Figure 1B(ii)). It also facilitates interpretation of <em>Unaccounted Alleles</em> by examining their presence in reads relative to the haplotypes they are mapped to. Additional information about individual reads or haplotypes can be accessed by selecting them within the interactive panel (Figure 1B(iii) and Figure 1B(iv)).</p>
+<h2 id="installation"><b>Installation</b> <a name="install"></a></h2>
+<p>WEPP offers multiple installation methods. Using a <a href="https://docs.docker.com/engine/install/">Docker</a> is recommended to prevent any conflict with existing packages.</p>
+<ol>
+<li>Docker image from DockerHub</li>
+<li>Dockerfile </li>
+<li>Shell Commands </li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>⚠️The Docker image is currently built for the <code>linux/amd64</code> platform. While it can run on <code>arm64</code> systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.</p>
+</div>
+<h3 id="option-1-install-via-dockerhub"><strong>Option-1: Install via DockerHub</strong> <a name=dockerhub></a></h3>
+<p>The Docker image includes all dependencies required to run WEPP.</p>
+<p><strong>Step 1:</strong> Get the image from DockerHub 
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>pull<span class="w"> </span>pranavgangwar/wepp:latest
+</code></pre></div>
+<strong>Step 2:</strong> Start and run Docker container
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># -p &lt;host_port&gt;:&lt;container_port&gt; → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># Replace &lt;host_port&gt; with your desired local port (e.g., 80 or 8080)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Use this command if your datasets can be downloaded from the Web</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>-p<span class="w"> </span><span class="m">80</span>:80<span class="w"> </span>pranavgangwar/wepp:latest
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Use this command if your datasets are present in your current directory</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>-p<span class="w"> </span><span class="m">80</span>:80<span class="w"> </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/WEPP<span class="w"> </span>-w<span class="w"> </span>/WEPP<span class="w"> </span>pranavgangwar/wepp:latest
+</code></pre></div>
+<strong>Step 3:</strong> Confirm proper working by running 
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>snakemake<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--cores<span class="w"> </span><span class="m">1</span><span class="w"> </span>--use-conda
+</code></pre></div></p>
+<h3 id="option-2-install-via-dockerfile"><strong>Option-2: Install via Dockerfile</strong> <a name=dockerfile></a></h3>
+<p>The Dockerfile contains all dependencies required to run WEPP.</p>
+<p><strong>Step 1:</strong> Clone the repository
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--recurse-submodules<span class="w"> </span>https://github.com/TurakhiaLab/WEPP.git<span class="w"> </span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">cd</span><span class="w"> </span>WEPP
+</code></pre></div>
+<strong>Step 2:</strong> Build a Docker Image
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>docker
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>wepp<span class="w"> </span>.<span class="w"> </span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">cd</span><span class="w"> </span>..
+</code></pre></div>
+<strong>Step 3:</strong> Start and run Docker container
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># -p &lt;host_port&gt;:&lt;container_port&gt; → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Replace &lt;host_port&gt; with your desired local port (e.g., 80 or 8080)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>-p<span class="w"> </span><span class="m">80</span>:80<span class="w"> </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span>-w<span class="w"> </span>/workspace<span class="w"> </span>wepp
+</code></pre></div></p>
+<h3 id="option-3-install-via-shell-commands-requires-sudo-access"><strong>Option-3: Install via Shell Commands (requires sudo access)</strong> <a name=script></a></h3>
+<p>Users without sudo access are advised to install WEPP via <a href="#dockerhub">Docker Image</a>.</p>
+<p><strong>Step 1:</strong> Clone the repository
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--recurse-submodules<span class="w"> </span>https://github.com/TurakhiaLab/WEPP.git
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>WEPP
+</code></pre></div>
+<strong>Step 2:</strong> Install dependencies (might require sudo access)
+WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>- wget
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>- curl
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>- pip
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>- build-essential 
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>- python3-pandas
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>- pkg-config
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>- zip
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>- cmake 
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>- libtbb-dev
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>- libprotobuf-dev
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>- protobuf-compiler
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>- snakemake
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>- conda
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>- conda
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>- nodejs(v18+)
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>- nginx
+</code></pre></div></p>
+<p>For Ubuntu users with sudo access, if any of the required libraries are missing, you can install them with:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>wget<span class="w"> </span>pip<span class="w"> </span>curl<span class="w"> </span>python3-pip<span class="w"> </span>build-essential<span class="w"> </span>python3-pandas<span class="w"> </span>pkg-config<span class="w"> </span>zip<span class="w"> </span>cmake<span class="w"> </span>libtbb-dev<span class="w"> </span>libprotobuf-dev<span class="w"> </span>protobuf-compiler<span class="w"> </span>snakemake<span class="w"> </span>nginx
+</code></pre></div></p>
+<p>Note: WEPP expects the <code>python</code> command to be available. If your system only provides python3, you can optionally set up a symlink:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>update-alternatives<span class="w"> </span>--install<span class="w"> </span>/usr/bin/python<span class="w"> </span>python<span class="w"> </span>/usr/bin/python3<span class="w"> </span><span class="m">1</span>
+</code></pre></div></p>
+<p>If you do not have Node.js v18 or higher installed, follow these steps to install Node.js v22:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Update and install prerequisites</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>curl<span class="w"> </span>gnupg<span class="w"> </span>ca-certificates
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Add NodeSource Node.js 22 repo</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://deb.nodesource.com/setup_22.x<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Install Node.js 22</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>nodejs
+</code></pre></div></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Install Yarn package manager globally</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>yarn
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># Install TaxoniumTools Python package</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pip<span class="w"> </span>install<span class="w"> </span>taxoniumtools
+</code></pre></div>
+<p>If your system doesn't have Conda, you can install it with:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>wget<span class="w"> </span>-O<span class="w"> </span>Miniforge3.sh<span class="w"> </span><span class="s2">&quot;https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh&quot;</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>bash<span class="w"> </span>Miniforge3.sh<span class="w"> </span>-b<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/conda&quot;</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nb">source</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/conda/etc/profile.d/conda.sh&quot;</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nb">source</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/conda/etc/profile.d/mamba.sh&quot;</span>
+</code></pre></div></p>
+<h2 id="quick-start"><b>Quick Start</b> <a name="example"></a></h2>
+<p>The following steps will download real wastewater datasets and analyze them using WEPP.</p>
+<h3 id="example-1-rsv-a-dataset-runs-quickly">Example - 1: RSV-A Dataset (Runs Quickly)</h3>
+<p><strong>Step 1:</strong> Download the RSV-A test dataset
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>data/RSVA_real
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">cd</span><span class="w"> </span>data/RSVA_real
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>wget<span class="w"> </span>ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz<span class="w"> </span>https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz<span class="w"> </span>https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>gunzip<span class="w"> </span>GCF_002815475.1_ASM281547v1_genomic.fna.gz<span class="w"> </span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>mv<span class="w"> </span>ERR14763711_1.fastq.gz<span class="w"> </span>ERR14763711_R1.fastq.gz
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>mv<span class="w"> </span>ERR14763711_2.fastq.gz<span class="w"> </span>ERR14763711_R2.fastq.gz
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="nb">cd</span><span class="w"> </span>../../
+</code></pre></div>
+This will save the datasets on a separate data/RSVA_real folder within the repository.</p>
+<p><strong>Step 2:</strong>  Run the pipeline
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>snakemake<span class="w"> </span>--config<span class="w"> </span><span class="nv">DIR</span><span class="o">=</span>RSVA_real<span class="w"> </span><span class="nv">FILE_PREFIX</span><span class="o">=</span>test_run<span class="w"> </span><span class="nv">PRIMER_BED</span><span class="o">=</span>RSVA_all_primers_best_hits.bed<span class="w"> </span><span class="nv">TREE</span><span class="o">=</span>rsvA.2025-04-25.pb.gz<span class="w"> </span><span class="nv">REF</span><span class="o">=</span>GCF_002815475.1_ASM281547v1_genomic.fna<span class="w"> </span><span class="nv">CLADE_IDX</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="nv">DASHBOARD_ENABLED</span><span class="o">=</span>True<span class="w"> </span>--cores<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use-conda
+</code></pre></div></p>
+<p><strong>Step 3:</strong>  Analyze Results</p>
+<p>All results generated by WEPP can be found in the <code>results/RSVA_real</code> directory.</p>
+<h3 id="example-2-sars-cov-2-dataset-longer-runtime">Example - 2:  SARS-CoV-2 Dataset (Longer Runtime)</h3>
+<p><strong>Step 1:</strong> Download the SARS-CoV-2 test dataset
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>data/SARS_COV_2_real
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">cd</span><span class="w"> </span>data/SARS_COV_2_real
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>wget<span class="w"> </span>ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR185/041/SRR18541041/SRR18541041_1.fastq.gz<span class="w"> </span>ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR185/041/SRR18541041/SRR18541041_2.fastq.gz<span class="w"> </span>https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>mv<span class="w"> </span>SRR18541041_1.fastq.gz<span class="w"> </span>SRR18541041_R1.fastq.gz
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>mv<span class="w"> </span>SRR18541041_2.fastq.gz<span class="w"> </span>SRR18541041_R2.fastq.gz
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>cp<span class="w"> </span>../../NC_045512v2.fa<span class="w"> </span>.
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="nb">cd</span><span class="w"> </span>../../
+</code></pre></div>
+This will save the datasets on a separate data/SARS_COV_2_real folder within the repository.</p>
+<p><strong>Step 2:</strong>  Run the pipeline
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>snakemake<span class="w"> </span>--config<span class="w"> </span><span class="nv">DIR</span><span class="o">=</span>SARS_COV_2_real<span class="w"> </span><span class="nv">FILE_PREFIX</span><span class="o">=</span>test_run<span class="w"> </span><span class="nv">PRIMER_BED</span><span class="o">=</span>snap_primers.bed<span class="w"> </span><span class="nv">TREE</span><span class="o">=</span>public-2021-12-05.all.masked.pb.gz<span class="w"> </span><span class="nv">REF</span><span class="o">=</span>NC_045512v2.fa<span class="w"> </span><span class="nv">CLADE_IDX</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">DASHBOARD_ENABLED</span><span class="o">=</span>True<span class="w"> </span>--cores<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use-conda
+</code></pre></div></p>
+<p><strong>Step 3:</strong>  Analyze Results</p>
+<p>All results generated by WEPP can be found in the <code>results/SARS_COV_2_real</code> directory.</p>
+<h2 id="user-guide"><b>User Guide</b> <a name="guide"></a></h2>
+<h3 id="organizing-data"><b>Organizing Data</b> <a name="data"></a></h3>
+<p>We assume that all wastewater samples are organized in the <code>data</code> directory, each within its own subdirectory given by <code>DIR</code> argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under <code>intermediate</code> and <code>result</code>, respectively. </p>
+<p>Each created <code>DIR</code> inside <code>data</code> is expected to contain the following files:</p>
+<ol>
+<li>Sequencing Reads: Ending with <code>*R{1/2}.fastq.gz</code> for paired-ended reads and <code>*.fastq.gz</code> for single-ended.</li>
+<li>Reference Genome fasta</li>
+<li>Mutation-Annotated Tree (MAT)</li>
+<li>[OPTIONAL] Genome Masking File: <code>mask.bed</code>, whose third column specifies sites to be excluded from analysis.</li>
+<li>[OPTIONAL] Taxonium <code>.jsonl</code> file to be used for visualizing results in the WEPP dashboard. </li>
+</ol>
+<p>Visualization of WEPP's workflow directories
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>📁 WEPP
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>└───📁data                                   # [User Created] Contains data to analyze 
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    ├───📁SARS_COV_2_real                    # SARS-CoV-2 run wastewater samples - 1
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>         ├───sars_cov_2_reads_R1.fastq.gz    # Paired-ended reads
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>         ├───sars_cov_2_reads_R2.fastq.gz
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>         ├───sars_cov_2_reference.fa 
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>         ├───mask.bed                        # OPTIONAL 
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>         ├───sars_cov_2_taxonium.jsonl.gz    # OPTIONAL 
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>         └───sars_cov_2_mat.pb.gz
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>└───📁intermediate                           # [WEPP Generated] Contains intermediate stage files 
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    ├───📁SARS_COV_2_real                
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>         ├───file_1
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>         └───file_2
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>└───📁results                                # [WEPP Generated] Contains final WEPP results
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>    ├───📁SARS_COV_2_real                
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a>         ├───file_1
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a>         └───file_2
+</code></pre></div></p>
+<h3 id="wepp-arguments"><b>WEPP Arguments</b><a name="arguments"></a></h3>
+<p>The WEPP Snakemake pipeline requires the following arguments, which can be provided either via the configuration file (<code>config/config.yaml</code>) or passed directly on the command line using the <code>--config</code> argument. The command line arguments take precedence over the config file.</p>
+<ol>
+<li><code>DIR</code> - Folder name containing the wastewater reads</li>
+<li><code>FILE_PREFIX</code> - File Prefix for all intermediate files </li>
+<li><code>REF</code> - Reference Genome in fasta</li>
+<li><code>TREE</code> - Mutation-Annotated Tree</li>
+<li><code>SEQUENCING_TYPE</code> - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).</li>
+<li><code>PRIMER_BED</code> - BED file for primers from the <code>primers</code> folder.</li>
+<li><code>MIN_AF</code> - Alleles with an allele frequency below this threshold in the reads will be masked. </li>
+<li><code>MIN_Q</code> - Alleles with a Phred score below this threshold in the reads will be masked.</li>
+<li><code>MAX_READS</code> - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.</li>
+<li><code>CLADE_IDX</code> - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -&gt; Use '0' for annotation_1 and '1' for annotation_2</li>
+<li><code>DASHBOARD_ENABLED</code> - Set to <code>True</code> to enable the interactive dashboard for viewing WEPP results, or <code>False</code> to disable it.</li>
+<li><code>TAXONIUM_FILE</code> [Optional] - Name of the user-provided Taxonium <code>.jsonl</code> file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP. </li>
+</ol>
+<h3 id="run-command"><b>Run Command</b> <a name="snakemake"></a></h3>
+<p>WEPP's snakemake workflow requires <code>DIR</code> and <code>FILE_PREFIX</code> as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires <code>--cores</code> from the command line, which specifies the number of threads used by the workflow.</p>
+<p>Examples:</p>
+<ol>
+<li>
+<p>Using all the parameters from the config file.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>snakemake<span class="w"> </span>--config<span class="w"> </span><span class="nv">DIR</span><span class="o">=</span>SARS_COV_2_real<span class="w"> </span><span class="nv">FILE_PREFIX</span><span class="o">=</span>test_run<span class="w"> </span>--cores<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use-conda
+</code></pre></div></p>
+</li>
+<li>
+<p>Overriding MIN_Q and CLADE_IDX through command line.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>snakemake<span class="w"> </span>--config<span class="w"> </span><span class="nv">DIR</span><span class="o">=</span>SARS_COV_2_real<span class="w"> </span><span class="nv">FILE_PREFIX</span><span class="o">=</span>test_run<span class="w"> </span><span class="nv">MIN_Q</span><span class="o">=</span><span class="m">25</span><span class="w"> </span><span class="nv">CLADE_IDX</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>--cores<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use-conda
+</code></pre></div></p>
+</li>
+<li>
+<p>To visualize results from a previous WEPP analysis that was run without the dashboard, set <code>DASHBOARD_ENABLED</code> to <code>True</code> and re-run only the dashboard components, without reanalyzing the dataset.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>snakemake<span class="w"> </span>--config<span class="w"> </span><span class="nv">DIR</span><span class="o">=</span>SARS_COV_2_real<span class="w"> </span><span class="nv">FILE_PREFIX</span><span class="o">=</span>test_run<span class="w"> </span><span class="nv">MIN_Q</span><span class="o">=</span><span class="m">25</span><span class="w"> </span><span class="nv">CLADE_IDX</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">TAXONIUM_FILE</span><span class="o">=</span>sars_cov_2_taxonium.jsonl.gz<span class="w"> </span><span class="nv">DASHBOARD_ENABLED</span><span class="o">=</span>True<span class="w"> </span>--cores<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use-conda<span class="w"> </span>--forcerun<span class="w"> </span>dashboard_serve
+</code></pre></div></p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.</p>
+</div>
+<h2 id="contributions"><b>Contributions</b></h2>
+<p>We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on <a href="https://github.com/TurakhiaLab/WEPP">WEPP GitHub page</a>. For general inquiries and support, reach out to our team.</p>
+<h2 id="citing-wepp"><b>Citing WEPP</b></h2>
+<p>TBA.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/TurakhiaLab"  target="_blank" rel="noopener">Turakhia Lab</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/TurakhiaLab/WEPP" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": ".", "features": ["content.tabs.link", "content.code.annotation", "content.code.copy", "content.tooltips", "toc.follow", "toc.integrate", "navigation.tabs", "navigation.sections", "navigation.path", "navigation.tabs.sticky", "navigation.instant.prefetch", "navigation.tracking", "navigation.footer", "navigation.expand", "search.highlight", "search.suggest"], "search": "assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
