@@ -43,7 +43,11 @@ rule all:
     shell:
         """
         if [ "{params.dashboard}" = "True" ]; then
-            echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port)."
+            if ss -tuln | grep -w '80' > /dev/null; then
+                echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port)."
+            else
+                echo "Workflow completed! To run the dashboard. rerun the workflow with --forcerun dashboard_serve"
+            fi
         fi
         """
 rule test:
