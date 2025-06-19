@@ -94,45 +94,50 @@ rule dashboard_serve:
         samtools faidx ./results/{wildcards.DIR}/{params.ref}
 
         # Appending this project to database.
-        python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref}
+        # python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref}
+        read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
 
         if [ "{params.dashboard}" = "True" ]; then
                 # Start the Node.js server in the background
-            if ss -tuln | grep ':8080' > /dev/null; then
-                echo "Port 8080 is already in use. Exiting."
-            else
-                echo "creating uploads directory" | tee -a {params.log}
-                if [ ! -d "./results/uploads" ]; then
-                    mkdir ./results/uploads
-                fi
-                
-                echo "Installing backend dependencies..." | tee -a {params.log}
-                cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
 
-                echo "Starting the Node.js server..." | tee -a {params.log}
-
-                # Get file size in MB
-                MAX_MEM=$(du -m {input.taxonium_jsonl} | cut -f1)
-
-                # Check if file is gzipped
-                if [[ "{input.taxonium_jsonl}" == *.gz ]]; then
-                    MAX_MEM=$(( MAX_MEM * 10 ))
-                fi
-
-                # Ensure at least 2048 MB, and add 1024 MB buffer
-                MAX_MEM=$(( MAX_MEM < 2048 ? 2048 : MAX_MEM + 2048 ))
-
-                echo "Allocating $MAX_MEM MB for Node.js server based on input file size..." | tee -a {params.log}
-
-                node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
-
-                # Wait until port 8080 is open
-                until ss -tuln | grep ':8080' > /dev/null; do
-                    echo "Waiting for server to open port 8080..."
-                    sleep 1
-                done
+            PID=$(ss -lptn 'sport = :8080' 2>/dev/null | awk 'NR>1 {{gsub(/.*pid=/,""); gsub(/,.*$/,""); print $NF}}' | head -n1)
+            if [ -n "$PID" ]; then
+                echo "Port 8080 is in use by PID $PID. Killing it safely."
+                kill -9 "$PID" || true
             fi
 
+            if [ ! -d "./results/uploads" ]; then
+                echo "creating uploads directory" | tee -a {params.log}
+                mkdir ./results/uploads
+            fi
+            
+            echo "Installing backend dependencies..." | tee -a {params.log}
+            cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
+
+            echo "Starting the Node.js server..." | tee -a {params.log}
+
+            # Get file size in MB
+            # MAX_MEM=$(du -m {input.taxonium_jsonl} | cut -f1)
+
+            
+            # Check if file is gzipped
+            if [[ "${{FILENAME}}" == *.gz ]]; then
+                MAX_MEM=$(( MAX_MEM * 10 ))
+            fi
+
+            # Ensure at least 2048 MB, and add 1024 MB buffer
+            MAX_MEM=$(( MAX_MEM < 2048 ? 2048 : MAX_MEM + 2048 ))
+
+            echo "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
+
+            node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
+
+            # Wait until port 8080 is open
+            until ss -tuln | grep ':8080' > /dev/null; do
+                # echo "Waiting for server to open port 8080..."
+                sleep 1
+            done
+            
             if ss -tuln | grep -w '80' > /dev/null; then
                 echo "Port 80 is already in use. Exiting." | tee -a {params.log}
             else
