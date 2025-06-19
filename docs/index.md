@@ -287,4 +287,5 @@ snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run MIN_Q=25 CLADE_IDX=1
 We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.
 
 ## <b>Citing WEPP</b>
-TBA.
+If you use WEPP in your research or publications, please cite the following paper:<br>
+Pranav Gangwar, Pratik Katte, Manu Bhatt, Yatish Turakhia, "<i>WEPP: Phylogenetic Placement Achieves Near-Haplotype Resolution in Wastewater-Based Epidemiology</i>", medRxiv 2025.06.09.25329287; doi: [10.1101/2025.06.09.25329287](https://doi.org/10.1101/2025.06.09.25329287)
