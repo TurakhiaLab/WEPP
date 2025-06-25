@@ -30,7 +30,7 @@ rule process_taxonium:
                 cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output.jsonl}
             fi
         else
-            echo "Dashboard disabled."
+            echo "Dashboard disabled. Not converting pb file to jsonl.gz file."
             touch {output.jsonl}
         fi
         """
@@ -44,12 +44,12 @@ rule process_dashboard:
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam",
-        haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam"
+        haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam",
+        ref=config["REF"]
     conda:
         "../envs/wepp.yml"
     shell:
         """
-        echo {params.bam_file}
         if [ "{params.dashboard}" = "True" ]; then
 
             if [ -f "{params.bam_file}" ]; then
@@ -65,6 +65,10 @@ rule process_dashboard:
             else
                 echo "Splitting by read-groups already done!"
             fi
+
+            cp ./data/{wildcards.DIR}/{params.ref} ./results/{wildcards.DIR}/{params.ref} 
+            samtools faidx ./results/{wildcards.DIR}/{params.ref}
+
         fi
         touch {output.log}
         """
@@ -85,17 +89,8 @@ rule dashboard_serve:
     shell:
         """
         if [ "{params.dashboard}" = "False" ]; then
-            echo "removing .jsonl file that created. {input.taxonium_jsonl}"
             rm {input.taxonium_jsonl}
         fi
-
-        echo "copying the reference file and indexing..." | tee -a {params.log}
-        cp ./data/{wildcards.DIR}/{params.ref} ./results/{wildcards.DIR}/{params.ref} 
-        samtools faidx ./results/{wildcards.DIR}/{params.ref}
-
-        # Appending this project to database.
-        # python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref}
-        read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
 
         if [ "{params.dashboard}" = "True" ]; then
                 # Start the Node.js server in the background
@@ -106,6 +101,8 @@ rule dashboard_serve:
                 kill -9 "$PID" || true
             fi
 
+            # Appending this project to database.
+            read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
             if [ ! -d "./results/uploads" ]; then
                 echo "creating uploads directory" | tee -a {params.log}
                 mkdir ./results/uploads
@@ -116,17 +113,13 @@ rule dashboard_serve:
 
             echo "Starting the Node.js server..." | tee -a {params.log}
 
-            # Get file size in MB
-            # MAX_MEM=$(du -m {input.taxonium_jsonl} | cut -f1)
-
-            
             # Check if file is gzipped
             if [[ "${{FILENAME}}" == *.gz ]]; then
                 MAX_MEM=$(( MAX_MEM * 10 ))
             fi
 
             # Ensure at least 2048 MB, and add 1024 MB buffer
-            MAX_MEM=$(( MAX_MEM < 2048 ? 2048 : MAX_MEM + 2048 ))
+            MAX_MEM=$(( MAX_MEM + 2048 ))
 
             echo "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
 
