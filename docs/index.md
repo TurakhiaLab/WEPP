@@ -111,7 +111,6 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - protobuf-compiler
 - snakemake
 - conda
-- conda
 - nodejs(v18+)
 - nginx
 ```
