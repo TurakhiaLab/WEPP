@@ -18,6 +18,7 @@ rule process_taxonium:
         dashboard=config.get("DASHBOARD_ENABLED", "false"), 
         taxonium_jsonl_file=GIVEN_TAXONIUM,
         tree=TREE,
+        clade_list=config["CLADE_LIST"],
     shell:
         """ 
         if [ "{params.dashboard}" = "True" ]; then
@@ -25,6 +26,7 @@ rule process_taxonium:
                 echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output.jsonl}"
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output.jsonl} \
+                    --clade_types {params.clade_list} \
                     --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
             else
                 cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output.jsonl}

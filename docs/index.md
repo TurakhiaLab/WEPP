@@ -181,7 +181,7 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST="annotation_1" CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -207,7 +207,7 @@ This will save the datasets on a separate data/SARS_COV_2_real folder within the
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run PRIMER_BED=snap_primers.bed TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa CLADE_IDX=1 DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run PRIMER_BED=snap_primers.bed TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -259,14 +259,15 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 2. `FILE_PREFIX` - File Prefix for all intermediate files 
 3. `REF` - Reference Genome in fasta
 4. `TREE` - Mutation-Annotated Tree
-5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).
-6. `PRIMER_BED` - BED file for primers from the `primers` folder.
+5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
+6. `PRIMER_BED` - BED file for primers from the `primers` folder
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked. 
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
-10. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
-11. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
-12. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP. 
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
+10. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, give "nextstrain,pango". 
+11. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
+12. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
+13. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
 
 ### <b>Run Command</b> <a name="snakemake"></a>
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
