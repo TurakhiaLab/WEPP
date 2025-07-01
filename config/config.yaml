@@ -16,6 +16,9 @@ MIN_Q: "20"
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 
+# List the clade naming systems present in the MAT
+CLADE_LIST: "nextstrain,pango"
+
 # Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs
 # Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
 CLADE_IDX: "1"
