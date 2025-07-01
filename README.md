@@ -77,6 +77,9 @@ docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 snakemake test --cores 1 --use-conda
 ```
 
+All set to try some [examples]!(#example)
+
+
 ### <a name="dockerfile"></a> Option-2: Install via Dockerfile
 The Dockerfile contains all dependencies required to run WEPP.
 
@@ -97,6 +100,9 @@ cd ..
 # Replace <host_port> with your desired local port (e.g., 80 or 8080)
 docker run -it -p 80:80 -v "$PWD":/workspace -w /workspace wepp
 ```
+
+All set to try some [examples]!(#example)
+
 
 ### <a name="script"></a> Option-3: Install via Shell Commands (requires sudo access)  
 Users without sudo access are advised to install WEPP via [Docker Image](#dockerhub).
@@ -164,6 +170,9 @@ bash Miniforge3.sh -b -p "${HOME}/conda"
 source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
+
+All set to try some [examples]!(#example)
+
 
 ##  <a name="example"></a> Quick Start
 The following steps will download real wastewater datasets and analyze them using WEPP.
