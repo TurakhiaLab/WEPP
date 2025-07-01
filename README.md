@@ -77,7 +77,7 @@ docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 snakemake test --cores 1 --use-conda
 ```
 
-All set to try some [examples]!(#example)
+All set to try the [examples](#example).
 
 
 ### <a name="dockerfile"></a> Option-2: Install via Dockerfile
@@ -101,7 +101,7 @@ cd ..
 docker run -it -p 80:80 -v "$PWD":/workspace -w /workspace wepp
 ```
 
-All set to try some [examples]!(#example)
+All set to try the [examples](#example).
 
 
 ### <a name="script"></a> Option-3: Install via Shell Commands (requires sudo access)  
@@ -171,7 +171,7 @@ source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
 
-All set to try some [examples]!(#example)
+All set to try the [examples](#example).
 
 
 ##  <a name="example"></a> Quick Start
