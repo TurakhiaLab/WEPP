@@ -12,11 +12,12 @@ WEPP includes an interactive visualization dashboard that allows users to visual
 WEPP performs parsimonious placement of reads on the MAT and selects a subset of haplotypes along with their nearest neighbors to form a pool of candidate haplotypes. This pool is passed to a deconvolution algorithm to estimate their relative abundances. WEPP only retains haplotypes above an abundance threshold and iteratively refines this set by adding neighbors of the retained set, followed by deconvolution. This process continues until it reaches convergence or a maximum iteration count (Figure 1C). WEPP also uses an outlier detection algorithm on the deconvolution residue to generate a list of *Unaccounted Alleles*.
 
 
-<div style="width: 600px; margin: 0 auto;">
-   <img src="images/WEPP_Overview_Display.svg" style="display: block; margin-left: auto; margin-right: auto; width: 100%;">
-  <div style="text-align: justify; margin-top: 10px;">
+<div style="text-align: center;">
+  <img src="images/WEPP_Overview_Display.svg" style="max-width: 100%; height: auto;">
+</div>
+
+<div style="text-align: justify; margin-top: 10px;">
     <b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes. Unaccounted alleles and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and unaccounted alleles contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and unaccounted alleles for a selected read; (iv) Haplotype information panel listing the possible unaccounted alleles associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.
-    </div>
 </div>
 
 ### <b>Key Features</b>
