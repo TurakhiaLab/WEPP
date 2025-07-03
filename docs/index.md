@@ -14,7 +14,7 @@ WEPP performs parsimonious placement of reads on the MAT and selects a subset of
 
 <div align="center">
     <img src="images/WEPP_Overview_Display.svg" width="600">
-    <div><b>Figure 1: Overview of WEPP</b></div>
+    <div><b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes. Unaccounted alleles and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and unaccounted alleles contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and unaccounted alleles for a selected read; (iv) Haplotype information panel listing the possible unaccounted alleles associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.</div>
 </div>
 
 ### <b>Key Features</b>
@@ -51,7 +51,7 @@ The Docker image includes all dependencies required to run WEPP.
 ```bash
 docker pull pranavgangwar/wepp:latest
 ```
-**Step 2:** Start and run Docker container
+**Step 2:** Start and run Docker container. The command below will take you inside the docker container with WEPP already installed.
 ```bash
 # -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
 # Replace <host_port> with your desired local port (e.g., 80 or 8080)
@@ -61,7 +61,7 @@ docker run -it -p 80:80 pranavgangwar/wepp:latest
 # Use this command if your datasets are present in your current directory
 docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
-**Step 3:** Confirm proper working by running 
+**Step 3:** Confirm proper working by running the following command. This should print WEPP's help menu.
 ```bash
 snakemake test --cores 1 --use-conda
 ```
@@ -83,7 +83,7 @@ cd docker
 docker build -t wepp . 
 cd ..
 ```
-**Step 3:** Start and run Docker container
+**Step 3:** Start and run Docker container. The command below will take you inside the docker container with the view of the current directory.
 ```bash
 # -p <host_port>:<container_port> → Maps container port to a port on your host (Accessing Dashboard, NOT needed otherwise)
 # Replace <host_port> with your desired local port (e.g., 80 or 8080)
@@ -291,6 +291,9 @@ snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run MIN_Q=25 CLADE_IDX=1
 
 !!!Note
      ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
+
+## <b>Getting Mutation-Annotated Trees</b> <a name="mat"></a>
+Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found here: https://dev.usher.bio. You can also create your own MAT for any pathogen from the consensus genome assemblies using viral_usher: https://github.com/AngieHinrichs/viral_usher.
 
 ## <b>Contributions</b>
 We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.
