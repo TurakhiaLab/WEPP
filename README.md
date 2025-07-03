@@ -42,9 +42,11 @@ WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacement
 WEPP performs parsimonious read placement on the mutation-annotated tree (MAT) to select a subset of haplotypes and adds their neighbors to form an initial candidate pool, which is passed to a deconvolution algorithm to estimate their relative abundances. WEPP retains haplotypes above an abundance threshold, and iteratively adds their neighbors and recomputes abundances until convergence or a maximum iteration count. An outlier detection algorithm flags Unaccounted Alleles from the deconvolution residue (Figure 1C).
 
 
-<div align="center">
-    <img src="docs/images/WEPP_Overview_Display.svg" width="600">
-    <div><b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes. Unaccounted alleles and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and unaccounted alleles contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and unaccounted alleles for a selected read; (iv) Haplotype information panel listing the possible unaccounted alleles associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.</div>
+<div style="width: 600px; margin: 0 auto;">
+   <img src="docs/images/WEPP_Overview_Display.svg" style="display: block; margin-left: auto; margin-right: auto; width: 100%;">
+  <div style="text-align: justify; margin-top: 10px;">
+    <b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes. Unaccounted alleles and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and unaccounted alleles contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and unaccounted alleles for a selected read; (iv) Haplotype information panel listing the possible unaccounted alleles associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.
+    </div>
 </div>
 
 
