@@ -297,7 +297,7 @@ snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run MIN_Q=25 CLADE_IDX=1
 ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
 
 ##  <a name="mat"></a> Getting Mutation-Annotated Trees
-Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found here: https://dev.usher.bio. You can also create your own MAT for any pathogen from the consensus genome assemblies using viral_usher: https://github.com/AngieHinrichs/viral_usher.
+Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
 
 ##  <a name="contribution"></a> Contributions
 We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.
