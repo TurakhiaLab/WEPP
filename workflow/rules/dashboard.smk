@@ -27,7 +27,7 @@ rule process_taxonium:
                 usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
                     --output {output.jsonl} \
                     --clade_types {params.clade_list} \
-                    --name_internal_nodes -j src/Dashboard/taxonium_backend/config_public.json
+                    --name_internal_nodes
             else
                 cp data/{wildcards.DIR}/{params.taxonium_jsonl_file} {output.jsonl}
             fi
@@ -125,7 +125,7 @@ rule dashboard_serve:
 
             echo "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
 
-            node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} &
+            node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} --config_json src/Dashboard/taxonium_backend/config_public.json &
 
             # Wait until port 8080 is open
             until ss -tuln | grep ':8080' > /dev/null; do
