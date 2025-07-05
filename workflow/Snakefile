@@ -30,6 +30,7 @@ PRIMER_BED={config.get("PRIMER_BED")}
 MIN_AF={config.get("MIN_AF")}
 MIN_Q={config.get("MIN_Q")}
 MAX_READS={config.get("MAX_READS")}
+CLADE_LIST={config.get("CLADE_LIST")}
 CLADE_IDX={config.get("CLADE_IDX")}
 DASHBOARD_ENABLED={config.get("DASHBOARD_ENABLED")}
 TAXONIUM_FILE={config.get("TAXONIUM_FILE")}
