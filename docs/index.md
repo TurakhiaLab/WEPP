@@ -267,7 +267,7 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked. 
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
-10. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, give "nextstrain,pango". 
+10. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it. 
 11. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Generally '1' for SARS-CoV-2 MATs and '0' for others. Could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2 
 12. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
 13. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
@@ -279,17 +279,17 @@ Examples:
 
 1. Using all the parameters from the config file.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run --cores 32 --use-conda
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa --cores 32 --use-conda
 ```
 
 2. Overriding MIN_Q and CLADE_IDX through command line.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run MIN_Q=25 CLADE_IDX=1 --cores 32 --use-conda
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 --cores 32 --use-conda
 ```
 
 3. To visualize results from a previous WEPP analysis that was run without the dashboard, set `DASHBOARD_ENABLED` to `True` and re-run only the dashboard components, without reanalyzing the dataset.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run MIN_Q=25 CLADE_IDX=1 TAXONIUM_FILE=sars_cov_2_taxonium.jsonl.gz DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
 ```
 
 !!!Note
