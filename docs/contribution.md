@@ -1,0 +1,2 @@
+# <b>Contributions</b>
+We welcome contributions from the community to enhance the capabilities of WEPP. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.

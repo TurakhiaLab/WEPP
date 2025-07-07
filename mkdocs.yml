@@ -79,6 +79,11 @@ markdown_extensions:
 use_directory_urls: false
 nav:
   - Home: index.md
+  - Install: install.md
+  - Quick Start: quickstart.md
+  - User Guide: usage.md
+  - Contribution: contribution.md
+  - Cite WEPP: cite.md
 
 copyright: |
   &copy; 2025 <a href="https://github.com/TurakhiaLab"  target="_blank" rel="noopener">Turakhia Lab</a>
