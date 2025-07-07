@@ -111,7 +111,7 @@ public:
         return ds.min_af();
     }
     
-    const uint32_t clade_idx() {
+    const int32_t clade_idx() {
         return ds.clade_idx();
     }
 
