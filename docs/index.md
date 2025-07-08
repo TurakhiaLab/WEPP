@@ -22,7 +22,7 @@ WEPP performs parsimonious placement of reads on the MAT and selects a subset of
 </div>
 
 <div style="text-align: justify; margin-top: 10px;">
-    <b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes. Unaccounted alleles and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and unaccounted alleles contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and unaccounted alleles for a selected read; (iv) Haplotype information panel listing the possible unaccounted alleles associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.
+    <b>Figure 1: Overview of the WEPP pipeline.</b> (A) WEPP input and output. (B) Features of the interactive Dashboard: (i) Phylogenetic view of WEPP-inferred haplotypes with their proportions, associated lineages, and uncertain haplotypes.*Unaccounted Alleles* and their possible haplotype sources are shown in a separate panel; (ii) Read analysis panel highlighting accounted and *Unaccounted Alleles* contained in reads mapped to a selected haplotype; (iii) Read information panel displaying all possible haplotypes and *Unaccounted Alleles* for a selected read; (iv) Haplotype information panel listing the possible *Unaccounted Alleles* associated with the selected haplotype. (C) Key stages of WEPP’s phylogenetic algorithm for haplotype detection and abundance estimation.
 </div>
 
 ## <b>Key Features</b>
@@ -33,7 +33,7 @@ WEPP's *Phylogenetic Placement* of reads enables accurate estimation of haplotyp
 ### <b>Lineage Proportions</b> 
 WEPP infers lineage proportions by aggregating haplotype abundances within each lineage, accounting for intra-lineage diversity to produce more accurate and robust estimates.
 
-### <b>Unccounted Alleles </b>
+### <b>Unaccounted Alleles </b>
 WEPP reports a list of *Unaccounted Alleles* - alleles observed in wastewater that are not explained by the selected haplotypes, along with the inferred haplotype(s) they are most likely associated with (Figure 1B(i)). These *Unaccounted Alleles* can serve as early indicators of novel variants and often resemble the 'cryptic' mutations described in previous studies.
 
 ### <b>Read-Level Analysis </b>
