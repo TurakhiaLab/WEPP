@@ -20,4 +20,4 @@ rule sam2pb:
         workflow.cores
     shell:
         "mkdir -p intermediate/{wildcards.DIR} && "
-        "./build/wepp sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.FILE_PREFIX}' -f " + config["REF"] + " -d '{wildcards.DIR}'" + " -m " + str(config.get("MAX_READS", str(int(1e9)))) + " -a " + str(config["MIN_AF"]) + " -q " + str(config["MIN_Q"]) + " -c " + str(config["CLADE_IDX"])
+        "./build/wepp sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.FILE_PREFIX}' -f " + config["REF"] + " -d '{wildcards.DIR}'" + " -m " + str(config.get("MAX_READS", str(int(1e9)))) + " -a " + str(config["MIN_AF"]) + " -c " + str(config["MIN_DEPTH"]) + " -q " + str(config["MIN_Q"])

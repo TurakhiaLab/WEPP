@@ -22,7 +22,7 @@
 // vcf - for all non indels with a mutation, look at every single read and tell which mutation it corresponds to
 // also for pairs of mutation frequencies
 static double frequency_read_cutoff;
-static int phred_score_cutoff;
+static int phred_score_cutoff, depth_read_cutoff;
 
 std::string CHROM;
 
@@ -57,6 +57,7 @@ void sam2PB(const dataset& d) {
     std::string sam_file = d.sam_path();
     phred_score_cutoff = d.min_phred();
     frequency_read_cutoff = d.min_af();
+    depth_read_cutoff = d.min_depth();
 
     //Reading reference genome
     Timer timer;
@@ -293,7 +294,10 @@ void sam::read_correction() {
             int indx = start + j;
             int curr = GENOME_STRING.find(align[j]);
 
-            if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
+            if (depth_read_cutoff > total_occurences[indx]) {
+                align[j] = 'N';
+            }
+            else if (frequency_read_cutoff - (double) collapsed_frequency_table[indx][curr] / total_occurences[indx] > SCORE_EPSILON) {
                 if (MAP_TO_MAJORITY_INSTEAD_OF_N) {
                     align[j] = GENOME_STRING[majority[indx]];
                 }
@@ -312,9 +316,12 @@ void sam::read_correction() {
     /* update frequency table */
     for (int i = 0; i < (int) reference_seq.size(); ++i) {
         for (int j = 0; j < (int) GENOME_STRING.size(); ++j) {
+            if (depth_read_cutoff > total_occurences[i]) {
+                collapsed_frequency_table[i][j] = 0;
+            }
+            
             if (j == majority[i]) continue;
-
-            if (frequency_read_cutoff - (double) collapsed_frequency_table[i][j] / total_occurences[i] > SCORE_EPSILON) {
+            else if (frequency_read_cutoff - (double) collapsed_frequency_table[i][j] / total_occurences[i] > SCORE_EPSILON) {
                 collapsed_frequency_table[i][majority[i]] += std::exchange(collapsed_frequency_table[i][j], 0);
             }
         }

@@ -10,6 +10,9 @@ PRIMER_BED: "none.bed"
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
 
+# Mask any site with depth below this threshold
+MIN_DEPTH: "10"
+
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
 

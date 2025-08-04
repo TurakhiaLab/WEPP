@@ -36,6 +36,10 @@ public:
         return std::stof(options["min-af"].as<std::string>());
     }
     
+    uint32_t min_depth() const {
+        return options["min-depth"].as<uint32_t>();
+    }
+    
     std::string dataset_name() const {
         return options["dataset"].as<std::string>();
     }

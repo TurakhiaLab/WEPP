@@ -346,6 +346,7 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         std::string lineage_name = "";
         if (this->clade_idx() >= 0)
         {
+            // Get Lineage name based on the current node
             for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
             {
                 const auto &clade = anc->clade_annotations[this->clade_idx()];
@@ -353,6 +354,18 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
                 {
                     lineage_name = clade;
                     break;
+                }
+            }
+            
+            // Incorporate Lineage names of condensed nodes
+            auto condensed_nodes = condensed_node_mappings[pn.first->condensed_source];
+            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            {
+                auto curr_node = condensed_nodes[i];
+                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                if (clade != "")
+                {
+                    lineage_name += "/" + clade;
                 }
             }
         }
@@ -378,6 +391,7 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
         std::unordered_map<std::string, double> a_map;
         for (const auto &p : abundance)
         {
+            // Get Lineage name based on the current node
             std::string lineage_name;
             for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
             {
@@ -388,6 +402,19 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
                     break;
                 }
             }
+            
+            // Incorporate Lineage names of condensed nodes
+            auto condensed_nodes = condensed_node_mappings[p.first->condensed_source];
+            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            {
+                auto curr_node = condensed_nodes[i];
+                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                if (clade != "")
+                {
+                    lineage_name += "/" + clade;
+                }
+            }
+
             a_map[lineage_name] += p.second;
         }
 
@@ -405,10 +432,10 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
     std::string csv_print;
     for (const auto &n_p : abundance)
     {
-        // Get lineage name
         std::string lineage_name;
         if (this->clade_idx() >= 0)
         {
+            // Get Lineage name based on current node
             for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
             {
                 const auto &clade = anc->clade_annotations[this->clade_idx()];
@@ -416,6 +443,18 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
                 {
                     lineage_name = clade;
                     break;
+                }
+            }
+        
+            // Incorporate Lineage names of condensed nodes
+            auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
+            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            {
+                auto curr_node = condensed_nodes[i];
+                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                if (clade != "")
+                {
+                    lineage_name += "/" + clade;
                 }
             }
         }
@@ -456,6 +495,7 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
         std::unordered_map<std::string, double> a_map;
         for (const auto &n_p : abundance)
         {
+            // Get Lineage name based on the current node
             std::string lineage_name;
             for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
             {
@@ -466,6 +506,19 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
                     break;
                 }
             }
+        
+            // Incorporate Lineage names of condensed nodes
+            auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
+            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            {
+                auto curr_node = condensed_nodes[i];
+                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                if (clade != "")
+                {
+                    lineage_name += "/" + clade;
+                }
+            }
+
             a_map[lineage_name] += n_p.second;
         }
 
