@@ -969,6 +969,15 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
             }
         }
 
+        auto condensed_nodes = condensed_node_mappings[pn.first];
+        for (int i = 1; i < (int)condensed_nodes.size(); i++)
+        {
+            auto curr_node = condensed_nodes[i];
+            if (curr_node->annotations.size()) {
+                lineage_name = lineage_name.substr(0, lineage_name.size() - 1) + "/" + curr_node->annotations.front();
+            }
+        }
+
         printf("PEAK: %s Lineage: %.*s weighted_dist: %.2f raw_dist: %02d proportion: %.2f (to) %s \n", pn.first->id.c_str(), static_cast<int>(lineage_name.size() - 1), lineage_name.c_str(), (min_dist * pn.second), min_dist, pn.second, best_node.c_str()); 
         average_dist += (min_dist * pn.second);
     }
@@ -997,6 +1006,15 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
             }
         }
         
+        auto condensed_nodes = condensed_node_mappings[p.first];
+        for (int i = 1; i < (int)condensed_nodes.size(); i++)
+        {
+            auto curr_node = condensed_nodes[i];
+            if (curr_node->annotations.size()) {
+                lineage_name = lineage_name.substr(0, lineage_name.size() - 1) + "/" + curr_node->annotations.front();
+            }
+        }
+        
         if (!lineage_name.empty()) {
             a_map[lineage_name] += p.second;
         }
@@ -1022,6 +1040,15 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
             if (anc->annotations.size()) {
                 lineage_name = anc->annotations.front();
                 break;
+            }
+        }
+        
+        auto condensed_nodes = condensed_node_mappings[n_p.first];
+        for (int i = 1; i < (int)condensed_nodes.size(); i++)
+        {
+            auto curr_node = condensed_nodes[i];
+            if (curr_node->annotations.size()) {
+                lineage_name = lineage_name.substr(0, lineage_name.size() - 1) + "/" + curr_node->annotations.front();
             }
         }
 
@@ -1067,6 +1094,16 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
                 break;
             }
         }
+
+        auto condensed_nodes = condensed_node_mappings[n_p.first];
+        for (int i = 1; i < (int)condensed_nodes.size(); i++)
+        {
+            auto curr_node = condensed_nodes[i];
+            if (curr_node->annotations.size()) {
+                lineage_name = lineage_name.substr(0, lineage_name.size() - 1) + "/" + curr_node->annotations.front();
+            }
+        }
+
         a_map[lineage_name] += n_p.second;
     }
 

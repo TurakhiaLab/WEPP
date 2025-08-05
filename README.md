@@ -178,7 +178,8 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 6. `PRIMER_BED` - BED file for primers from the `primers` folder
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked. 
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
+9. `MIN_DEPTH` - Sites with read depth below this threshold will be masked. 
+10. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
 
 ### <a name="snakemake"></a> Run Command
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.

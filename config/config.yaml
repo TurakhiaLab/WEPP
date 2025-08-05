@@ -13,5 +13,8 @@ MIN_AF: "0.005"
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
 
+# Mask any site with depth below this threshold
+MIN_DEPTH: "10"
+
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"

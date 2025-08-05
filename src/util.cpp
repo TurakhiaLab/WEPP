@@ -51,6 +51,7 @@ void initializeConvDesc() {
         ("file-prefix,p", po::value<std::string>()->default_value(""), "Prefix for intermediate files.")
         ("min-af,a", po::value<std::string>()->default_value("0.005"), "Allele Frequency threshold for masking errorneous alleles.")
         ("min-phred,q", po::value<u_int32_t>()->default_value(20), "Phred Score threshold for masking low quality alleles.")
+        ("min-depth,c", po::value<u_int32_t>()->default_value(10), "Depth threshold for masking low coverage sites.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
 }

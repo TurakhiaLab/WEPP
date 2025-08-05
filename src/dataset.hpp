@@ -40,6 +40,10 @@ public:
         return options["min-phred"].as<uint32_t>();
     }
     
+    uint32_t min_depth() const {
+        return options["min-depth"].as<uint32_t>();
+    }
+
     double min_af() const {
         return std::stof(options["min-af"].as<std::string>());
     }
