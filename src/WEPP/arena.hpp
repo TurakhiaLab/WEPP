@@ -111,6 +111,10 @@ public:
         return ds.min_af();
     }
     
+    const double min_prop() {
+        return ds.min_prop();
+    }
+
     const int32_t clade_idx() {
         return ds.clade_idx();
     }

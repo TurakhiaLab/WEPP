@@ -149,7 +149,8 @@ void initializeConvDesc() {
         ("ref-fasta,f", po::value<std::string>()->default_value(""), "Reference sequence.")
         ("min-af,a", po::value<std::string>()->default_value("0.005"), "Allele Frequency threshold for masking errorneous alleles.")
         ("min-depth,c", po::value<u_int32_t>()->default_value(10), "Depth threshold for masking low coverage sites.")
-        ("min-phred,q", po::value<u_int32_t>()->default_value(20), "Phred Score threshold for masking low quality alleles.")
+        ("min-phred,q", po::value<u_int32_t>()->default_value(20), "Phred score threshold for masking low quality alleles.")
+        ("min-prop,r", po::value<std::string>()->default_value("0.005"), "Minimum haplotype abundance.")
         ("clade-idx,n", po::value<u_int32_t>()->default_value(1), "Index used for inferring lineage proportions from haplotypes.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");

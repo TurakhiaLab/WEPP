@@ -16,6 +16,12 @@ MIN_DEPTH: "10"
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
 
+# Min proportion for haplotype detection: Wastewater: 0.5%, Clinical Data: 5%
+MIN_PROP: "0.005"
+
+# Min read Length after ivar trimming: DEFAULT: 80
+MIN_LEN: "80"
+
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 

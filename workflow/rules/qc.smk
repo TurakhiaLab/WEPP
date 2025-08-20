@@ -20,7 +20,8 @@ rule qc:
     params:
         seq_type=lambda wildcards: config["SEQUENCING_TYPE"],
         primer_bed=lambda wildcards: config.get("PRIMER_BED", "none.bed"),
-        ref=lambda wildcards: config["REF"]
+        ref=lambda wildcards: config["REF"],
+        min_len=lambda wildcards: config.get("MIN_LEN", "80")
     threads:
         workflow.cores
     shell:
@@ -28,5 +29,5 @@ rule qc:
         in_path=$(realpath data/{wildcards.DIR}/)
         out_path=$(realpath intermediate/{wildcards.DIR})
 
-        python src/WEPP/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
+        python src/WEPP/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --min_len {params.min_len} --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
         """

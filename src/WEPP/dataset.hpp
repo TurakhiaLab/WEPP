@@ -40,6 +40,10 @@ public:
         return options["min-depth"].as<uint32_t>();
     }
     
+    double min_prop() const {
+        return std::stof(options["min-prop"].as<std::string>());
+    }
+    
     std::string dataset_name() const {
         return options["dataset"].as<std::string>();
     }

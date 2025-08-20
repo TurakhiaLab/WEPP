@@ -11,7 +11,7 @@ all_sample_names = []
 
 def print_usage():
     print("Example usage: ")
-    print("\tpython3 src/WEPP/qc_preprocess.py --platform i --primers bed_name --in path_to_fastq --out path_to_output --threads n --reference ref --prefix prefix")
+    print("\tpython3 src/WEPP/qc_preprocess.py --platform i --primers bed_name --in path_to_fastq --out path_to_output --min_len l --threads n --reference ref --prefix prefix")
     print("\nPlatform options:")
     print("\t-h\t\t: Show this help message and exit.")
     print("\t-i\t\t: Illumina platform, paired-end mode")
@@ -25,7 +25,8 @@ def parse_args():
     parser.add_argument('--primers', required=True)
     parser.add_argument('--in', dest='input_dir', required=True)
     parser.add_argument('--out', dest='output_dir', required=True)
-    parser.add_argument('--threads', type=int, required=False, default=8)
+    parser.add_argument('--min_len', type=int, required=True)
+    parser.add_argument('--threads', type=int, required=False, default=16)
     parser.add_argument('--reference', required=True)
     parser.add_argument('--prefix', required=True)
     return parser.parse_args()
@@ -81,7 +82,7 @@ def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix
     subprocess.run(cmd, check=True)
     return out_sam
 
-def trimming(output_dir, sam_file, primer_bed, threads, prefix):
+def trimming(output_dir, sam_file, primer_bed, min_len, threads, prefix):
     # Sort the SAM file to get sorted.bam
     sorted_bam = os.path.join(output_dir, prefix + "_sorted.bam")
     subprocess.run(["samtools", "sort", sam_file, "-o", sorted_bam, "-@", str(threads)], check=True)
@@ -89,7 +90,7 @@ def trimming(output_dir, sam_file, primer_bed, threads, prefix):
     # Trim with ivar and output directly to trimmed.bam
     trimmed_path = os.path.join(output_dir, prefix + "_trimmed")
     trim_cmd = [
-        "ivar", "trim", "-e", "-b", primer_bed, "-p", trimmed_path, "-i", sorted_bam, "-q", "1", "-m", "80", "-x", "3"
+        "ivar", "trim", "-e", "-b", primer_bed, "-p", trimmed_path, "-i", sorted_bam, "-q", "1", "-m", str(min_len), "-x", "3"
     ]
     subprocess.run(trim_cmd, check=True)
 
@@ -128,7 +129,7 @@ def main():
     r1, r2 = find_fastq_files(args.input_dir, is_paired)
 
     sam_file = reference_alignment(args.output_dir, r1, r2, platform, reference_file, args.threads, args.prefix)
-    trimming(args.output_dir, sam_file, primer_bed_file, args.threads, args.prefix)
+    trimming(args.output_dir, sam_file, primer_bed_file, args.min_len, args.threads, args.prefix)
     print(f"QC Completed")
 
 
