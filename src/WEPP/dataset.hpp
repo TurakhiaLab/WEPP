@@ -181,7 +181,10 @@ public:
             while (fasta_f)
             {
                 std::getline(fasta_f, temp);
-                ref_seq += temp;
+                // convert nucleotides to uppercase
+		std::transform(temp.begin(), temp.end(), temp.begin(),
+			[](unsigned char c){ return std::toupper(c); });
+		ref_seq += temp;
             }
             saved.emplace(ref_seq);
         }
