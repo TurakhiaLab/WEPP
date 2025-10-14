@@ -75,6 +75,7 @@ snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.
 
 !!!Note
      ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
+     ⚠️ Make sure port forwarding is enabled when running on external servers to view results on your personal machine.
 
 ## <b>MAT Download</b> <a name="mat"></a>
 Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
