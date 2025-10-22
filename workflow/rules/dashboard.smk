@@ -90,73 +90,80 @@ rule dashboard_serve:
         ref=config["REF"],
     shell:
         """
+        set -euo pipefail
+
         if [ "{params.dashboard}" = "False" ]; then
-            rm {input.taxonium_jsonl}
+            rm -f {input.taxonium_jsonl}
         fi
 
         if [ "{params.dashboard}" = "True" ]; then
-                # Start the Node.js server in the background
-
-            PID=$(ss -lptn 'sport = :8080' 2>/dev/null | awk 'NR>1 {{gsub(/.*pid=/,""); gsub(/,.*$/,""); print $NF}}' | head -n1)
+            # ──────────────────────────────────────────────
+            # Free up port 8080 if occupied
+            # ──────────────────────────────────────────────
+            PID=$(lsof -ti :8080 || true)
             if [ -n "$PID" ]; then
                 echo "Port 8080 is in use by PID $PID. Killing it safely."
                 kill -9 "$PID" || true
             fi
 
-            # Appending this project to database.
-            read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
+            read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py \
+                {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
+
             if [ ! -d "./results/uploads" ]; then
                 echo "creating uploads directory" | tee -a {params.log}
-                mkdir ./results/uploads
+                mkdir -p ./results/uploads
             fi
-            
+
             echo "Installing backend dependencies..." | tee -a {params.log}
             cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
 
             echo "Starting the Node.js server..." | tee -a {params.log}
 
-            # Check if file is gzipped
+
             if [[ "${{FILENAME}}" == *.gz ]]; then
                 MAX_MEM=$(( MAX_MEM * 10 ))
             fi
-
-            # Ensure at least 2048 MB, and add 1024 MB buffer
             MAX_MEM=$(( MAX_MEM + 2048 ))
-
             echo "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
 
-            node --expose-gc --max-old-space-size=$MAX_MEM src/Dashboard/taxonium_backend/server.js --port 8080 --data_file {input.taxonium_jsonl} --config_json src/Dashboard/taxonium_backend/config_public.json &
+            node --expose-gc --max-old-space-size=$MAX_MEM \
+                src/Dashboard/taxonium_backend/server.js \
+                --port 8080 \
+                --data_file {input.taxonium_jsonl} \
+                --config_json src/Dashboard/taxonium_backend/config_public.json &
 
-            # Wait until port 8080 is open
-            until ss -tuln | grep ':8080' > /dev/null; do
-                # echo "Waiting for server to open port 8080..."
+            # ──────────────────────────────────────────────
+            # Wait until Node.js server opens port 8080
+            # ──────────────────────────────────────────────
+            until lsof -i :8080 >/dev/null 2>&1; do
+                # echo "Waiting for Node.js server to start..."
                 sleep 1
             done
-            
-            if ss -tuln | grep -w '80' > /dev/null; then
+
+            # ──────────────────────────────────────────────
+            # Start Nginx if port 80 not in use
+            # ──────────────────────────────────────────────
+            if lsof -i :80 >/dev/null 2>&1; then
                 echo "Port 80 is already in use. Exiting." | tee -a {params.log}
             else
                 echo "Starting dashboard..." | tee -a {params.log}
-                cp -r src/Dashboard/dashboard/dist/* /usr/share/nginx/html
 
-                # create force symlink for static absolute paths for nginx to serve
+                cp -r src/Dashboard/dashboard/dist $CONDA_PREFIX/Dashboard
                 mkdir -p /srv/wepp
                 ln -sfn "$(realpath ./results)" /srv/wepp/results
 
-                cp src/Dashboard/nginx/nginx-react.conf /etc/nginx/sites-available/default
-                nginx &
+                nginx -c $PWD/src/Dashboard/nginx/wepp-nginx.conf &
 
-                until ss -tuln | grep -w '80' > /dev/null; do
+                until lsof -i :80 >/dev/null 2>&1; do
                     echo "Waiting for nginx to start on port 80..."
                     sleep 1
                 done
-                
-                echo "Dashboard can be accessed on browser on http://localhost:80 " | tee -a {params.log}
-            fi
 
+                echo "Dashboard can be accessed at http://localhost:80" | tee -a {params.log}
+            fi
         else
             echo "Dashboard is disabled. Skipping Dashboard initialization."
         fi
-        
+
         cp {params.log} {output}
         """

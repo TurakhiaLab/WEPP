@@ -44,14 +44,20 @@ rule all:
         f"results/{DIR}/{FILE_PREFIX}_run.txt"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
+    conda:
+        "./envs/wepp.yml"
     shell:
         """
+        set -euo pipefail
+
         if [ "{params.dashboard}" = "True" ]; then
-            if ss -tuln | grep -w '80' > /dev/null; then
-                echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port).\n"
+            if lsof -i :80 >/dev/null 2>&1; then
+                echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port).\\n"
+            else
+                echo "Workflow completed, but dashboard not detected on port 80. Check logs if it failed to start.\\n"
             fi
         else
-            echo "Workflow completed! To run the dashboard. set DASHBOARD_ENABLED=True and rerun the workflow with --forcerun dashboard_serve \n"
+            echo "Workflow completed! To run the dashboard, set DASHBOARD_ENABLED=True and rerun the workflow with --forcerun dashboard_serve.\\n"
         fi
         """
 rule test:
