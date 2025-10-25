@@ -158,11 +158,16 @@ rule dashboard_serve:
                     echo "Waiting for nginx to start on port 80..."
                     sleep 1
                 done
-
-                echo "Dashboard can be accessed at http://localhost:80" | tee -a {params.log}
+                if lsof -i :80 >/dev/null 2>&1; then
+                    echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port).\\n"
+                else
+                    echo "Workflow completed, but dashboard not detected on port 80. \\n"
+                fi
             fi
         else
-            echo "Dashboard is disabled. Skipping Dashboard initialization."
+            rm -f {input.taxonium_jsonl}
+            echo "Workflow completed! To run the dashboard, set DASHBOARD_ENABLED=True and rerun the workflow with --forcerun dashboard_serve.\\n"
+
         fi
 
         cp {params.log} {output}

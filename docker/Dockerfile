@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     git \
     nodejs \
-    npm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -37,8 +36,6 @@ ENV PATH=/root/miniforge3/bin:$PATH
 # Initialize Conda and ensure it’s sourced on login
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
-
-# RUN npm install -g yarn
 
 # Install Snakemake and taxoniumtools using pip
 RUN pip install snakemake taxoniumtools
