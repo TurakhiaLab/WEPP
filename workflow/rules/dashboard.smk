@@ -97,14 +97,37 @@ rule dashboard_serve:
         fi
 
         if [ "{params.dashboard}" = "True" ]; then
-            # ──────────────────────────────────────────────
-            # Free up port 8080 if occupied
-            # ──────────────────────────────────────────────
-            PID=$(lsof -ti :8080 || true)
-            if [ -n "$PID" ]; then
-                echo "Port 8080 is in use by PID $PID. Killing it safely."
-                kill -9 "$PID" || true
+
+
+            export WEPP_DASHBOARD_PATH="$(pwd)/runtime"
+            mkdir -p "$WEPP_DASHBOARD_PATH"
+
+
+            # Check if running inside Docker
+            if [ -f /.dockerenv ]; then
+                IN_DOCKER=True
+                export BACKEND_PORT=8080
+            else
+                source workflow/scripts/find_free_port.sh
+                IN_DOCKER=False
+                export BACKEND_PORT=$(find_free_port)
             fi
+            
+
+            # ──────────────────────────────────────────────
+            # Free up port $BACKEND_PORT if occupied
+            # ──────────────────────────────────────────────
+            if [ -f "$WEPP_DASHBOARD_PATH/dashboard.pid" ]; then
+                DASH_PID=$(cat "$WEPP_DASHBOARD_PATH/dashboard.pid")
+                if kill -0 "$DASH_PID" 2>/dev/null; then
+                    echo "Existing dashboard running with PID $DASH_PID. Killing it safely."
+                    kill -9 "$DASH_PID" || true
+                else
+                    echo "dashboard.pid found, but process $DASH_PID not running. Cleaning up file."
+                fi
+                rm -f "$WEPP_DASHBOARD_PATH/dashboard.pid"
+            fi
+
 
             read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py \
                 {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
@@ -128,40 +151,65 @@ rule dashboard_serve:
 
             node --expose-gc --max-old-space-size=$MAX_MEM \
                 src/Dashboard/taxonium_backend/server.js \
-                --port 8080 \
+                --port $BACKEND_PORT \
                 --data_file {input.taxonium_jsonl} \
-                --config_json src/Dashboard/taxonium_backend/config_public.json &
+                --config_json src/Dashboard/taxonium_backend/config_public.json & 
+            BACKEND_PID=$!
+
+            echo "$BACKEND_PID" > "$WEPP_DASHBOARD_PATH/dashboard.pid"
 
             # ──────────────────────────────────────────────
-            # Wait until Node.js server opens port 8080
+            # Wait until Node.js server opens port $BACKEND_PORT
             # ──────────────────────────────────────────────
-            until lsof -i :8080 >/dev/null 2>&1; do
+            until lsof -i :$BACKEND_PORT >/dev/null 2>&1; do
                 # echo "Waiting for Node.js server to start..."
                 sleep 1
             done
 
             # ──────────────────────────────────────────────
-            # Start Nginx if port 80 not in use
+            # Start Nginx if not already in use
             # ──────────────────────────────────────────────
-            if lsof -i :80 >/dev/null 2>&1; then
-                echo "Port 80 is already in use. Exiting." | tee -a {params.log}
+
+            if [ -f "$WEPP_DASHBOARD_PATH/nginx.pid" ] && kill -0 "$(cat "$WEPP_DASHBOARD_PATH/nginx.pid")" 2>/dev/null; then
+                echo "The nginx is already in use. Exiting." | tee -a {params.log}
             else
                 echo "Starting dashboard..." | tee -a {params.log}
 
-                cp -r src/Dashboard/dashboard/dist $CONDA_PREFIX/Dashboard
-                mkdir -p $CONDA_PREFIX/srv/wepp
-                ln -sfn "$(realpath ./results)" $CONDA_PREFIX/srv/wepp/results
+                mkdir -p "$WEPP_DASHBOARD_PATH/Dashboard" "$WEPP_DASHBOARD_PATH/results"
 
-                nginx -c $PWD/src/Dashboard/nginx/wepp-nginx.conf &
+                cp -r src/Dashboard/dashboard/dist "$WEPP_DASHBOARD_PATH/Dashboard"
+                rm -rf "$WEPP_DASHBOARD_PATH/results"
+                ln -sfn "$(realpath ./results)" "$WEPP_DASHBOARD_PATH/results"
 
-                until lsof -i :80 >/dev/null 2>&1; do
-                    echo "Waiting for nginx to start on port 80..."
+                # Check if running inside Docker
+                if [ "$IN_DOCKER" = "True" ]; then
+                    echo "Running inside Docker container." | tee -a {params.log}
+                    export USER_DIRECTIVE="user root";
+                    export FRONTEND_PORT=80
+    
+                else
+                    echo "Not running inside Docker container." | tee -a {params.log}
+
+                    source workflow/scripts/find_free_port.sh
+                    export USER_DIRECTIVE="# not user root";
+                    export FRONTEND_PORT=$(find_free_port)
+                fi
+
+                envsubst '${{USER_DIRECTIVE}} ${{WEPP_DASHBOARD_PATH}} ${{FRONTEND_PORT}} ${{BACKEND_PORT}} ${{PWD}}' \
+                < src/Dashboard/nginx/wepp-nginx.conf.template \
+                > "$WEPP_DASHBOARD_PATH/wepp-nginx.conf"
+
+                cp src/Dashboard/nginx/mime.types $WEPP_DASHBOARD_PATH
+                nginx -c $WEPP_DASHBOARD_PATH/wepp-nginx.conf &
+
+                until lsof -i :$FRONTEND_PORT >/dev/null 2>&1; do
+                    echo "Waiting for nginx to start on port $FRONTEND_PORT..."
                     sleep 1
                 done
-                if lsof -i :80 >/dev/null 2>&1; then
-                    echo "🎉 Workflow completed! Dashboard is running at http://localhost:80 (or your forwarded host port).\\n"
+                if lsof -i :$FRONTEND_PORT >/dev/null 2>&1; then
+                    echo "🎉 Workflow completed! Dashboard is running at http://localhost:$FRONTEND_PORT (or your forwarded host port).\\n"
                 else
-                    echo "Workflow completed, but dashboard not detected on port 80. \\n"
+                    echo "Workflow completed, but dashboard not detected on port $FRONTEND_PORT. \\n"
                 fi
             fi
         else
