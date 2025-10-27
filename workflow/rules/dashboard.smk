@@ -149,8 +149,8 @@ rule dashboard_serve:
                 echo "Starting dashboard..." | tee -a {params.log}
 
                 cp -r src/Dashboard/dashboard/dist $CONDA_PREFIX/Dashboard
-                mkdir -p /srv/wepp
-                ln -sfn "$(realpath ./results)" /srv/wepp/results
+                mkdir -p $CONDA_PREFIX/srv/wepp
+                ln -sfn "$(realpath ./results)" $CONDA_PREFIX/srv/wepp/results
 
                 nginx -c $PWD/src/Dashboard/nginx/wepp-nginx.conf &
 
