@@ -98,10 +98,8 @@ rule dashboard_serve:
 
         if [ "{params.dashboard}" = "True" ]; then
 
-
             export WEPP_DASHBOARD_PATH="$(pwd)/runtime"
             mkdir -p "$WEPP_DASHBOARD_PATH"
-
 
             # Check if running inside Docker
             if [ -f /.dockerenv ]; then
@@ -120,14 +118,13 @@ rule dashboard_serve:
             if [ -f "$WEPP_DASHBOARD_PATH/dashboard.pid" ]; then
                 DASH_PID=$(cat "$WEPP_DASHBOARD_PATH/dashboard.pid")
                 if kill -0 "$DASH_PID" 2>/dev/null; then
-                    echo "Existing dashboard running with PID $DASH_PID. Killing it safely."
+                    echo -e "Existing dashboard running with PID $DASH_PID. Killing it safely."
                     kill -9 "$DASH_PID" || true
                 else
-                    echo "dashboard.pid found, but process $DASH_PID not running. Cleaning up file."
+                    echo -e "dashboard.pid found, but process $DASH_PID not running. Cleaning up file."
                 fi
                 rm -f "$WEPP_DASHBOARD_PATH/dashboard.pid"
             fi
-
 
             read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py \
                 {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
@@ -140,14 +137,14 @@ rule dashboard_serve:
             echo "Installing backend dependencies..." | tee -a {params.log}
             cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
 
-            echo "Starting the Node.js server..." | tee -a {params.log}
+            echo -e "Starting the Node.js server..." | tee -a {params.log}
 
 
             if [[ "${{FILENAME}}" == *.gz ]]; then
                 MAX_MEM=$(( MAX_MEM * 10 ))
             fi
             MAX_MEM=$(( MAX_MEM + 2048 ))
-            echo "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
+            echo -e "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
 
             node --expose-gc --max-old-space-size=$MAX_MEM \
                 src/Dashboard/taxonium_backend/server.js \
@@ -156,7 +153,7 @@ rule dashboard_serve:
                 --config_json src/Dashboard/taxonium_backend/config_public.json & 
             BACKEND_PID=$!
 
-            echo "$BACKEND_PID" > "$WEPP_DASHBOARD_PATH/dashboard.pid"
+            echo -e "$BACKEND_PID" > "$WEPP_DASHBOARD_PATH/dashboard.pid"
 
             # ──────────────────────────────────────────────
             # Wait until Node.js server opens port $BACKEND_PORT
@@ -170,9 +167,17 @@ rule dashboard_serve:
             # Start Nginx if not already in use
             # ──────────────────────────────────────────────
 
-            if [ -f "$WEPP_DASHBOARD_PATH/nginx.pid" ] && kill -0 "$(cat "$WEPP_DASHBOARD_PATH/nginx.pid")" 2>/dev/null; then
-                echo "The nginx is already in use. Exiting." | tee -a {params.log}
-            else
+            if [ -f "$WEPP_DASHBOARD_PATH/nginx.pid" ]; then
+                NGINX_PID=$(cat "$WEPP_DASHBOARD_PATH/nginx.pid")
+                if kill -0 "$NGINX_PID" 2>/dev/null; then
+                    echo "Existing nginx running with PID $NGINX_PID.  Killing it safely." | tee -a {params.log}
+                    kill -9 "$NGINX_PID" || true
+                    kill -9 $((NGINX_PID + 1)) || true
+                else
+                    echo "nginx.pid found, but process $NGINX_PID not running. Cleaning up file."
+                    rm -f "$WEPP_DASHBOARD_PATH/nginx.pid"
+                fi
+            fi
                 echo "Starting dashboard..." | tee -a {params.log}
 
                 mkdir -p "$WEPP_DASHBOARD_PATH/Dashboard" "$WEPP_DASHBOARD_PATH/results"
@@ -183,13 +188,10 @@ rule dashboard_serve:
 
                 # Check if running inside Docker
                 if [ "$IN_DOCKER" = "True" ]; then
-                    echo "Running inside Docker container." | tee -a {params.log}
                     export USER_DIRECTIVE="user root";
                     export FRONTEND_PORT=80
     
                 else
-                    echo "Not running inside Docker container." | tee -a {params.log}
-
                     source workflow/scripts/find_free_port.sh
                     export USER_DIRECTIVE="# not user root";
                     export FRONTEND_PORT=$(find_free_port)
@@ -203,18 +205,18 @@ rule dashboard_serve:
                 nginx -c $WEPP_DASHBOARD_PATH/wepp-nginx.conf &
 
                 until lsof -i :$FRONTEND_PORT >/dev/null 2>&1; do
-                    echo "Waiting for nginx to start on port $FRONTEND_PORT..."
+                    echo -e "Waiting for nginx to start on port $FRONTEND_PORT..."
                     sleep 1
                 done
                 if lsof -i :$FRONTEND_PORT >/dev/null 2>&1; then
-                    echo "🎉 Workflow completed! Dashboard is running at http://localhost:$FRONTEND_PORT (or your forwarded host port).\\n"
+                    echo -e "\n\n\nWORKFLOW COMPLETED! DASHBOARD IS RUNNING AT http://localhost:$FRONTEND_PORT (OR YOUR FORWARDED HOST PORT).\n\n\n"
                 else
-                    echo "Workflow completed, but dashboard not detected on port $FRONTEND_PORT. \\n"
+                    echo -e "\n\n\nWORKFLOW COMPLETED, BUT DASHBOARD NOT DETECTED ON PORT $FRONTEND_PORT. \n\n\n"
                 fi
-            fi
+
         else
             rm -f {input.taxonium_jsonl}
-            echo "Workflow completed! To run the dashboard, set DASHBOARD_ENABLED=True and rerun the workflow with --forcerun dashboard_serve.\\n"
+            echo -e "\n\n\nWorkflow completed! To run the dashboard, set DASHBOARD_ENABLED=True and rerun the workflow with --forcerun dashboard_serve.\n\n\n"
 
         fi
 
