@@ -46,7 +46,7 @@ rule process_dashboard:
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam",
-        haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam",
+        haplotype_sam_file="{FILE_PREFIX}_haplotypes.sam",
         ref=config["REF"]
     conda:
         "../envs/wepp.yml"
@@ -57,11 +57,16 @@ rule process_dashboard:
             if [ -f "{params.bam_file}" ]; then
                 # Split BAM files by read groups
                 echo "Splitting BAM file by read groups..."
-                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
+                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores} --force
+                
+                samtools view -bS -o ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes_.bam ./results/{wildcards.DIR}/{params.haplotype_sam_file}
+                samtools sort -o ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes.bam ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes_.bam
+                samtools index ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes.bam
 
-                mv ./results/{wildcards.DIR}/{params.haplotype_bam_file} ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}
-                mv ./results/{wildcards.DIR}/{params.haplotype_bam_file}.bai ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}.bai
+                mv ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes.bam ./results/{wildcards.DIR}/bams/{FILE_PREFIX}_haplotypes.bam
+                mv ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes.bam.bai ./results/{wildcards.DIR}/bams/{FILE_PREFIX}_haplotypes.bam.bai
 
+                rm ./results/{wildcards.DIR}/{FILE_PREFIX}_haplotypes_.bam
                 rm {params.bam_file}
                 rm {params.bam_file}.bai
             else
