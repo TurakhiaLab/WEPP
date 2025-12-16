@@ -4,7 +4,7 @@ rule sorted_sam:
     output:
         "intermediate/{DIR}/{FILE_PREFIX}_alignment.sam"
     conda:
-        "../envs/wepp.yml"
+        wepp_env_file
     shell:
         "samtools view -h -o intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_alignment.sam intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_resorted.bam"
 
@@ -15,7 +15,7 @@ rule sam2pb:
     output:
         "intermediate/{DIR}/{FILE_PREFIX}_reads.pb"
     conda:
-        "../envs/wepp.yml"
+        wepp_env_file
     threads:
         workflow.cores
     shell:

@@ -1,0 +1,10 @@
+channels:
+- conda-forge
+- bioconda
+dependencies:
+ - samtools=1.10
+ - nginx
+ - yarn>=1.22
+ - lsof
+ - gettext
+ - taxoniumtools

@@ -11,7 +11,7 @@ rule install:
     output:
         "build/Makefile"
     conda:
-        "../envs/wepp.yml"
+        wepp_env_file
     shell:
         "./workflow/scripts/install.sh"
 
@@ -22,7 +22,7 @@ rule build_wepp:
     output:
         "build/wepp"
     conda:
-        "../envs/wepp.yml"
+        wepp_env_file
     threads:
         workflow.cores
     shell:

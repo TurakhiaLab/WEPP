@@ -1,3 +1,10 @@
+import sys
+
+if sys.platform.startswith("linux"):
+    wepp_env_file = "../envs/wepp_linux.yml"
+elif sys.platform == "darwin":
+    wepp_env_file = "../envs/wepp_osx.yml"
+
 # Load default config from ./config/config.yaml
 configfile: "./config/config.yaml"
 

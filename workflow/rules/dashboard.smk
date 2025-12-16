@@ -13,7 +13,7 @@ rule process_taxonium:
     output:
         jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}"
     conda:
-        "../envs/wepp.yml"
+        "../envs/dashboard.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"), 
         taxonium_jsonl_file=GIVEN_TAXONIUM,
@@ -49,7 +49,7 @@ rule process_dashboard:
         haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam",
         ref=config["REF"]
     conda:
-        "../envs/wepp.yml"
+        "../envs/dashboard.yml"
     shell:
         """
         if [ "{params.dashboard}" = "True" ]; then
@@ -82,7 +82,7 @@ rule dashboard_serve:
     output:
         temp("results/{DIR}/{FILE_PREFIX}_run.txt"),
     conda:
-        "../envs/wepp.yml"
+        "../envs/dashboard.yml"
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         taxonium_jsonl_file=GIVEN_TAXONIUM,

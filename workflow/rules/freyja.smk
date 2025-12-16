@@ -5,7 +5,7 @@ rule freyja:
         "intermediate/{DIR}/{FILE_PREFIX}_corrected_variants.tsv",
         "intermediate/{DIR}/{FILE_PREFIX}_depth.tsv"
     conda:
-        "../envs/wepp.yml"
+        "../envs/freyja.yml"
     params:
         ref=lambda wildcards: config["REF"],
         minq=lambda wildcards: config["MIN_Q"]

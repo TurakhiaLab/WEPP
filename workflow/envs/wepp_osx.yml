@@ -1,0 +1,10 @@
+channels:
+- conda-forge
+- bioconda
+dependencies:
+ - usher=0.6.3
+ - samtools=1.10
+
+ # Compilers
+ - clang=14.0.0
+ - clangxx=14.0.0
