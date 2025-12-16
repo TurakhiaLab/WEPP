@@ -16,7 +16,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 # otherwise it sometimes goes to system protobuf instead
-set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include")
+set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include" CACHE PATH "" FORCE)
+set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.dylib" CACHE FILEPATH "" FORCE)
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
@@ -37,8 +38,6 @@ tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
 find_package(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
-
-#find_package(OpenMP REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
 file(GLOB WBE_SRCS "src/WEPP/*.cpp" "src/WEPP/*.hpp")
