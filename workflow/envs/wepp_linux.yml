@@ -1,0 +1,10 @@
+channels:
+- conda-forge
+- bioconda
+dependencies:
+ - usher=0.6.3
+ - samtools=1.10
+
+ # Compilers
+ - gcc=12.3.0
+ - gxx=12.3.0

@@ -1,0 +1,5 @@
+channels:
+- conda-forge
+- bioconda 
+dependencies:
+ - freyja=1.4.2

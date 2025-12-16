@@ -9,7 +9,7 @@ rule filter:
         # other results too, but probably should add all at some point
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt"
     conda:
-        "../envs/wepp.yml"
+        "../envs/freyja.yml"
     threads:
         workflow.cores
     params:
