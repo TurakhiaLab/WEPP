@@ -2,7 +2,7 @@ channels:
 - conda-forge
 - bioconda
 dependencies:
- - samtools=1.10
+ - samtools=1.20
  - nginx
  - yarn>=1.22
  - lsof

@@ -81,7 +81,7 @@ void sam2PB(const dataset& d) {
     //std::ostream freyja_depth(&outbuf_freyja_depth);
 
     sam sam{ref_seq, (int) d.max_reads()};
-    boost::filesystem::ifstream fileHandler(sam_file);
+    std::ifstream fileHandler(sam_file);
     
     std::vector<std::string> lines;
     std::string s;

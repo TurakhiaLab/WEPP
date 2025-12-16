@@ -9,7 +9,7 @@
 std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> read_sample_vcf(const std::string& vcf_filename_samples) {
     std::vector<std::pair<std::string, std::vector<MAT::Mutation>>> vcf_samples;
     // Boost library used to stream the contents of the input VCF file
-    boost::filesystem::ifstream fileHandler(vcf_filename_samples);
+    std::ifstream fileHandler(vcf_filename_samples);
     std::string s;
     bool header_found = false;
     while (getline(fileHandler, s)) {
