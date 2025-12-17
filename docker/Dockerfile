@@ -37,8 +37,8 @@ ENV PATH=/root/miniforge3/bin:$PATH
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
 
-# Install Snakemake and taxoniumtools using pip
-RUN pip install snakemake taxoniumtools
+# Install Snakemake using pip
+RUN pip install snakemake
 
 # Default command: start an interactive login shell so .bashrc is sourced
 CMD [ "bash", "--login" ]
