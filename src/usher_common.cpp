@@ -87,9 +87,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
     // timer object to be used to measure runtimes of individual stages
     Timer timer;
 
-//    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
-//    tbb::task_scheduler_init init(num_threads);
-
 #if SAVE_PROFILE == 1
     Instrumentor::Get().BeginSession("test-main", "p1.json");
 #endif

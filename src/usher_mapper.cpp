@@ -1,7 +1,8 @@
 #include "usher_graph.hpp"
 
-tbb::mutex data_lock;
-tbb::reader_writer_lock rd_wr_lock;
+std::mutex data_lock;
+tbb::queuing_rw_mutex rd_wr_lock;
+tbb::queuing_rw_mutex::scoped_lock my_lock;
 
 int mapper_body::operator()(mapper_input input) {
     TIMEIT();
@@ -453,14 +454,14 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
     // if child of internal node, ensure all internal node mutations are present in the sample
     if (input.node->is_root() || ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) || \
                                   (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut)))) {
-        rd_wr_lock.lock_read();
+        my_lock.acquire(rd_wr_lock, false);
         if (set_difference > *input.best_set_difference) {
-            rd_wr_lock.unlock();
+            my_lock.release();
             return;
         }
-        rd_wr_lock.unlock();
+        my_lock.release();
 
-        rd_wr_lock.lock();
+        my_lock.acquire(rd_wr_lock, true);
         size_t num_leaves = input.T->get_num_leaves(input.node);
         if (set_difference < *input.best_set_difference) {
             *input.best_set_difference = set_difference;
@@ -495,7 +496,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
             (*input.node_has_unique)[input.j] = has_unique;
             input.best_j_vec->emplace_back(input.j);
         }
-        rd_wr_lock.unlock();
+        my_lock.release();
     } else if (compute_parsimony_scores) {
         // Add 1 to the parsimony score for this node
         // as its current best placement is equivalent

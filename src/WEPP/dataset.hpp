@@ -3,17 +3,20 @@
 #include <optional>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
-
 #include "src/usher_graph.hpp"
 #include "read.hpp"
 #include "util.hpp"
 
 class dataset {
     boost::program_options::variables_map options;
-    tbb::task_scheduler_init init;
+    tbb::global_control init;
 public:
     dataset(boost::program_options::variables_map options) :
-        options{options}, init{(int) options["threads"].as<uint32_t>()}
+        options{options}, 
+        init{
+            tbb::global_control::max_allowed_parallelism,
+            options["threads"].as<uint32_t>()
+        }
     { }
 
     uint32_t num_threads() const {

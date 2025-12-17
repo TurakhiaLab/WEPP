@@ -2,7 +2,6 @@
 #include <boost/filesystem.hpp>
 #include <unordered_set>
 #include "src/usher_graph.hpp"
-
 #include "util.hpp"
 
 //Get the names of samples prsent in samples.vcf
@@ -136,7 +135,9 @@ MAT::Tree create_condensed_tree(MAT::Node* ref_root, const std::unordered_set<in
 namespace po = boost::program_options;
 po::options_description conv_desc("Arguments");
 void initializeConvDesc() {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::global_control::active_value(
+        tbb::global_control::max_allowed_parallelism
+    );
     std::string num_threads_message =
         "Number of threads to use when possible [DEFAULT uses all available cores, " +
         std::to_string(num_cores) + " detected on this machine]";

@@ -17,7 +17,11 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # otherwise it sometimes goes to system protobuf instead
 set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include" CACHE PATH "" FORCE)
-set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.dylib" CACHE FILEPATH "" FORCE)
+if(APPLE)
+    set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.dylib" CACHE FILEPATH "" FORCE)
+else()
+    set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.so" CACHE FILEPATH "" FORCE)
+endif()
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
@@ -33,9 +37,7 @@ find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 include_directories(${Protobuf_INCLUDE_DIRS})
 
-include(${TBB_DIR}/cmake/TBBBuild.cmake)
-tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
-find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
+find_package(TBB CONFIG REQUIRED)
 
 find_package(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
 
@@ -82,5 +84,5 @@ else()
     )
 endif()
 
-target_link_libraries(wepp PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES})
-target_link_libraries(closest_peak_clustering PRIVATE stdc++ ${TBB_IMPORTED_TARGETS})
+target_link_libraries(wepp PRIVATE stdc++ ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES})
+target_link_libraries(closest_peak_clustering PRIVATE stdc++ TBB::tbb)
