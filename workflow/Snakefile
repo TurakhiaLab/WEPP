@@ -1,19 +1,25 @@
 import sys
+import os
+
+# This gets the directory where the Snakefile (and your code) is located.
+BASE_DIR = Path(workflow.basedir).parent
 
 if sys.platform.startswith("linux"):
-    wepp_env_file = "../envs/wepp_linux.yml"
+    wepp_env_file = str(BASE_DIR / "workflow/envs/wepp_linux.yml")
 elif sys.platform == "darwin":
-    wepp_env_file = "../envs/wepp_osx.yml"
+    wepp_env_file = str(BASE_DIR / "workflow/envs/wepp_osx.yml")
+else:
+    raise OSError("Unsupported operating system")
 
 # Load default config from ./config/config.yaml
-configfile: "./config/config.yaml"
+configfile: str(BASE_DIR / "config/config.yaml")
 
-include: "rules/qc.smk"
-include: "rules/freyja.smk"
-include: "rules/preprocess.smk"
-include: "rules/sam2pb.smk"
-include: "rules/filter.smk"
-include: "rules/dashboard.smk"
+include: str(BASE_DIR / "workflow/rules/qc.smk")
+include: str(BASE_DIR / "workflow/rules/freyja.smk")
+include: str(BASE_DIR / "workflow/rules/preprocess.smk")
+include: str(BASE_DIR / "workflow/rules/sam2pb.smk")
+include: str(BASE_DIR / "workflow/rules/filter.smk")
+include: str(BASE_DIR / "workflow/rules/dashboard.smk")
 
 DIR = config.get("DIR")
 FILE_PREFIX = config.get("FILE_PREFIX")
@@ -52,6 +58,6 @@ rule all:
 
 rule test:
     input:
-        "build/wepp"
+        str(BASE_DIR /"build/wepp")
     shell:
-        "./{input} help"
+        "{input} help"

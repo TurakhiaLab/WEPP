@@ -1,32 +1,47 @@
 from os.path import join
 
+src_dir = str(BASE_DIR / "src/WEPP")
 build_inps = []
-for root, _, files in os.walk("src/WEPP"):
-    for f in files:
-        build_inps.append(join(root, f))
+if os.path.exists(src_dir):
+    for root, _, files in os.walk(src_dir):
+        for f in files:
+            build_inps.append(os.path.join(root, f))
 
 rule install:
     input:
-        "CMakeLists.txt"
+        str(BASE_DIR / "CMakeLists.txt")
     output:
-        "build/Makefile"
+        str(BASE_DIR / "build/Makefile")
     conda:
         wepp_env_file
+    params:
+        source_dir = str(BASE_DIR),
+        script = str(BASE_DIR / "workflow/scripts/install.sh")
     shell:
-        "./workflow/scripts/install.sh"
+        """
+        workspace=$(pwd)
+
+        cd {params.source_dir}
+        bash {params.script}
+
+        cd $workspace
+        """
 
 rule build_wepp:
     input:
-        "build/Makefile",
-        build_inps
+        str(BASE_DIR / "build/Makefile"),
+        src = build_inps
     output:
-        "build/wepp"
+        str(BASE_DIR / "build/wepp")
     conda:
         wepp_env_file
     threads:
         workflow.cores
+    params: 
+        build_dir = str(BASE_DIR / "build")
     shell:
         """
         echo "Starting build..."
-        cd build && make -j || exit 1
+        cd {params.build_dir}
+        make -j || exit 1
         """

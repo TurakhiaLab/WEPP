@@ -16,12 +16,13 @@ rule qc:
     output:
         "intermediate/{DIR}/{FILE_PREFIX}_resorted.bam"
     conda:
-        "../envs/qc.yml"
+        str(BASE_DIR / "workflow/envs/qc.yml")
     params:
         seq_type=lambda wildcards: config["SEQUENCING_TYPE"],
-        primer_bed=lambda wildcards: config.get("PRIMER_BED", "none.bed"),
+        primer_bed=lambda wildcards: config.get("PRIMER_BED", str(BASE_DIR / "primers/none.bed")),
         ref=lambda wildcards: config["REF"],
-        min_len=lambda wildcards: config.get("MIN_LEN", "80")
+        min_len=lambda wildcards: config.get("MIN_LEN", "80"),
+        qc_script = str(BASE_DIR / "src/WEPP/qc_preprocess.py")
     threads:
         workflow.cores
     shell:
@@ -29,5 +30,5 @@ rule qc:
         in_path=$(realpath data/{wildcards.DIR}/)
         out_path=$(realpath intermediate/{wildcards.DIR})
 
-        python src/WEPP/qc_preprocess.py --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --min_len {params.min_len} --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
+        python {params.qc_script} --platform {params.seq_type} --primers {params.primer_bed} --in $in_path --out $out_path --min_len {params.min_len} --threads {threads} --reference {params.ref} --prefix {wildcards.FILE_PREFIX}
         """

@@ -161,8 +161,6 @@ apt-get install -y nodejs
 ```bash
 # Install Yarn package manager globally
 npm install -g yarn
-# Install TaxoniumTools Python package
-pip install taxoniumtools
 ```
 
 If your system doesn't have Conda, you can install it with:

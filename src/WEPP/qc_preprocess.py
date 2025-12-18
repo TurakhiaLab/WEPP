@@ -124,7 +124,7 @@ def main():
     platform, is_paired = platform_info
     print(f"{platform} mode")
 
-    primer_bed_file = resolve_path(args.primers, "./primers")
+    primer_bed_file = args.primers
     reference_file = resolve_path(args.reference, args.input_dir)
     r1, r2 = find_fastq_files(args.input_dir, is_paired)
 
