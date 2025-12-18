@@ -193,7 +193,7 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=RSVA_real FILE_PREFIX=test_run TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -218,7 +218,7 @@ This will save the datasets on a separate data/SARS_COV_2_real folder within the
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run PRIMER_BED=snap_primers.bed TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -267,7 +267,7 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 3. `REF` - Reference Genome in fasta.
 4. `TREE` - Mutation-Annotated Tree.
 5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).
-6. `PRIMER_BED` - BED file for primers from the `primers` folder.
+6. `PRIMER_BED` - BED file for primers. Few primers provided in the `primers` folder.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%).
 8. `MIN_DEPTH` - Sites with read depth below this threshold will be masked. 
 9. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.

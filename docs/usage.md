@@ -41,7 +41,7 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 3. `REF` - Reference Genome in fasta.
 4. `TREE` - Mutation-Annotated Tree.
 5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).
-6. `PRIMER_BED` - BED file for primers from the `primers` folder.
+6. `PRIMER_BED` - BED file for primers. Few primers provided in the `primers` folder.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%).
 8. `MIN_DEPTH` - Sites with read depth below this threshold will be masked. 
 9. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.

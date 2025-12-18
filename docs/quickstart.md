@@ -16,7 +16,7 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=RSVA_real FILE_PREFIX=test_run PRIMER_BED=RSVA_all_primers_best_hits.bed TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=RSVA_real FILE_PREFIX=test_run TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -42,7 +42,7 @@ This will save the datasets on a separate data/SARS_COV_2_real folder within the
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run PRIMER_BED=snap_primers.bed TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
+snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results

@@ -19,7 +19,7 @@ rule qc:
         str(BASE_DIR / "workflow/envs/qc.yml")
     params:
         seq_type=lambda wildcards: config["SEQUENCING_TYPE"],
-        primer_bed=lambda wildcards: config.get("PRIMER_BED", str(BASE_DIR / "primers/none.bed")),
+        primer_bed = lambda w: config.get("PRIMER_BED") or str(BASE_DIR / "primers/none.bed"),
         ref=lambda wildcards: config["REF"],
         min_len=lambda wildcards: config.get("MIN_LEN", "80"),
         qc_script = str(BASE_DIR / "src/WEPP/qc_preprocess.py")
