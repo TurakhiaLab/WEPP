@@ -66,7 +66,7 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
         af_thresh = arena.min_af();
     
     std::string command = "bash -c \""
-                "cd ./src/Freyja/ && "
+                "cd " + dataset.wepp_directory() + "/src/Freyja && "
                 "freyja demix "
                     "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
                     "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "

@@ -22,6 +22,7 @@ rule filter:
         """
         mkdir -p results/{wildcards.DIR} && \
         {input.binary} detectPeaks \
+            -w '{BASE_DIR}' \
             -T {threads} \
             -i {params.tree} \
             -p '{wildcards.FILE_PREFIX}' \
