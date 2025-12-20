@@ -9,7 +9,7 @@ else:
 
 rule process_taxonium:
     input:
-        "build/wepp"
+        str(BASE_DIR / "build/wepp")
     output:
         jsonl=f"results/{{DIR}}/{TAXONIUM_FILENAME}"
     conda:
@@ -44,20 +44,20 @@ rule process_dashboard:
     output:
         log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
     params:
+        split_script = str(BASE_DIR / "workflow/scripts/split_bams.sh"),
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam",
         haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam",
         ref=config["REF"]
     conda:
-        "../envs/dashboard.yml"
+        str(BASE_DIR / "workflow/envs/dashboard.yml")
     shell:
         """
         if [ "{params.dashboard}" = "True" ]; then
-
             if [ -f "{params.bam_file}" ]; then
                 # Split BAM files by read groups
                 echo "Splitting BAM file by read groups..."
-                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
+                bash {params.split_script} {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
 
                 mv ./results/{wildcards.DIR}/{params.haplotype_bam_file} ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}
                 mv ./results/{wildcards.DIR}/{params.haplotype_bam_file}.bai ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}.bai
@@ -74,6 +74,7 @@ rule process_dashboard:
         fi
         touch {output.log}
         """
+
 rule dashboard_serve:
     input:
         "intermediate/{DIR}/{FILE_PREFIX}_run_tmp.txt",
@@ -82,12 +83,20 @@ rule dashboard_serve:
     output:
         temp("results/{DIR}/{FILE_PREFIX}_run.txt"),
     conda:
-        "../envs/dashboard.yml"
+        str(BASE_DIR / "workflow/envs/dashboard.yml")
     params:
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         taxonium_jsonl_file=GIVEN_TAXONIUM,
         log=lambda wildcards: f"intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_run_tmp.txt",
         ref=config["REF"],
+        find_port_script = str(BASE_DIR / "workflow/scripts/find_free_port.sh"),
+        projects_py = str(BASE_DIR / "src/Dashboard/taxonium_backend/projects.py"),
+        backend_dir = str(BASE_DIR / "src/Dashboard/taxonium_backend"),
+        server_js = str(BASE_DIR / "src/Dashboard/taxonium_backend/server.js"),
+        config_json = str(BASE_DIR / "src/Dashboard/taxonium_backend/config_public.json"),
+        dist_dir = str(BASE_DIR / "src/Dashboard/dashboard/dist"),
+        nginx_template = str(BASE_DIR / "src/Dashboard/nginx/wepp-nginx.conf.template"),
+        mime_types = str(BASE_DIR / "src/Dashboard/nginx/mime.types")
     shell:
         """
         set -euo pipefail
@@ -106,7 +115,7 @@ rule dashboard_serve:
                 IN_DOCKER=True
                 export BACKEND_PORT=8080
             else
-                source workflow/scripts/find_free_port.sh
+                source {params.find_port_script}
                 IN_DOCKER=False
                 export BACKEND_PORT=$(find_free_port)
             fi
@@ -126,7 +135,7 @@ rule dashboard_serve:
                 rm -f "$WEPP_DASHBOARD_PATH/dashboard.pid"
             fi
 
-            read FILENAME MAX_MEM < <( python ./src/Dashboard/taxonium_backend/projects.py \
+            read FILENAME MAX_MEM < <( python {params.projects_py} \
                 {wildcards.DIR} {input.taxonium_jsonl} ./results/{wildcards.DIR}/{params.ref})
 
             if [ ! -d "./results/uploads" ]; then
@@ -135,10 +144,9 @@ rule dashboard_serve:
             fi
 
             echo "Installing backend dependencies..." | tee -a {params.log}
-            cd src/Dashboard/taxonium_backend/ && yarn install && cd ../../../.
+            (cd {params.backend_dir} && yarn install)
 
             echo -e "Starting the Node.js server..." | tee -a {params.log}
-
 
             if [[ "${{FILENAME}}" == *.gz ]]; then
                 MAX_MEM=$(( MAX_MEM * 10 ))
@@ -147,10 +155,10 @@ rule dashboard_serve:
             echo -e "Allocating $MAX_MEM MB for Node.js server ..." | tee -a {params.log}
 
             node --expose-gc --max-old-space-size=$MAX_MEM \
-                src/Dashboard/taxonium_backend/server.js \
+                {params.server_js} \
                 --port $BACKEND_PORT \
                 --data_file {input.taxonium_jsonl} \
-                --config_json src/Dashboard/taxonium_backend/config_public.json & 
+                --config_json {params.config_json} & 
             BACKEND_PID=$!
 
             echo -e "$BACKEND_PID" > "$WEPP_DASHBOARD_PATH/dashboard.pid"
@@ -182,7 +190,7 @@ rule dashboard_serve:
 
                 mkdir -p "$WEPP_DASHBOARD_PATH/Dashboard" "$WEPP_DASHBOARD_PATH/results"
 
-                cp -r src/Dashboard/dashboard/dist "$WEPP_DASHBOARD_PATH/Dashboard"
+                cp -r {params.dist_dir} "$WEPP_DASHBOARD_PATH/Dashboard"
                 rm -rf "$WEPP_DASHBOARD_PATH/results"
                 ln -sfn "$(realpath ./results)" "$WEPP_DASHBOARD_PATH/results"
 
@@ -192,16 +200,16 @@ rule dashboard_serve:
                     export FRONTEND_PORT=80
     
                 else
-                    source workflow/scripts/find_free_port.sh
+                    source {params.find_port_script}
                     export USER_DIRECTIVE="# not user root";
                     export FRONTEND_PORT=$(find_free_port)
                 fi
 
                 envsubst '${{USER_DIRECTIVE}} ${{WEPP_DASHBOARD_PATH}} ${{FRONTEND_PORT}} ${{BACKEND_PORT}} ${{PWD}}' \
-                < src/Dashboard/nginx/wepp-nginx.conf.template \
+                < {params.nginx_template} \
                 > "$WEPP_DASHBOARD_PATH/wepp-nginx.conf"
 
-                cp src/Dashboard/nginx/mime.types $WEPP_DASHBOARD_PATH
+                cp {params.mime_types} $WEPP_DASHBOARD_PATH
                 nginx -c $WEPP_DASHBOARD_PATH/wepp-nginx.conf &
 
                 until lsof -i :$FRONTEND_PORT >/dev/null 2>&1; do

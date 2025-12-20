@@ -4,8 +4,8 @@ REF: REF.fa
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
-# Bed file should be present in 'primers'
-PRIMER_BED: "none.bed"
+# Bed file samples given in the 'primers' folder: argument example - "primers/none.bed"
+PRIMER_BED: ""
 
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
@@ -23,7 +23,7 @@ MIN_PROP: "0.005"
 MIN_LEN: "80"
 
 # Subsampling Reads to reduce WEPP's runtime
-MAX_READS: "1000000000"
+MAX_READS: "5000000" 
 
 # List the clade naming systems present in the MAT
 CLADE_LIST: "nextstrain,pango"

@@ -1,5 +1,5 @@
 #include "post_filter.hpp"
-
+#include <filesystem>
 #include <numeric>
 #include <random>
 
@@ -65,14 +65,24 @@ freyja_post_filter::filter(arena& arena, std::vector<haplotype*> input)
     if (arena.min_af() > 0.01)
         af_thresh = arena.min_af();
     
+    std::filesystem::path workspace = std::filesystem::current_path();
+    std::filesystem::path intermediate_dir = workspace / dataset.intermediate_directory();
+    std::string variants_abs = (intermediate_dir / (dataset.file_prefix() + "_corrected_variants.tsv")).string();
+    std::string depth_abs    = (intermediate_dir / (dataset.file_prefix() + "_depth.tsv")).string();
+    std::string barcodes_abs = (intermediate_dir / (dataset.file_prefix() + "_barcodes.csv")).string();
+    std::string output_abs   = (intermediate_dir / "freyja_output_latest.txt").string();
+
     std::string command = "bash -c \""
-                "cd ./src/Freyja/ && "
+                "cd " + dataset.wepp_directory() + "/src/Freyja/ && "
                 "freyja demix "
-                    "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_corrected_variants.tsv' "
-                    "'../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_depth.tsv' "
-                    "--barcodes '../../" + dataset.intermediate_directory() + dataset.file_prefix() + "_barcodes.csv' "
-                    "--output '../../" + dataset.intermediate_directory() + "freyja_output_latest.txt' --eps " + std::to_string(arena.min_prop()) + " --af " + std::to_string(af_thresh) +
+                    "'" + variants_abs + "' "
+                    "'" + depth_abs + "' "
+                    "--barcodes '" + barcodes_abs + "' "
+                    "--output '" + output_abs + "' "
+                    "--eps " + std::to_string(arena.min_prop()) + " "
+                    "--af " + std::to_string(af_thresh) +
                 "\"";
+
     if (std::system(command.c_str()) != 0)
     {
         std::cerr << "Failed to run freyja" << std::endl;

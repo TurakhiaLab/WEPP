@@ -6,18 +6,36 @@ rule sorted_sam:
     conda:
         wepp_env_file
     shell:
-        "samtools view -h -o intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_alignment.sam intermediate/{wildcards.DIR}/{wildcards.FILE_PREFIX}_resorted.bam"
+        "samtools view -h -o {output} {input}"
 
 rule sam2pb:
     input:
-        "build/wepp",
-        "intermediate/{DIR}/{FILE_PREFIX}_alignment.sam"
+        binary = str(BASE_DIR / "build/wepp"),
+        sam = "intermediate/{DIR}/{FILE_PREFIX}_alignment.sam"
     output:
         "intermediate/{DIR}/{FILE_PREFIX}_reads.pb"
     conda:
         wepp_env_file
     threads:
         workflow.cores
+    params:
+        tree = config["TREE"],
+        ref = config["REF"],
+        max_reads = int(config.get("MAX_READS", 5e6)),
+        min_af = config["MIN_AF"],
+        min_depth = config["MIN_DEPTH"],
+        min_q = config["MIN_Q"]
     shell:
-        "mkdir -p intermediate/{wildcards.DIR} && "
-        "./build/wepp sam2PB -T {threads} -i " + config["TREE"] + " -p '{wildcards.FILE_PREFIX}' -f " + config["REF"] + " -d '{wildcards.DIR}'" + " -m " + str(config.get("MAX_READS", str(int(1e9)))) + " -a " + str(config["MIN_AF"]) + " -c " + str(config["MIN_DEPTH"]) + " -q " + str(config["MIN_Q"])
+        """
+        mkdir -p intermediate/{wildcards.DIR} && \
+        {input.binary} sam2PB \
+            -T {threads} \
+            -i {params.tree} \
+            -p '{wildcards.FILE_PREFIX}' \
+            -f {params.ref} \
+            -d '{wildcards.DIR}' \
+            -m {params.max_reads} \
+            -a {params.min_af} \
+            -c {params.min_depth} \
+            -q {params.min_q}
+        """

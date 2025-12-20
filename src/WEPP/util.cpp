@@ -143,6 +143,7 @@ void initializeConvDesc() {
         std::to_string(num_cores) + " detected on this machine]";
 
     conv_desc.add_options()
+        ("working-directory,w", po::value<std::string>()->default_value("./"), "WEPP's working directory.")
         ("input-mat,i", po::value<std::string>()->default_value(""), "Input mutation-annotated tree.")
         ("dataset,d", po::value<std::string>()->default_value(""), "Data folder containing reads.")
         ("max-reads,m", po::value<uint32_t>()->default_value(1e9), "Maximum number of reads.")

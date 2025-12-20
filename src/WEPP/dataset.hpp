@@ -47,6 +47,10 @@ public:
         return std::stof(options["min-prop"].as<std::string>());
     }
     
+    std::string wepp_directory() const {
+        return options["working-directory"].as<std::string>();
+    }
+    
     std::string dataset_name() const {
         return options["dataset"].as<std::string>();
     }
