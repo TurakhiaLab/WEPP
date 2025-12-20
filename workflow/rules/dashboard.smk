@@ -44,6 +44,7 @@ rule process_dashboard:
     output:
         log=temp("results/{DIR}/{FILE_PREFIX}_split_bam_log.txt")
     params:
+        split_script = str(BASE_DIR / "workflow/scripts/split_bams.sh"),
         dashboard=config.get("DASHBOARD_ENABLED", "false"),
         bam_file="results/{DIR}/{FILE_PREFIX}_haplotype_reads.bam",
         haplotype_bam_file="{FILE_PREFIX}_haplotypes.bam",
@@ -56,7 +57,7 @@ rule process_dashboard:
             if [ -f "{params.bam_file}" ]; then
                 # Split BAM files by read groups
                 echo "Splitting BAM file by read groups..."
-                workflow/scripts/split_bams.sh {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
+                bash {params.split_script} {params.bam_file} ./results/{wildcards.DIR}/bams {workflow.cores}
 
                 mv ./results/{wildcards.DIR}/{params.haplotype_bam_file} ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}
                 mv ./results/{wildcards.DIR}/{params.haplotype_bam_file}.bai ./results/{wildcards.DIR}/bams/{params.haplotype_bam_file}.bai
@@ -114,7 +115,7 @@ rule dashboard_serve:
                 IN_DOCKER=True
                 export BACKEND_PORT=8080
             else
-                source workflow/scripts/find_free_port.sh
+                source {params.find_port_script}
                 IN_DOCKER=False
                 export BACKEND_PORT=$(find_free_port)
             fi
@@ -199,7 +200,7 @@ rule dashboard_serve:
                     export FRONTEND_PORT=80
     
                 else
-                    source workflow/scripts/find_free_port.sh
+                    source {params.find_port_script}
                     export USER_DIRECTIVE="# not user root";
                     export FRONTEND_PORT=$(find_free_port)
                 fi
