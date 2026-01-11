@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cmath>
+#include <numeric>
 
 #include "src/usher_graph.hpp"
 

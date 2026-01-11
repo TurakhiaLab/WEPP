@@ -132,6 +132,10 @@ public:
         return this->results_directory() + this->file_prefix() + "_haplotype_abundance.csv";
     }
 
+    std::string haplotype_coverage_path() const {
+        return this->results_directory() + this->file_prefix() + "_haplotype_coverage.csv";
+    }
+    
     std::string haplotype_uncertainty_path() const {
         return this->results_directory() + this->file_prefix() + "_haplotype_uncertainty.csv";
     }

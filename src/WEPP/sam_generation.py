@@ -29,14 +29,25 @@ def read_csv_abundance_file(file):
             hap_lineage[hap] = lineage
     return hap_abun, hap_lineage
 
-def read_csv_uncertainty_file(file):
-    hap_nodes = defaultdict(set)
+def read_csv_coverage_file(file):
+    hap_cov = {}
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            hap, *nodes = row
+            hap, coverage = row[0], row[1]
+            hap_cov[hap] = float(coverage)
+    return hap_cov
+
+def read_csv_uncertainty_file(file):
+    hap_nodes = defaultdict(set)
+    hap_dist = {}
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            dist, hap, *nodes = row
             hap_nodes[hap].update(nodes)
-    return hap_nodes
+            hap_dist[hap] = int(dist)
+    return hap_nodes, hap_dist
 
 def read_tsv_file(file):
     # Increase CSV field size limit
@@ -94,7 +105,7 @@ def write_sam_files(input_sam_file):
                                             w_file_reads.write(f":unaccounted{mutations[mut]}")
                                         else:
                                             w_file_reads.write(f",unaccounted{mutations[mut]}")
-                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}")
+                            w_file_reads.write(f"\tHS:Z:{hap_abun[hap]}\tHL:Z:{hap_lineage[hap]}\tHC:Z:{hap_cov[hap]}\tHD:Z:{hap_dist[hap]}")
                             if (len(hap_nodes[hap])):
                                 w_file_reads.write(f"\tUH:Z:{','.join(hap_nodes[hap])}")
                             w_file_reads.write("\n")
@@ -206,8 +217,11 @@ hap_muts, _ = read_csv_file(results_directory + "/" + file_prefix + "_mutation_h
 # Reading haplotype_abundance File
 hap_abun, hap_lineage = read_csv_abundance_file(results_directory + "/" + file_prefix + "_haplotype_abundance.csv")
 
+# Reading haplotype_coverage File
+hap_cov = read_csv_coverage_file(results_directory + "/" + file_prefix + "_haplotype_coverage.csv")
+
 # Reading haplotype_uncertainty File
-hap_nodes = read_csv_uncertainty_file(results_directory + "/" + file_prefix + "_haplotype_uncertainty.csv")
+hap_nodes, hap_dist = read_csv_uncertainty_file(results_directory + "/" + file_prefix + "_haplotype_uncertainty.csv")
 
 # Reading haplotypes File
 hap_sams = read_tsv_file(results_directory + "/" + file_prefix + "_haplotypes.tsv")

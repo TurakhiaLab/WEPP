@@ -473,10 +473,27 @@ void arena::dump_haplotype_uncertainty(const std::vector<std::pair<haplotype *, 
     for (const auto &n_p : abundance)
     {
         auto all_uncertain_nodes = condensed_node_mappings[n_p.first->condensed_source];
+        
+        // Find maximum mutation distance among all condensed nodes
+        int max_dist = 0;
+        for (int i = 0; i < (int)all_uncertain_nodes.size(); i++)
+        {
+            auto ref_mutations = get_mutations(this->mat, all_uncertain_nodes[i]->identifier);
+            for (int j = i + 1; j < (int)all_uncertain_nodes.size(); j++)
+            {
+                auto cmp_mutations = get_mutations(this->mat, all_uncertain_nodes[j]->identifier);
+                int curr_dist = mutation_distance(ref_mutations, cmp_mutations);
+                if (curr_dist > max_dist)
+                {
+                    max_dist = curr_dist;
+                }
+            }
+        }
+
         for (size_t i = 0; i < all_uncertain_nodes.size(); i++)
         {
             if (!i)
-                csv_print = all_uncertain_nodes[i]->identifier;
+                csv_print = std::to_string(max_dist) + "," + all_uncertain_nodes[i]->identifier;
             else
                 csv_print += "," + all_uncertain_nodes[i]->identifier;
         }
@@ -539,13 +556,23 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
 
 void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *, double>> &abundance)
 {
-    std::ofstream csv(this->ds.haplotype_read_path());
-    std::string csv_print;
+    std::ofstream csv(this->ds.haplotype_read_path()), csv_coverage(this->ds.haplotype_coverage_path());
+    std::string csv_print, csv_coverage_print;
 
     const std::vector<raw_read> &reads = this->reads();
     std::unordered_map<std::string, std::vector<std::string>> reverse_merge = this->ds.read_reverse_merge();
 
     tbb::concurrent_hash_map<std::string, std::vector<std::string>> haplotype_reads_map;
+    tbb::concurrent_hash_map<std::string, std::vector<int>> haplotype_coverage_map;
+
+    // Initialize coverage map
+    for (const auto& curr_node: abundance) {
+        tbb::concurrent_hash_map<std::string, std::vector<int>>::accessor ac;
+        haplotype_coverage_map.insert(ac, curr_node.first->id);
+        ac->second = std::vector<int>(this->genome_size(), 0);
+        ac.release();
+    }
+
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, reads.size()), [&](tbb::blocked_range<size_t> range)
     {
@@ -573,6 +600,35 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
                     ac->second.insert(ac->second.end(), read_names.begin(), read_names.end());
                 ac.release();
             }
+
+            // Update coverage for EPPs
+            std::vector<size_t> masked_sites, update_sites;
+            for (const auto& mut : reads[i].mutations) {
+                if (mut.mut_nuc == 0b1111) {
+                    masked_sites.push_back(mut.position);
+                }
+            }
+
+            for (size_t j = reads[i].start; j <= reads[i].end; ++j) {
+                if (std::find(masked_sites.begin(), masked_sites.end(), j) == masked_sites.end())
+                {
+                    update_sites.emplace_back(j);
+                }
+            }
+
+            if (!update_sites.empty()) 
+            {
+                for (const auto& curr_node: epps) 
+                {
+                    tbb::concurrent_hash_map<std::string, std::vector<int>>::accessor ac;
+                    haplotype_coverage_map.insert(ac, curr_node->id);
+                    for (const auto& j : update_sites) 
+                    {
+                        ac->second[j] = 1;    
+                    }
+                    ac.release();
+                }
+            }
         } 
     }, ap);
 
@@ -584,6 +640,16 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
             csv_print += "," + r_name;
         csv_print += "\n";
         csv << csv_print;
+    }
+    
+    // Write CSV_coverage
+    for (const auto &n_c : haplotype_coverage_map)
+    {
+        double coverage_sum = (double)std::accumulate(n_c.second.begin(), n_c.second.end(), 0);
+        coverage_sum /= this->genome_size();
+        csv_coverage_print = n_c.first + "," + std::to_string(coverage_sum);
+        csv_coverage_print += "\n";
+        csv_coverage << csv_coverage_print;
     }
 
     // Run Python script to generate sam files
