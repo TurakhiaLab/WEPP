@@ -641,6 +641,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
         csv_print += "\n";
         csv << csv_print;
     }
+    csv.close();
     
     // Write CSV_coverage
     for (const auto &n_c : haplotype_coverage_map)
@@ -651,6 +652,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
         csv_coverage_print += "\n";
         csv_coverage << csv_coverage_print;
     }
+    csv_coverage.close();
 
     // Run Python script to generate sam files
     std::string command = "python " + ds.wepp_directory() + "/src/WEPP/sam_generation.py '" + ds.results_directory() + "' '" + ds.intermediate_directory() + "' " + ds.file_prefix();
