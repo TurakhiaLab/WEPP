@@ -4,6 +4,8 @@ channels:
 dependencies:
  - usher=0.6.6
  - samtools=1.20
+ - tbb >=2021.0
+ - tbb-devel
 
  # Compilers
  - clang=14.0.0
