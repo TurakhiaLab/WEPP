@@ -2,7 +2,7 @@ channels:
 - conda-forge
 - bioconda
 dependencies:
- - usher=0.6.4
+ - usher=0.6.6
  - samtools=1.20
 
  # Compilers
