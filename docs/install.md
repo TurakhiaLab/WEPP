@@ -67,7 +67,20 @@ git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
 chmod +x run-wepp
 ```
-**Step 2:** Install dependencies (might require sudo access)
+
+**Step 2:** Update `~/.bashrc` for linux or `~/.zshrc` for macOS
+```bash
+echo "
+run-wepp() {
+    snakemake -s $PWD/workflow/Snakefile \"\$@\"
+}
+export -f run-wepp
+" >> ~/.bashrc
+
+source ~/.bashrc
+```
+
+**Step 3:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
 ```text
 - wget
@@ -81,6 +94,7 @@ WEPP depends on the following common system libraries, which are typically pre-i
 - libtbb-dev
 - libprotobuf-dev
 - protobuf-compiler
+- libopenmpi-dev
 - snakemake
 - conda
 - nodejs(v18+)

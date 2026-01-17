@@ -58,6 +58,12 @@ jobs:
           bash Miniforge3.sh -b -p "${HOME}/conda"
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
 
+      - name: Pin Modern TBB (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          conda config --system --add pinned_packages "tbb>=2021.0"
+          conda config --show pinned_packages
+
       - name: Install Common Python Libs
         run: |
           # Install Snakemake in the base environment (runner python or conda)
