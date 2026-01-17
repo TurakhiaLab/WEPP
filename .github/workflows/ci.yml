@@ -13,7 +13,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # Note: macos-latest is now Apple Silicon (M1/M2), matching your laptop
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout Code
@@ -35,9 +34,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt-get install -y wget curl build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler
+          sudo apt-get install -y wget curl build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler openmpi-bin libopenmpi-dev libboost-all-dev
           
-          # Install Conda (Standard Linux x86_64)
+          # Install Conda
           wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
           bash Miniforge3.sh -b -p "${HOME}/conda"
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
@@ -46,13 +45,18 @@ jobs:
       - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install wget curl cmake protobuf tbb
+          # Optimize Homebrew: Skip auto-update to prevent timeouts/errors
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
           
+          # Install libraries
+          # We use '|| true' on link steps to prevent errors if they are already linked
+          brew install wget curl cmake protobuf tbb open-mpi boost
+          
+          # Install Conda
           if [[ $(uname -m) == 'arm64' ]]; then
-             echo "Detected Apple Silicon (ARM64)"
              MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-arm64.sh"
           else
-             echo "Detected Intel Mac (x86_64)"
              MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-x86_64.sh"
           fi
           
@@ -64,11 +68,27 @@ jobs:
         run: |
           pip install snakemake pandas
 
+      # --- COMPILE STEP ---
+      - name: Compile C++ Code
+        run: |
+          mkdir -p build
+          cd build
+          
+          # Set explicit path for CMake to find Boost on macOS
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+             BOOST_ROOT=$(brew --prefix boost)
+             CMAKE_ARGS="-DBOOST_ROOT=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include"
+          fi
+          
+          # Configure and Build
+          cmake $CMAKE_ARGS ..
+          make -j2
+
       - name: Run WEPP
         run: |
           run-wepp() {
               snakemake -s "$GITHUB_WORKSPACE/workflow/Snakefile" "$@"
           }
           export -f run-wepp
-          
+
           run-wepp help --cores 1 --use-conda --conda-frontend mamba
