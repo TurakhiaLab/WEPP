@@ -30,7 +30,7 @@ for arg in sys.argv[1:]:
     if not arg.startswith("-"):
         requested_rules.add(arg)
 
-if "test" not in requested_rules:
+if "help" not in requested_rules:
     if not DIR or not FILE_PREFIX:
         raise ValueError("Please provide DIR and FILE_PREFIX in --config argument")
     
@@ -56,7 +56,7 @@ rule all:
     input:
         f"results/{DIR}/{FILE_PREFIX}_run.txt"
 
-rule test:
+rule help:
     input:
         str(BASE_DIR /"build/wepp")
     shell:

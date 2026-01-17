@@ -27,7 +27,7 @@ docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
 **Step 3:** Confirm proper working by running the following command. This should print WEPP's help menu.
 ```bash
-snakemake test --cores 1 --use-conda
+run-wepp help --cores 1 --use-conda
 ```
 
 All set to try the [examples](quickstart.md#example).
@@ -40,6 +40,7 @@ The Dockerfile contains all dependencies required to run WEPP.
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
 cd WEPP
+chmod +x run-wepp
 ```
 **Step 2:** Build a Docker Image
 ```bash
@@ -64,6 +65,7 @@ Users without sudo access are advised to install WEPP via [Docker Image](#docker
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
+chmod +x run-wepp
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:

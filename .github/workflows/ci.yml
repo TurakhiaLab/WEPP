@@ -45,6 +45,9 @@ jobs:
           bash Miniforge3.sh -b -p "${HOME}/conda"
           
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
+          
+          chmod +x run-wepp
+          echo "export PATH=\"$PWD:\$PATH\"" >> ~/.bashrc
 
       - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
@@ -61,6 +64,9 @@ jobs:
 
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
 
+          chmod +x run-wepp
+          echo "export PATH=\"$PWD:\$PATH\"" >> ~/.bashrc
+
       - name: Run WEPP
         run: |
-          snakemake test --cores 1 --use-conda --conda-frontend conda
+          run-wepp help --cores 1 --use-conda --conda-frontend conda

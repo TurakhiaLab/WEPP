@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     sudo \
     pip \
     build-essential \
+    libopenmpi-dev \
+    libboost-all-dev \
     python3-pandas \
     pkg-config \
     zip \
@@ -39,6 +41,11 @@ RUN /root/miniforge3/bin/conda init bash && \
 
 # Install Snakemake using pip
 RUN pip install snakemake
+
+RUN echo 'run-wepp() {' >> /root/.bashrc && \
+    echo '    /root/miniforge3/bin/snakemake -s /workspace/workflow/Snakefile "$@"' >> /root/.bashrc && \
+    echo '}' >> /root/.bashrc && \
+    echo 'export -f run-wepp' >> /root/.bashrc
 
 # Default command: start an interactive login shell so .bashrc is sourced
 CMD [ "bash", "--login" ]

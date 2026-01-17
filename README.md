@@ -77,7 +77,7 @@ docker run -it -p 80:80 -v "$PWD":/WEPP -w /WEPP pranavgangwar/wepp:latest
 ```
 **Step 3:** Confirm proper working by running the following command. This should print WEPP's help menu.
 ```bash
-snakemake test --cores 1 --use-conda
+run-wepp help --cores 1 --use-conda
 ```
 
 All set to try the [examples](#example).
@@ -90,6 +90,7 @@ The Dockerfile contains all dependencies required to run WEPP.
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git 
 cd WEPP
+chmod +x run-wepp
 ```
 **Step 2:** Build a Docker Image
 ```bash
@@ -114,6 +115,7 @@ Users without sudo access are advised to install WEPP via [Docker Image](#docker
 ```bash
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
+chmod +x run-wepp
 ```
 **Step 2:** Install dependencies (might require sudo access)
 WEPP depends on the following common system libraries, which are typically pre-installed on most development environments:
@@ -193,7 +195,7 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=RSVA_real FILE_PREFIX=test_run TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
+run-wepp --config DIR=RSVA_real FILE_PREFIX=test_run TREE=rsvA.2025-04-25.pb.gz REF=GCF_002815475.1_ASM281547v1_genomic.fna CLADE_LIST=annotation_1 CLADE_IDX=0 DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -218,7 +220,7 @@ This will save the datasets on a separate data/SARS_COV_2_real folder within the
 
 **Step 2:**  Run the pipeline
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
+run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=public-2021-12-05.all.masked.pb.gz REF=NC_045512v2.fa DASHBOARD_ENABLED=True --cores 32 --use-conda
 ```
 
 **Step 3:**  Analyze Results
@@ -285,17 +287,17 @@ WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments t
 Examples:
 1. Using all the parameters from the config file.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa --cores 32 --use-conda
+run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa --cores 32 --use-conda
 ```
 
 2. Overriding MIN_Q and CLADE_IDX through command line.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 --cores 32 --use-conda
+run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 --cores 32 --use-conda
 ```
 
 3. To visualize results from a previous WEPP analysis that was run without the dashboard, set `DASHBOARD_ENABLED` to `True` and re-run only the dashboard components, without reanalyzing the dataset.
 ```bash
-snakemake --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
+run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.pb.gz REF=sars_cov_2_reference.fa MIN_Q=25 CLADE_IDX=1 DASHBOARD_ENABLED=True --cores 32 --use-conda --forcerun dashboard_serve
 ```
 ⚠️ Use the same configuration parameters (DIR, FILE_PREFIX, etc.) as were used for the specific project. This ensures the dashboard serves the correct results for your chosen dataset.
 

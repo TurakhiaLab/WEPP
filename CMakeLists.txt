@@ -15,12 +15,18 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
-# otherwise it sometimes goes to system protobuf instead
-set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include" CACHE PATH "" FORCE)
-if(APPLE)
-    set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.dylib" CACHE FILEPATH "" FORCE)
+if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/include/google/protobuf/stubs/common.h")
+    message(STATUS "Protobuf headers found in Conda. Using Conda paths.")
+    set(Protobuf_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include" CACHE PATH "" FORCE)
+    if(APPLE)
+        set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.dylib" CACHE FILEPATH "" FORCE)
+    else()
+        set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.so" CACHE FILEPATH "" FORCE)
+    endif()
 else()
-    set(Protobuf_LIBRARY "$ENV{CONDA_PREFIX}/lib/libprotobuf.so" CACHE FILEPATH "" FORCE)
+    message(STATUS "Protobuf not found in Conda (or not using Conda). Using System paths.")
+    unset(Protobuf_INCLUDE_DIR CACHE)
+    unset(Protobuf_LIBRARY CACHE)
 endif()
 
 if(DEFINED Protobuf_PATH) 
@@ -37,7 +43,7 @@ find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 include_directories(${Protobuf_INCLUDE_DIRS})
 
-find_package(TBB CONFIG REQUIRED)
+find_package(TBB REQUIRED)
 
 find_package(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
 
