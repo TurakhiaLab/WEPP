@@ -13,6 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        # Note: macos-latest is now Apple Silicon (M1/M2), matching your laptop
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout Code
@@ -29,52 +30,45 @@ jobs:
           key: ${{ github.ref }}-${{ matrix.os }}
           path: .cache
 
-      # Only deploy docs from Linux to avoid conflicts
-      - name: Install mkdocs
-        if: runner.os == 'Linux'
-        run: |
-          pip install mkdocs-material "mkdocs-material[imaging]"
-          mkdocs gh-deploy --force
-
+      # --- LINUX SETUP ---
       - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt update
           sudo apt-get install -y wget curl build-essential python3-pandas pkg-config zip cmake libtbb-dev libprotobuf-dev protobuf-compiler
+          
+          # Install Conda (Standard Linux x86_64)
           wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
           bash Miniforge3.sh -b -p "${HOME}/conda"
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
 
+      # --- MACOS SETUP ---
       - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install wget curl cmake protobuf tbb
+          
           if [[ $(uname -m) == 'arm64' ]]; then
-            MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-arm64.sh"
+             echo "Detected Apple Silicon (ARM64)"
+             MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-arm64.sh"
           else
-            MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-x86_64.sh"
+             echo "Detected Intel Mac (x86_64)"
+             MINIFORGE_FILE="Miniforge3-24.11.3-2-MacOSX-x86_64.sh"
           fi
+          
           wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/${MINIFORGE_FILE}"
           bash Miniforge3.sh -b -p "${HOME}/conda"
           echo "${HOME}/conda/bin" >> $GITHUB_PATH
 
-      - name: Pin Modern TBB (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          conda config --system --add pinned_packages "tbb>=2021.0"
-          conda config --show pinned_packages
-
       - name: Install Common Python Libs
         run: |
-          # Install Snakemake in the base environment (runner python or conda)
           pip install snakemake pandas
 
       - name: Run WEPP
         run: |
-          # Define the function dynamically for this step
           run-wepp() {
               snakemake -s "$GITHUB_WORKSPACE/workflow/Snakefile" "$@"
           }
           export -f run-wepp
-
+          
           run-wepp help --cores 1 --use-conda --conda-frontend mamba
