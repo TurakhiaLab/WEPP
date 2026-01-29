@@ -722,14 +722,16 @@
 <h2 id="getting-mutation-annotated-trees"><b>Getting Mutation-Annotated Trees</b> <a name="mat"></a></h2>
 <p>Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found <a href="https://dev.usher.bio">here</a>. You can also create your own MAT for any pathogen from the consensus genome assemblies using <a href="https://github.com/AngieHinrichs/viral_usher">viral_usher</a>.</p>
 <h2 id="debugging-tips"><a name="debug"></a> Debugging Tips</h2>
-<p>In case of a failure or unexpected output, below are some common causes and possible solutions:
-1. <code>Run Failure</code> - Check whether reads were successfully aligned by minimap2 by inspecting the <code>alignment.sam</code> file in the <code>intermediate</code> directory. If enough reads are present but the <code>filter</code> rule crashes immediately, the sample may contain more reads than WEPP can efficiently handle. Use the <code>MAX_READS</code> parameter to downsample the input. For typical short-read datasets, setting this to ~3 million reads generally works well.
-2. <code>Missing Lineages</code> - If expected lineages are absent from the <code>lineage_abundance.csv</code> in the <code>results</code> directory, either the MAT does not contain any lineage annotations, or an incorrect <code>CLADE_IDX</code> argument was provided.
-3. <code>Uncertainty in Lineages and Haplotypes</code> - Uncertain lineage or haplotype assignments usually occur when:
+<p>In case of a failure or unexpected output, below are some common causes and possible solutions.</p>
+<ol>
+<li><code>Run Failure</code> - Check whether reads were successfully aligned by minimap2 by inspecting the <code>alignment.sam</code> file in the <code>intermediate</code> directory. If enough reads are present but the <code>filter</code> rule crashes immediately, the sample may contain more reads than WEPP can efficiently handle. Use the <code>MAX_READS</code> parameter to downsample the input. For typical short-read datasets, setting this to ~3 million reads generally works well.</li>
+<li><code>Missing Lineages</code> - If expected lineages are absent from the <code>lineage_abundance.csv</code> in the <code>results</code> directory, either the MAT does not contain any lineage annotations, or an incorrect <code>CLADE_IDX</code> argument was provided.</li>
+<li><code>Uncertainty in Lineages and Haplotypes</code> - Uncertain lineage or haplotype assignments usually occur when:
   a. Sequencing depth is low,
   b. Entire genome is not sufficiently covered, or
-  c. Read quality is poor and iVar trims and discards a large number of reads. Check <code>lineage_abundance.csv</code>, <code>haplotype_abundance.csv</code>, and <code>haplotype_uncertainty.csv</code> in the <code>results</code> directory. You can also review <code>alignment.sam</code> in the <code>intermediate</code> directory to see how many reads were used by WEPP and compare them with the reads provided as input.
-4. <code>Long Runtimes</code> - You can increase the number of threads using the <code>--cores</code> argument, or reduce the number of reads with <code>MAX_READS</code> (may affect results).</p>
+  c. Read quality is poor and iVar trims and discards a large number of reads. Check <code>lineage_abundance.csv</code>, <code>haplotype_abundance.csv</code>, and <code>haplotype_uncertainty.csv</code> in the <code>results</code> directory. You can also review <code>alignment.sam</code> in the <code>intermediate</code> directory to see how many reads were used by WEPP and compare them with the reads provided as input.</li>
+<li><code>Long Runtimes</code> - You can increase the number of threads using the <code>--cores</code> argument, or reduce the number of reads with <code>MAX_READS</code> (may affect results).</li>
+</ol>
 
 
 
