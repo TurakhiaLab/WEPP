@@ -346,26 +346,34 @@ void arena::print_flipped_mutation_distance(const std::vector<std::pair<haplotyp
         std::string lineage_name = "";
         if (this->clade_idx() >= 0)
         {
-            // Get Lineage name based on the current node
-            for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
+            auto max_clades_idx = (int) mat.root->clade_annotations.size() - 1;
+            if (this->clade_idx() > max_clades_idx)
             {
-                const auto &clade = anc->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name = clade;
-                    break;
-                }
+                fprintf(stderr, "\n\nERROR: CLADE_IDX = %d exceeds Max CLADE_IDX = %d in the MAT!!!\n\n", this->clade_idx(), max_clades_idx);
             }
-            
-            // Incorporate Lineage names of condensed nodes
-            auto condensed_nodes = condensed_node_mappings[pn.first->condensed_source];
-            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            else 
             {
-                auto curr_node = condensed_nodes[i];
-                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
-                if (clade != "")
+                // Get Lineage name based on the current node
+                for (auto anc : mat.rsearch(condensed_node_mappings[pn.first->condensed_source].front()->identifier, true))
                 {
-                    lineage_name += "/" + clade;
+                    const auto &clade = anc->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name = clade;
+                        break;
+                    }
+                }
+            
+                // Incorporate Lineage names of condensed nodes
+                auto condensed_nodes = condensed_node_mappings[pn.first->condensed_source];
+                for (int i = 1; i < (int)condensed_nodes.size(); i++)
+                {
+                    auto curr_node = condensed_nodes[i];
+                    const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name += "/" + clade;
+                    }
                 }
             }
         }
@@ -388,40 +396,48 @@ void arena::print_full_report(const std::vector<std::pair<haplotype *, double>> 
 
     if (this->clade_idx() >= 0)
     {
-        std::unordered_map<std::string, double> a_map;
-        for (const auto &p : abundance)
+        auto max_clades_idx = (int) mat.root->clade_annotations.size() - 1;
+        if (this->clade_idx() > max_clades_idx)
         {
-            // Get Lineage name based on the current node
-            std::string lineage_name;
-            for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
-            {
-                const auto &clade = anc->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name = clade;
-                    break;
-                }
-            }
-            
-            // Incorporate Lineage names of condensed nodes
-            auto condensed_nodes = condensed_node_mappings[p.first->condensed_source];
-            for (int i = 1; i < (int)condensed_nodes.size(); i++)
-            {
-                auto curr_node = condensed_nodes[i];
-                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name += "/" + clade;
-                }
-            }
-
-            a_map[lineage_name] += p.second;
+            fprintf(stderr, "\n\nERROR: CLADE_IDX = %d exceeds Max CLADE_IDX = %d in the MAT!!!\n\n", this->clade_idx(), max_clades_idx);
         }
-
-        std::cout << "--- lineage abundance " << std::endl;
-        for (const auto &[name, val] : a_map)
+        else
         {
-            printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
+            std::unordered_map<std::string, double> a_map;
+            for (const auto &p : abundance)
+            {
+                // Get Lineage name based on the current node
+                std::string lineage_name;
+                for (auto anc : mat.rsearch(condensed_node_mappings[p.first->condensed_source].front()->identifier, true))
+                {
+                    const auto &clade = anc->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name = clade;
+                        break;
+                    }
+                }
+
+                // Incorporate Lineage names of condensed nodes
+                auto condensed_nodes = condensed_node_mappings[p.first->condensed_source];
+                for (int i = 1; i < (int)condensed_nodes.size(); i++)
+                {
+                    auto curr_node = condensed_nodes[i];
+                    const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name += "/" + clade;
+                    }
+                }
+
+                a_map[lineage_name] += p.second;
+            }
+
+            std::cout << "--- lineage abundance " << std::endl;
+            for (const auto &[name, val] : a_map)
+            {
+                printf("* lineage: %s abundance: %.6f\n", name.c_str(), val);
+            }
         }
     }
 }
@@ -435,26 +451,34 @@ void arena::dump_haplotype_proportion(const std::vector<std::pair<haplotype *, d
         std::string lineage_name;
         if (this->clade_idx() >= 0)
         {
-            // Get Lineage name based on current node
-            for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
+            auto max_clades_idx = (int) mat.root->clade_annotations.size() - 1;
+            if (this->clade_idx() > max_clades_idx)
             {
-                const auto &clade = anc->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name = clade;
-                    break;
-                }
+                fprintf(stderr, "\n\nERROR: CLADE_IDX = %d exceeds Max CLADE_IDX = %d in the MAT!!!\n\n", this->clade_idx(), max_clades_idx);
             }
-        
-            // Incorporate Lineage names of condensed nodes
-            auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
-            for (int i = 1; i < (int)condensed_nodes.size(); i++)
+            else 
             {
-                auto curr_node = condensed_nodes[i];
-                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
-                if (clade != "")
+                // Get Lineage name based on current node
+                for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
                 {
-                    lineage_name += "/" + clade;
+                    const auto &clade = anc->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name = clade;
+                        break;
+                    }
+                }
+        
+                // Incorporate Lineage names of condensed nodes
+                auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
+                for (int i = 1; i < (int)condensed_nodes.size(); i++)
+                {
+                    auto curr_node = condensed_nodes[i];
+                    const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name += "/" + clade;
+                    }
                 }
             }
         }
@@ -509,47 +533,55 @@ void arena::dump_lineage_proportion(const std::vector<std::pair<haplotype *, dou
 
     if (this->clade_idx() >= 0)
     {
-        std::unordered_map<std::string, double> a_map;
-        for (const auto &n_p : abundance)
+        auto max_clades_idx = (int) mat.root->clade_annotations.size() - 1;
+        if (this->clade_idx() > max_clades_idx)
         {
-            // Get Lineage name based on the current node
-            std::string lineage_name;
-            for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
-            {
-                const auto &clade = anc->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name = clade;
-                    break;
-                }
-            }
-        
-            // Incorporate Lineage names of condensed nodes
-            auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
-            for (int i = 1; i < (int)condensed_nodes.size(); i++)
-            {
-                auto curr_node = condensed_nodes[i];
-                const auto &clade = curr_node->clade_annotations[this->clade_idx()];
-                if (clade != "")
-                {
-                    lineage_name += "/" + clade;
-                }
-            }
-
-            a_map[lineage_name] += n_p.second;
+            fprintf(stderr, "\n\nERROR: CLADE_IDX = %d exceeds Max CLADE_IDX = %d in the MAT!!!\n\n", this->clade_idx(), max_clades_idx);
         }
-
-        // Sort the lineages
-        std::vector<std::pair<std::string, double>> sorted_lineages(a_map.begin(), a_map.end());
-        std::sort(sorted_lineages.begin(), sorted_lineages.end(), [] (const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
-
-        for (const auto &l_p : sorted_lineages)
+        else 
         {
-            csv_print = l_p.first + "," + std::to_string(l_p.second);
-            csv_print += "\n";
-            csv << csv_print;
+            std::unordered_map<std::string, double> a_map;
+            for (const auto &n_p : abundance)
+            {
+                // Get Lineage name based on the current node
+                std::string lineage_name;
+                for (auto anc : mat.rsearch(condensed_node_mappings[n_p.first->condensed_source].front()->identifier, true))
+                {
+                    const auto &clade = anc->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name = clade;
+                        break;
+                    }
+                }
+            
+                // Incorporate Lineage names of condensed nodes
+                auto condensed_nodes = condensed_node_mappings[n_p.first->condensed_source];
+                for (int i = 1; i < (int)condensed_nodes.size(); i++)
+                {
+                    auto curr_node = condensed_nodes[i];
+                    const auto &clade = curr_node->clade_annotations[this->clade_idx()];
+                    if (clade != "")
+                    {
+                        lineage_name += "/" + clade;
+                    }
+                }
+
+                a_map[lineage_name] += n_p.second;
+            }
+
+            // Sort the lineages
+            std::vector<std::pair<std::string, double>> sorted_lineages(a_map.begin(), a_map.end());
+            std::sort(sorted_lineages.begin(), sorted_lineages.end(), [] (const auto& a, const auto& b) {
+                return a.second > b.second;
+            });
+
+            for (const auto &l_p : sorted_lineages)
+            {
+                csv_print = l_p.first + "," + std::to_string(l_p.second);
+                csv_print += "\n";
+                csv << csv_print;
+            }
         }
     }
 }
@@ -609,7 +641,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
                 }
             }
 
-            for (size_t j = reads[i].start; j <= reads[i].end; ++j) {
+            for (int j = reads[i].start; j <= reads[i].end; ++j) {
                 if (std::find(masked_sites.begin(), masked_sites.end(), j) == masked_sites.end())
                 {
                     update_sites.emplace_back(j);

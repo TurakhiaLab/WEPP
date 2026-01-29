@@ -29,6 +29,7 @@
   - [WEPP Arguments](#arguments)
   - [Run Command](#snakemake)
   - [Getting Mutation-Annotated Trees](#mat)
+  - [Debugging Tips](#debug)
 - [Contributions](#contribution)
 - [Citing WEPP](#cite)
 
@@ -319,6 +320,16 @@ run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.p
 
 ###  <a name="mat"></a> Getting Mutation-Annotated Trees
 Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
+
+###  <a name="debug"></a> Debugging Tips
+In case of a failure or unexpected output, below are some common causes and possible solutions:
+1. `Run Failure` - Check whether reads were successfully aligned by minimap2 by inspecting the `alignment.sam` file in the `intermediate` directory. If enough reads are present but the `filter` rule crashes immediately, the sample may contain more reads than WEPP can efficiently handle. Use the `MAX_READS` parameter to downsample the input. For typical short-read datasets, setting this to ~3 million reads generally works well.
+2. `Missing Lineages` - If expected lineages are absent from the `lineage_abundance.csv` in the `results` directory, either the MAT does not contain any lineage annotations, or an incorrect `CLADE_IDX` argument was provided.
+3. `Uncertainty in Lineages and Haplotypes` - Uncertain lineage or haplotype assignments usually occur when:
+  a. Sequencing depth is low,
+  b. Entire genome is not sufficiently covered, or
+  c. Read quality is poor and iVar trims and discards a large number of reads. Check `lineage_abundance.csv`, `haplotype_abundance.csv`, and `haplotype_uncertainty.csv` in the `results` directory. You can also review `alignment.sam` in the `intermediate` directory to see how many reads were used by WEPP and compare them with the reads provided as input.
+4. `Long Runtimes` - You can increase the number of threads using the `--cores` argument, or reduce the number of reads with `MAX_READS` (may affect results).
 
 ##  <a name="contribution"></a> Contributions
 We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.
