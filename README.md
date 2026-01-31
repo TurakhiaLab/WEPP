@@ -54,13 +54,13 @@ WEPP performs parsimonious read placement on the mutation-annotated tree (MAT) t
 
 
 ## <a name="install"></a> Installation
-WEPP offers multiple installation methods. Using a [Docker](https://docs.docker.com/engine/install/) is recommended to prevent any conflict with existing packages.
+WEPP offers multiple installation methods. 
 1. Bioconda (Recommended)
 2. Docker image from DockerHub
 3. Dockerfile 
 4. Shell Commands
 
-### <a name="conda"></a> Option-2: Install via Bioconda
+### <a name="conda"></a> Option-1: Install via Bioconda (Recommended)
 **Step 1:** Create a new conda environment for WEPP.
 ```bash
 conda create --name wepp-env wepp
@@ -73,11 +73,9 @@ conda activate wepp-env
 ```bash
 run-wepp help --cores 1 --use-conda
 ```
-**Step 4:** Create a `data` directory and start analyzing your samples with WEPP.
+**Step 4:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple data directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
 
 All set to try the [examples](#example).
-
-⚠️ The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
 ### <a name="dockerhub"></a> Option-2: Install via DockerHub
 The Docker image includes all dependencies required to run WEPP.
@@ -103,6 +101,7 @@ run-wepp help --cores 1 --use-conda
 
 All set to try the [examples](#example).
 
+⚠️ The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
 ### <a name="dockerfile"></a> Option-3: Install via Dockerfile
 The Dockerfile contains all dependencies required to run WEPP.
