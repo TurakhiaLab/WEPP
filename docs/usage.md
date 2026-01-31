@@ -80,7 +80,7 @@ run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.p
 ## <b>Getting Mutation-Annotated Trees</b> <a name="mat"></a>
 Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
 
-##  <a name="results"></a> Analyzing WEPP's Results
+## <b>Analyzing WEPP's Results</b> <a name="results"></a>
 WEPP generates output files for each sample in its corresponding subdirectory under `results`. Some of the key files are described below:
 
 1. `lineage_abundance.csv` - Reports the estimated abundance of different lineages detected in the wastewater sample.
@@ -96,7 +96,7 @@ WEPP generates output files for each sample in its corresponding subdirectory un
 !!!Note
     ⚠️ All of these results can be easily explored and visualized through the dashboard.
 
-##  <a name="debug"></a> Debugging Tips
+## <b>Debugging Tips</b> <a name="debug"></a>
 In case of a failure or unexpected output, below are some common causes and possible solutions.
 
 1. `Run Failure` - Check whether reads were successfully aligned by minimap2 by inspecting the `alignment.sam` file in the `intermediate` directory. If enough reads are present but the `filter` rule crashes immediately, the sample may contain more reads than WEPP can efficiently handle. Use the `MAX_READS` parameter to downsample the input. For typical short-read datasets, setting this to ~3 million reads generally works well.
