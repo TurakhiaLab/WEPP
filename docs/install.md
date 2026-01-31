@@ -18,12 +18,9 @@ conda activate wepp-env
 ```bash
 run-wepp help --cores 1 --use-conda
 ```
-**Step 4:** Create a `data` directory and start analyzing your samples with WEPP.
+**Step 4:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple data directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
 
 All set to try the [examples](quickstart.md#example).
-
-!!!Note
-     ⚠️The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
 
 ## **Option-2: Install via DockerHub** <a name=dockerhub></a> 
@@ -49,6 +46,9 @@ run-wepp help --cores 1 --use-conda
 ```
 
 All set to try the [examples](quickstart.md#example).
+
+!!!Note
+     ⚠️The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
 
 ## **Option-3: Install via Dockerfile** <a name=dockerfile></a> 
