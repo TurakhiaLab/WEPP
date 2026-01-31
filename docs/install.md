@@ -1,14 +1,32 @@
 WEPP offers multiple installation methods. Using a [Docker](https://docs.docker.com/engine/install/) is recommended to prevent any conflict with existing packages.
 
-1. Docker image from DockerHub
-2. Dockerfile 
-3. Shell Commands 
+1. Bioconda (Recommended)
+2. Docker image from DockerHub
+3. Dockerfile 
+4. Shell Commands
+
+## **Option-1: Install via Bioconda** <a name=conda></a> 
+**Step 1:** Create a new conda environment for WEPP.
+```bash
+conda create --name wepp-env wepp
+```
+**Step 2:** Activate the environment.
+```bash
+conda activate wepp-env
+```
+**Step 3:** Confirm proper working by running the following command. This should print WEPP's help menu.
+```bash
+run-wepp help --cores 1 --use-conda
+```
+**Step 4:** Create a `data` directory and start analyzing your samples with WEPP.
+
+All set to try the [examples](quickstart.md#example).
 
 !!!Note
      ⚠️The Docker image is currently built for the `linux/amd64` platform. While it can run on `arm64` systems (e.g., Apple Silicon or Linux aarch64) via emulation, this may lead to reduced performance.
 
 
-## **Option-1: Install via DockerHub** <a name=dockerhub></a> 
+## **Option-2: Install via DockerHub** <a name=dockerhub></a> 
 The Docker image includes all dependencies required to run WEPP.
 
 **Step 1:** Get the image from DockerHub 
@@ -33,7 +51,7 @@ run-wepp help --cores 1 --use-conda
 All set to try the [examples](quickstart.md#example).
 
 
-## **Option-2: Install via Dockerfile** <a name=dockerfile></a> 
+## **Option-3: Install via Dockerfile** <a name=dockerfile></a> 
 The Dockerfile contains all dependencies required to run WEPP.
 
 **Step 1:** Clone the repository
@@ -58,7 +76,7 @@ docker run -it -p 80:80 -v "$PWD":/workspace -w /workspace wepp
 All set to try the [examples](quickstart.md#example).
 
 
-## **Option-3: Install via Shell Commands (requires sudo access)** <a name=script></a>
+## **Option-4: Install via Shell Commands (requires sudo access)** <a name=script></a>
 Users without sudo access are advised to install WEPP via [Docker Image](#dockerhub).
 
 **Step 1:** Clone the repository

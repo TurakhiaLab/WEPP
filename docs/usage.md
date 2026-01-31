@@ -1,6 +1,6 @@
 # <b>User Guide</b> <a name="guide"></a>
 ## <b>Organizing Data</b> <a name="data"></a>
-We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `result`, respectively. 
+We assume that all wastewater samples are organized in the `data` directory, each within its own subdirectory given by `DIR` argument (see Run Command). For each sample, WEPP generates intermediate and output files in corresponding subdirectories under `intermediate` and `results`, respectively. 
 
 Each created `DIR` inside `data` is expected to contain the following files:
 
@@ -80,13 +80,33 @@ run-wepp --config DIR=SARS_COV_2_real FILE_PREFIX=test_run TREE=sars_cov_2_mat.p
 ## <b>Getting Mutation-Annotated Trees</b> <a name="mat"></a>
 Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
 
+##  <a name="results"></a> Analyzing WEPP's Results
+WEPP generates output files for each sample in its corresponding subdirectory under `results`. Some of the key files are described below:
+
+1. `lineage_abundance.csv` - Reports the estimated abundance of different lineages detected in the wastewater sample.
+2. `haplotype_abundance.csv` - Provides the abundance and lineage information for each selected haplotype (internal nodes or clinical sequences) inferred from the wastewater sample.
+3. `haplotype_uncertainty.csv` - Lists the maximum single-nucleotide distance and all haplotypes that could not be distinguished from one another for each selected haplotype.
+
+      - A non-zero nucleotide distance indicates that sequencing reads did not cover the distinguishing sites between haplotypes.
+      - A zero distance indicates that the haplotypes are identical.
+
+4. `haplotype_coverage.csv` - Contains the fraction of each selected haplotype that is supported by parsimonious read-to-haplotype assignments.
+5. `unaccounted_alleles.txt` - Reports the residue, allele frequency, and sequencing depth for each unaccounted allele detected in the sample. Alleles with higher residue values are more likely to originate from a novel variant, as they were not adequately represente by the selected haplotypes.  
+
+!!!Note
+    ⚠️ All of these results can be easily explored and visualized through the dashboard.
+
 ##  <a name="debug"></a> Debugging Tips
 In case of a failure or unexpected output, below are some common causes and possible solutions.
 
 1. `Run Failure` - Check whether reads were successfully aligned by minimap2 by inspecting the `alignment.sam` file in the `intermediate` directory. If enough reads are present but the `filter` rule crashes immediately, the sample may contain more reads than WEPP can efficiently handle. Use the `MAX_READS` parameter to downsample the input. For typical short-read datasets, setting this to ~3 million reads generally works well.
 2. `Missing Lineages` - If expected lineages are absent from the `lineage_abundance.csv` in the `results` directory, either the MAT does not contain any lineage annotations, or an incorrect `CLADE_IDX` argument was provided.
 3. `Uncertainty in Lineages and Haplotypes` - Uncertain lineage or haplotype assignments usually occur when:
-  a. Sequencing depth is low,
-  b. Entire genome is not sufficiently covered, or
-  c. Read quality is poor and iVar trims and discards a large number of reads. Check `lineage_abundance.csv`, `haplotype_abundance.csv`, and `haplotype_uncertainty.csv` in the `results` directory. You can also review `alignment.sam` in the `intermediate` directory to see how many reads were used by WEPP and compare them with the reads provided as input.
+   
+    -  Sequencing depth is low
+    -  Entire genome is not sufficiently covered
+    -  Read quality is poor and iVar trims and discards a large number of reads.
+        
+    Check `lineage_abundance.csv`, `haplotype_abundance.csv`, and `haplotype_uncertainty.csv` in the `results` directory. You can also review `alignment.sam` in the `intermediate` directory to see how many reads were used by WEPP and compare them with the reads provided as input.
+
 4. `Long Runtimes` - You can increase the number of threads using the `--cores` argument, or reduce the number of reads with `MAX_READS` (may affect results).
