@@ -100,6 +100,7 @@ WEPP generates output files for each sample in its corresponding subdirectory un
 The WEPP dashboard provides an interactive interface for exploring inferred haplotypes, lineage abundances, and unaccounted alleles. You can either run it as part of a WEPP analysis or launch it locally after completing a WEPP run on your server by copying the `results` directory.
 
 **Option 1: Run the dashboard during a WEPP run**
+
 Step 1: Enable the dashboard in your WEPP command.
 ```
 run-wepp --config ... DASHBOARD_ENABLED=True --cores N --use-conda
@@ -117,6 +118,7 @@ http://localhost:8080
     ⚠️ Replace 8080 with any available local port.
 
 **Option 2: Visualize results on your local machine (requires Docker)**
+
 You can also analyze your samples with WEPP on a server and run the dashboard locally.
 
 Step 1: Enable the dashboard in your WEPP command.
