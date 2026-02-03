@@ -18,7 +18,7 @@ conda activate wepp-env
 ```bash
 run-wepp help --cores 1 --use-conda
 ```
-**Step 4:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple data directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
+**Step 4:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple `data` directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
 
 All set to try the [examples](quickstart.md#example).
 

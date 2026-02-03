@@ -131,18 +131,18 @@ def write_sam_files(input_sam_file):
 
                         w_file_reads.write("\n")
 
-        # Convert sam to bam
-        command_1 = f"samtools view -Sb {write_file_sam_reads} | samtools sort -o {write_file_bam_reads}"
-        command_2 = f"samtools index {write_file_bam_reads}"
-        command_3 = f"rm {write_file_sam_reads}"
-        commands = [command_1, command_2, command_3]
-        # Execute sam to bam conversion
-        for command in commands:
-            result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            if result.returncode != 0:
-                print(f"{command} failed")
-                print("Error message:", result.stderr.decode())
-                sys.exit(1)      
+    # Convert sam to bam
+    command_1 = f"samtools view -Sb {write_file_sam_reads} | samtools sort -o {write_file_bam_reads}"
+    command_2 = f"samtools index {write_file_bam_reads}"
+    command_3 = f"rm {write_file_sam_reads}"
+    commands = [command_1, command_2, command_3]
+    # Execute sam to bam conversion
+    for command in commands:
+        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            print(f"{command} failed")
+            print("Error message:", result.stderr.decode())
+            sys.exit(1)      
 
     with open(write_file_sam_haps, mode='w', newline='') as w_file_haps:
         first_hap, first_row = next(iter(hap_sams.items()))
@@ -181,18 +181,18 @@ def write_sam_files(input_sam_file):
                             w_file_haps.write(f",unaccounted{mutations[mut]}")
             w_file_haps.write("\n")
 
-        # Convert sam to bam
-        command_1 = f"samtools view -Sb {write_file_sam_haps} | samtools sort -o {write_file_bam_haps}"
-        command_2 = f"samtools index {write_file_bam_haps}"
-        command_3 = f"rm {write_file_sam_haps}"
-        commands = [command_1, command_2, command_3]
-        # Execute sam to bam conversion
-        for command in commands:
-            result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            if result.returncode != 0:
-                print(f"{command} failed")
-                print("Error message:", result.stderr.decode())
-                sys.exit(1)      
+    # Convert sam to bam
+    command_1 = f"samtools view -Sb {write_file_sam_haps} | samtools sort -o {write_file_bam_haps}"
+    command_2 = f"samtools index {write_file_bam_haps}"
+    command_3 = f"rm {write_file_sam_haps}"
+    commands = [command_1, command_2, command_3]
+    # Execute sam to bam conversion
+    for command in commands:
+        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            print(f"{command} failed")
+            print("Error message:", result.stderr.decode())
+            sys.exit(1)      
 
 #Check arguments
 if len(sys.argv) != 4:

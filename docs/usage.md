@@ -96,6 +96,62 @@ WEPP generates output files for each sample in its corresponding subdirectory un
 !!!Note
     ⚠️ All of these results can be easily explored and visualized through the dashboard.
 
+## <b>Running WEPP Dashboard</b> <a name="dashboard"></a>
+The WEPP dashboard provides an interactive interface for exploring inferred haplotypes, lineage abundances, and unaccounted alleles. You can either run it as part of a WEPP analysis or launch it locally after completing a WEPP run on your server by copying the `results` directory.
+
+**Option 1: Run the dashboard during a WEPP run**
+Step 1: Enable the dashboard in your WEPP command.
+```
+run-wepp --config ... DASHBOARD_ENABLED=True --cores N --use-conda
+```
+Step 2: If you are running WEPP on a remote machine, use the SSH port forwarding to access the dashboard in your local browser.
+```
+ssh -L 8080:localhost:80 user@remote_host
+```
+Step 3: Open the dashboard in your browser at:
+```
+http://localhost:8080 
+```
+
+!!!Note
+    ⚠️ Replace 8080 with any available local port.
+
+**Option 2: Visualize results on your local machine (requires Docker)**
+You can also analyze your samples with WEPP on a server and run the dashboard locally.
+
+Step 1: Enable the dashboard in your WEPP command.
+```
+run-wepp --config ... DASHBOARD_ENABLED=True --cores N --use-conda
+```
+
+Step 2: Copy the `results` directory to your local machine.
+
+Run the following command on your local computer.
+```
+scp -r user@remote_host:/path_to_WEPP/results /path_to_local_directory/
+```
+
+Step 3: Pull the WEPP dashboard Docker image.
+```
+  docker pull pratikkatte7/wepp-dashboard
+```
+
+Step 4: Launch the dashboard by running the container and mounting the `results` directory.
+```
+  docker run -it \
+  -v "/path_to_local_directory/results:/app/taxonium_backend/results" \
+  -p 8080:80 \
+  pratikkatte7/wepp-dashboard
+```
+
+Step 5: Open the dashboard in your browser at:
+```
+http://localhost:8080 
+```
+
+!!!Note
+    ⚠️ Replace 8080 with any available local port. For additional details and advanced usage, see the [WEPP Dashboard](https://github.com/pratikkatte/WEPP-Dashboard) repository. 
+
 ## <b>Debugging Tips</b> <a name="debug"></a>
 In case of a failure or unexpected output, below are some common causes and possible solutions.
 
