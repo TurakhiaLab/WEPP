@@ -572,6 +572,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#running-wepp-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running WEPP Dashboard
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#debugging-tips" class="md-nav__link">
     <span class="md-ellipsis">
       Debugging Tips
@@ -750,6 +759,47 @@
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>⚠️ All of these results can be easily explored and visualized through the dashboard.</p>
+</div>
+<h2 id="running-wepp-dashboard"><b>Running WEPP Dashboard</b> <a name="dashboard"></a></h2>
+<p>The WEPP dashboard provides an interactive interface for exploring inferred haplotypes, lineage abundances, and unaccounted alleles. You can either run it as part of a WEPP analysis or launch it locally after completing a WEPP run on your server by copying the <code>results</code> directory.</p>
+<p><strong>Option 1: Run the dashboard during a WEPP run</strong>
+Step 1: Enable the dashboard in your WEPP command.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>run-wepp --config ... DASHBOARD_ENABLED=True --cores N --use-conda
+</code></pre></div>
+Step 2: If you are running WEPP on a remote machine, use the SSH port forwarding to access the dashboard in your local browser.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ssh -L 8080:localhost:80 user@remote_host
+</code></pre></div>
+Step 3: Open the dashboard in your browser at:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>http://localhost:8080 
+</code></pre></div></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>⚠️ Replace 8080 with any available local port.</p>
+</div>
+<p><strong>Option 2: Visualize results on your local machine (requires Docker)</strong>
+You can also analyze your samples with WEPP on a server and run the dashboard locally.</p>
+<p>Step 1: Enable the dashboard in your WEPP command.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>run-wepp --config ... DASHBOARD_ENABLED=True --cores N --use-conda
+</code></pre></div></p>
+<p>Step 2: Copy the <code>results</code> directory to your local machine.</p>
+<p>Run the following command on your local computer.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>scp -r user@remote_host:/path_to_WEPP/results /path_to_local_directory/
+</code></pre></div></p>
+<p>Step 3: Pull the WEPP dashboard Docker image.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>  docker pull pratikkatte7/wepp-dashboard
+</code></pre></div></p>
+<p>Step 4: Launch the dashboard by running the container and mounting the <code>results</code> directory.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>  docker run -it \
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  -v &quot;/path_to_local_directory/results:/app/taxonium_backend/results&quot; \
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  -p 8080:80 \
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  pratikkatte7/wepp-dashboard
+</code></pre></div></p>
+<p>Step 5: Open the dashboard in your browser at:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>http://localhost:8080 
+</code></pre></div></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>⚠️ Replace 8080 with any available local port. For additional details and advanced usage, see the <a href="https://github.com/pratikkatte/WEPP-Dashboard">WEPP Dashboard</a> repository. </p>
 </div>
 <h2 id="debugging-tips"><b>Debugging Tips</b> <a name="debug"></a></h2>
 <p>In case of a failure or unexpected output, below are some common causes and possible solutions.</p>
