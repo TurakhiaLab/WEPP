@@ -6,7 +6,7 @@
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
 
 [![License][license-badge]][license-link]
-[<img src="https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/wepp/README.html)
+[<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/wepp/README.html)
 [<img src="https://img.shields.io/badge/Install with-Docker-informational.svg?logo=Docker">](https://hub.docker.com/r/pranavgangwar/wepp)
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 [<img src="https://img.shields.io/badge/Watch it on-Youtube-FF0000.svg?logo=YouTube">](https://www.youtube.com/watch?v=fAhj2pSlTSM)
