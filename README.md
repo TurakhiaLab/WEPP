@@ -68,17 +68,18 @@ WEPP offers multiple installation methods.
 ### <a name="conda"></a> Option-1: Install via Bioconda (Recommended)
 **Step 1:** Create a new conda environment for WEPP.
 ```bash
-conda create --name wepp-env wepp
-```
-**Step 2:** Activate the environment.
-```bash
+conda create --name wepp-env
 conda activate wepp-env
+conda config --env --add channels bioconda 
+conda config --env --add channels conda-forge 
+conda config --env --set channel_priority flexible
+conda install wepp
 ```
-**Step 3:** Confirm proper working by running the following command. This should print WEPP's help menu.
+**Step 2:** Confirm proper working by running the following command. This should print WEPP's help menu.
 ```bash
 run-wepp help --cores 1 --use-conda
 ```
-**Step 4:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple `data` directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
+**Step 3:** Create a `data` directory and start analyzing your samples with WEPP. If you are running samples from multiple `data` directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
 
 All set to try the [examples](#example).
 
