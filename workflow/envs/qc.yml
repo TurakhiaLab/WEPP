@@ -1,6 +1,6 @@
 channels:
- - bioconda
  - conda-forge
+ - bioconda
 dependencies:
  - python >=3.12
  - minimap2 >=2.26
