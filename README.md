@@ -75,6 +75,9 @@ conda config --env --add channels conda-forge
 conda config --env --set channel_priority flexible
 conda install wepp
 ```
+
+⚠️ You can use `conda install wepp --solver=libmamba` to enable a faster dependency resolution and installation.
+
 **Step 2:** Confirm proper working by running the following command. This should print WEPP's help menu.
 ```bash
 run-wepp help --cores 1 --use-conda
