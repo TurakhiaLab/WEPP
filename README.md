@@ -434,7 +434,7 @@ In case of a failure or unexpected output, below are some common causes and poss
 We welcome contributions from the community to enhance the capabilities of **WEPP**. If you encounter any issues or have suggestions for improvement, please open an issue on [WEPP GitHub page](https://github.com/TurakhiaLab/WEPP/issues). For general inquiries and support, reach out to our team.
 
 ##  <a name="cite"></a> Citing WEPP
-If you use WEPP in your research or publications, please cite the following paper:<br>
+If you use WEPP in your research or publications, please cite the following paper:<br><br>
 Gangwar P, Katte P, Bhat M, Turakhia Y (2026) *WEPP: Phylogenetic placement achieves near-haplotype resolution in wastewater-based epidemiology*. PLoS Comput Biol 22(3): e1014124. [https://doi.org/10.1371/journal.pcbi.1014124](https://doi.org/10.1371/journal.pcbi.1014124)
 
 ### BibTeX
