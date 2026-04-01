@@ -6,12 +6,12 @@
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
 
 [![License][license-badge]][license-link]
+[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
+[![Build Status](https://github.com/TurakhiaLab/WEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/WEPP/actions)
 [<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/wepp/README.html)
 [<img src="https://img.shields.io/badge/Install with-Docker-informational.svg?logo=Docker">](https://hub.docker.com/r/pranavgangwar/wepp)
-[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 [<img src="https://img.shields.io/badge/Watch it on-Youtube-FF0000.svg?logo=YouTube">](https://www.youtube.com/watch?v=fAhj2pSlTSM)
-[![Build Status](https://github.com/TurakhiaLab/WEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/WEPP/actions)
-
+[![Published in PLOS Computational Biology](https://img.shields.io/badge/Published%20in-PLOS%20Computational%20Biology-blue)](https://doi.org/10.1371/journal.pcbi.1014124)
 
 <div align="center">
   <img src="docs/images/WEPP_logo.svg" width="300"/>
