@@ -658,7 +658,7 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
                     for (const auto& j : update_sites) 
                     {
                         if (j >= 1 && (size_t)j <= this->genome_size())
-                            ac->second[j - 1]
+                            ac->second[j - 1] = 1;
                     }
                     ac.release();
                 }
