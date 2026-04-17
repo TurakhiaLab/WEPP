@@ -4,8 +4,10 @@ import os
 import re
 import sys
 import glob
+import tempfile
 import subprocess
 import argparse
+from collections import Counter, defaultdict
 
 all_sample_names = []
 
@@ -59,11 +61,77 @@ def find_fastq_files(input_dir, paired):
             raise ValueError("Single-end FASTQ should not be named with _R1/_R2")
         return fq, None
 
+
+def uniqify_duplicate_qnames_in_sam(sam_path):
+    """
+    After minimap2 + samtools primary-only filter, duplicate QNAMEs should only be
+    paired mates (two lines). Rename to .../1 and .../2 from mate flags; any
+    other pattern gets .../modified/n.
+    """
+    counts = Counter()
+    with open(sam_path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if not line or line[0] == "@":
+                continue
+            counts[line.split("\t", 1)[0]] += 1
+
+    if all(c <= 1 for c in counts.values()):
+        return
+
+    dup_qnames = {q for q, c in counts.items() if c > 1}
+    mod_n = defaultdict(int)
+
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=os.path.basename(sam_path) + ".",
+        suffix=".sam.tmp",
+        dir=os.path.dirname(sam_path) or ".",
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as out, open(
+            sam_path, encoding="utf-8", errors="replace"
+        ) as inp:
+            for line in inp:
+                if not line or line[0] == "@":
+                    out.write(line)
+                    continue
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 11:
+                    out.write(line)
+                    continue
+                qname, flag = parts[0], parts[1]
+                if qname not in dup_qnames:
+                    out.write(line)
+                    continue
+
+                fl = int(flag)
+                if counts[qname] == 2 and (fl & 1):
+                    if fl & 0x40:
+                        parts[0] = qname + "/1"
+                    elif fl & 0x80:
+                        parts[0] = qname + "/2"
+                    else:
+                        mod_n[qname] += 1
+                        parts[0] = f"{qname}/MODIFIED/{mod_n[qname]}"
+                else:
+                    mod_n[qname] += 1
+                    parts[0] = f"{qname}/MODIFIED/{mod_n[qname]}"
+
+                out.write("\t".join(parts) + "\n")
+        os.replace(tmp_path, sam_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix):
     ref_base = os.path.splitext(reference)[0]
     ref_mmi = f"{ref_base}.mmi"
     ref_mmi_path = os.path.join(output_dir, os.path.basename(ref_mmi))
     out_sam = os.path.join(output_dir, prefix + "_aligned_reads.sam")
+    raw_sam = out_sam + ".minimap2_raw.sam"
 
     print(f"Building Index file in {output_dir} ...")
     subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
@@ -77,9 +145,17 @@ def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix
             cmd += [ref_mmi_path, r1]
     elif platform == "ONT":
         cmd += ["-x", "map-ont", ref_mmi_path, r1]
-    cmd += ["-t", str(threads), "-o", out_sam]
+    cmd += ["--secondary=no", "-t", str(threads), "-o", raw_sam]
 
     subprocess.run(cmd, check=True)
+    # One primary row per query segment: drop secondary (0x100) and supplementary (0x800).
+    subprocess.run(
+        ["samtools", "view", "-h", "-F", "0x900", raw_sam, "-o", out_sam],
+        check=True,
+    )
+    os.remove(raw_sam)
+
+    uniqify_duplicate_qnames_in_sam(out_sam)
     return out_sam
 
 def trimming(output_dir, sam_file, primer_bed, min_len, threads, prefix):
