@@ -166,7 +166,7 @@ wepp_filter::cartesian_map(arena& arena, std::vector<haplotype*>& haps, const st
 
                               double const delta = node_score(max_val, max_indices.size(), reads[r].degree);
                               {
-                                  int bucket = reads[r].start / bin_size;
+                                  int bucket = std::min(reads[r].start / bin_size, NUM_RANGE_BINS - 1);
                                   if (HIGH_MEMORY_CARTESIAN_MAP) {
                                       haplotype *arena_base = &arena.haplotypes()[0];
                                       for (haplotype *hap : max_indices)

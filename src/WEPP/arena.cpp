@@ -141,7 +141,8 @@ void arena::build_range_trees()
     read_distribution_bin_size = this->genome_size() / NUM_RANGE_BINS;
     for (const auto &r : raw_reads)
     {
-        true_read_counts[r.start / read_distribution_bin_size] += r.degree;
+        int bucket_idx = std::min((int)(r.start / read_distribution_bin_size), (int)NUM_RANGE_BINS - 1);
+        true_read_counts[bucket_idx] += r.degree;
         this->num_reads += r.degree;
     }
     for (size_t i = 0; i < NUM_RANGE_BINS; ++i)
@@ -656,7 +657,8 @@ void arena::dump_read2haplotype_mapping(const std::vector<std::pair<haplotype *,
                     haplotype_coverage_map.insert(ac, curr_node->id);
                     for (const auto& j : update_sites) 
                     {
-                        ac->second[j] = 1;    
+                        if (j >= 1 && (size_t)j <= this->genome_size())
+                            ac->second[j - 1] = 1;
                     }
                     ac.release();
                 }
