@@ -1,7 +1,7 @@
 from pathlib import Path
 
 TREE = config["TREE"]
-GIVEN_TAXONIUM = config.get("TAXONIUM_FILE", '')
+GIVEN_TAXONIUM = config.get("TAXONIUM_FILE") or ""
 if GIVEN_TAXONIUM:
     TAXONIUM_FILENAME = Path(GIVEN_TAXONIUM).name 
 else:
