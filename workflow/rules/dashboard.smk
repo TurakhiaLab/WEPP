@@ -19,12 +19,18 @@ rule process_taxonium:
         taxonium_jsonl_file=GIVEN_TAXONIUM,
         tree=TREE,
         clade_list=config["CLADE_LIST"],
+        sanitize_mat_newick=str(BASE_DIR / "workflow/scripts/sanitize_mat_newick.py"),
     shell:
         """ 
         if [ "{params.dashboard}" = "True" ]; then
             if [ "{params.taxonium_jsonl_file}" = '' ]; then
                 echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output.jsonl}"
-                usher_to_taxonium --input data/{wildcards.DIR}/{params.tree} \
+                sanitized_mat=$(mktemp --suffix=.pb.gz)
+                trap 'rm -f "$sanitized_mat"' EXIT
+                python {params.sanitize_mat_newick} \
+                    --input data/{wildcards.DIR}/{params.tree} \
+                    --output "$sanitized_mat"
+                usher_to_taxonium --input "$sanitized_mat" \
                     --output {output.jsonl} \
                     --clade_types {params.clade_list} \
                     --name_internal_nodes
