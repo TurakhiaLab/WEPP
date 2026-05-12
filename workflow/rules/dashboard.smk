@@ -25,7 +25,7 @@ rule process_taxonium:
         if [ "{params.dashboard}" = "True" ]; then
             if [ "{params.taxonium_jsonl_file}" = '' ]; then
                 echo "convert MAT file : data/{wildcards.DIR}/{params.tree} to {output.jsonl}"
-                sanitized_mat=$(mktemp --suffix=.pb.gz)
+                sanitized_mat=$(mktemp "${{TMPDIR:-/tmp}}/wepp_taxonium.pb.gz")
                 trap 'rm -f "$sanitized_mat"' EXIT
                 python {params.sanitize_mat_newick} \
                     --input data/{wildcards.DIR}/{params.tree} \
