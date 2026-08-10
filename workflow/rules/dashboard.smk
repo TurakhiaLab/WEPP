@@ -116,6 +116,69 @@ rule dashboard_serve:
             export WEPP_DASHBOARD_PATH="$(pwd)/runtime"
             mkdir -p "$WEPP_DASHBOARD_PATH"
 
+            BACKEND_PID=""
+            NGINX_PID=""
+
+            pid_is_running() {{
+                PID_STATE=$(ps -o stat= -p "$1" 2>/dev/null | tr -d '[:space:]')
+                case "$PID_STATE" in
+                    ""|Z*) return 1 ;;
+                    *) return 0 ;;
+                esac
+            }}
+
+            remove_owned_pid_file() {{
+                PID_FILE=$1
+                EXPECTED_PID=$2
+                if [ -n "$EXPECTED_PID" ] && [ -f "$PID_FILE" ] && \
+                    [ "$(cat "$PID_FILE")" = "$EXPECTED_PID" ]; then
+                    rm -f "$PID_FILE"
+                fi
+            }}
+
+            cleanup_dashboard() {{
+                EXIT_CODE=$?
+                trap - EXIT INT TERM
+
+                for PID in "$NGINX_PID" "$BACKEND_PID"; do
+                    if [ -n "$PID" ] && pid_is_running "$PID"; then
+                        kill -TERM "$PID" 2>/dev/null || true
+                    fi
+                done
+
+                for _ in 1 2 3 4 5; do
+                    BACKEND_RUNNING=False
+                    NGINX_RUNNING=False
+                    if [ -n "$BACKEND_PID" ] && pid_is_running "$BACKEND_PID"; then
+                        BACKEND_RUNNING=True
+                    fi
+                    if [ -n "$NGINX_PID" ] && pid_is_running "$NGINX_PID"; then
+                        NGINX_RUNNING=True
+                    fi
+                    if [ "$BACKEND_RUNNING" = "False" ] && [ "$NGINX_RUNNING" = "False" ]; then
+                        break
+                    fi
+                    sleep 1
+                done
+
+                for PID in "$NGINX_PID" "$BACKEND_PID"; do
+                    if [ -n "$PID" ] && pid_is_running "$PID"; then
+                        kill -KILL "$PID" 2>/dev/null || true
+                    fi
+                    if [ -n "$PID" ]; then
+                        wait "$PID" 2>/dev/null || true
+                    fi
+                done
+
+                remove_owned_pid_file "$WEPP_DASHBOARD_PATH/dashboard.pid" "$BACKEND_PID"
+                remove_owned_pid_file "$WEPP_DASHBOARD_PATH/nginx.pid" "$NGINX_PID"
+                exit "$EXIT_CODE"
+            }}
+
+            trap cleanup_dashboard EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+
             # Check if running inside Docker
             if [ -f /.dockerenv ]; then
                 IN_DOCKER=True
@@ -134,7 +197,7 @@ rule dashboard_serve:
                 DASH_PID=$(cat "$WEPP_DASHBOARD_PATH/dashboard.pid")
                 if kill -0 "$DASH_PID" 2>/dev/null; then
                     echo -e "Existing dashboard running with PID $DASH_PID. Killing it safely."
-                    kill -9 "$DASH_PID" || true
+                    kill -TERM "$DASH_PID" || true
                 else
                     echo -e "dashboard.pid found, but process $DASH_PID not running. Cleaning up file."
                 fi
@@ -173,7 +236,11 @@ rule dashboard_serve:
             # Wait until Node.js server opens port $BACKEND_PORT
             # ──────────────────────────────────────────────
             until lsof -i :$BACKEND_PORT >/dev/null 2>&1; do
-                # echo "Waiting for Node.js server to start..."
+                if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+                    echo "Dashboard backend exited before opening port $BACKEND_PORT." | tee -a {params.log}
+                    wait "$BACKEND_PID" || true
+                    exit 1
+                fi
                 sleep 1
             done
 
@@ -185,8 +252,7 @@ rule dashboard_serve:
                 NGINX_PID=$(cat "$WEPP_DASHBOARD_PATH/nginx.pid")
                 if kill -0 "$NGINX_PID" 2>/dev/null; then
                     echo "Existing nginx running with PID $NGINX_PID.  Killing it safely." | tee -a {params.log}
-                    kill -9 "$NGINX_PID" || true
-                    kill -9 $((NGINX_PID + 1)) || true
+                    kill -TERM "$NGINX_PID" || true
                 else
                     echo "nginx.pid found, but process $NGINX_PID not running. Cleaning up file."
                     rm -f "$WEPP_DASHBOARD_PATH/nginx.pid"
@@ -216,17 +282,35 @@ rule dashboard_serve:
                 > "$WEPP_DASHBOARD_PATH/wepp-nginx.conf"
 
                 cp {params.mime_types} $WEPP_DASHBOARD_PATH
-                nginx -c $WEPP_DASHBOARD_PATH/wepp-nginx.conf &
+                nginx -g 'daemon off;' -c "$WEPP_DASHBOARD_PATH/wepp-nginx.conf" &
+                NGINX_PID=$!
 
                 until lsof -i :$FRONTEND_PORT >/dev/null 2>&1; do
+                    if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+                        echo "nginx exited before opening port $FRONTEND_PORT." | tee -a {params.log}
+                        wait "$NGINX_PID" || true
+                        exit 1
+                    fi
                     echo -e "Waiting for nginx to start on port $FRONTEND_PORT..."
                     sleep 1
                 done
                 if lsof -i :$FRONTEND_PORT >/dev/null 2>&1; then
-                    echo -e "\n\n\nWORKFLOW COMPLETED! DASHBOARD IS RUNNING AT http://localhost:$FRONTEND_PORT (OR YOUR FORWARDED HOST PORT).\n\n\n"
+                    echo -e "\n\n\nDASHBOARD IS RUNNING AT http://localhost:$FRONTEND_PORT (OR YOUR FORWARDED HOST PORT).\nPress Ctrl-C to stop the dashboard.\n\n\n"
                 else
-                    echo -e "\n\n\nWORKFLOW COMPLETED, BUT DASHBOARD NOT DETECTED ON PORT $FRONTEND_PORT. \n\n\n"
+                    echo -e "\n\n\nDASHBOARD NOT DETECTED ON PORT $FRONTEND_PORT. \n\n\n"
+                    exit 1
                 fi
+
+                while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$NGINX_PID" 2>/dev/null; do
+                    sleep 1
+                done
+
+                if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+                    echo "Dashboard backend exited unexpectedly." | tee -a {params.log}
+                else
+                    echo "nginx exited unexpectedly." | tee -a {params.log}
+                fi
+                exit 1
 
         else
             rm -f {input.taxonium_jsonl}
