@@ -136,7 +136,7 @@ def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix
     print(f"Building Index file in {output_dir} ...")
     subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
 
-    cmd = ["minimap2", "-a", "--sam-hit-only", "--MD", "-2"]
+    cmd = ["minimap2", "-a", "--sam-hit-only", "--MD", "-2", "--no-hash-name"]
     if platform == "Illumina":
         cmd += ["-x", "sr"]
         if r2:
