@@ -43,7 +43,7 @@ RUN /root/miniforge3/bin/conda init bash && \
 RUN pip install snakemake
 
 RUN echo 'run-wepp() {' >> /root/.bashrc && \
-    echo '    /root/miniforge3/bin/snakemake -s /workspace/workflow/Snakefile "$@"' >> /root/.bashrc && \
+    echo '    /workspace/run-wepp "$@"' >> /root/.bashrc && \
     echo '}' >> /root/.bashrc && \
     echo 'export -f run-wepp' >> /root/.bashrc
 
