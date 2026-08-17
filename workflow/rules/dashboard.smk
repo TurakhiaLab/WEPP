@@ -115,6 +115,7 @@ rule dashboard_serve:
 
             export WEPP_DASHBOARD_PATH="$(pwd)/runtime"
             mkdir -p "$WEPP_DASHBOARD_PATH"
+            rm -f "$WEPP_DASHBOARD_PATH/dashboard.ready"
 
             BACKEND_PID=""
             NGINX_PID=""
@@ -172,6 +173,7 @@ rule dashboard_serve:
 
                 remove_owned_pid_file "$WEPP_DASHBOARD_PATH/dashboard.pid" "$BACKEND_PID"
                 remove_owned_pid_file "$WEPP_DASHBOARD_PATH/nginx.pid" "$NGINX_PID"
+                rm -f "$WEPP_DASHBOARD_PATH/dashboard.ready"
                 exit "$EXIT_CODE"
             }}
 
@@ -295,22 +297,12 @@ rule dashboard_serve:
                     sleep 1
                 done
                 if lsof -i :$FRONTEND_PORT >/dev/null 2>&1; then
-                    echo -e "\n\n\nDASHBOARD IS RUNNING AT http://localhost:$FRONTEND_PORT (OR YOUR FORWARDED HOST PORT).\nPress Ctrl-C to stop the dashboard.\n\n\n"
+                    cp {params.log} {output}
+                    printf '%s\n' "$FRONTEND_PORT" > "$WEPP_DASHBOARD_PATH/dashboard.ready"
                 else
                     echo -e "\n\n\nDASHBOARD NOT DETECTED ON PORT $FRONTEND_PORT. \n\n\n"
                     exit 1
                 fi
-
-                while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$NGINX_PID" 2>/dev/null; do
-                    sleep 1
-                done
-
-                if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-                    echo "Dashboard backend exited unexpectedly." | tee -a {params.log}
-                else
-                    echo "nginx exited unexpectedly." | tee -a {params.log}
-                fi
-                exit 1
 
         else
             rm -f {input.taxonium_jsonl}
@@ -318,5 +310,9 @@ rule dashboard_serve:
 
         fi
 
-        cp {params.log} {output}
+        if [ "{params.dashboard}" = "True" ]; then
+            trap - EXIT INT TERM
+        else
+            cp {params.log} {output}
+        fi
         """
