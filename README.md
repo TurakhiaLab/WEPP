@@ -151,7 +151,7 @@ chmod +x run-wepp
 ```bash
 echo "
 run-wepp() {
-    \"$PWD/run-wepp\" \"\$@\"
+    snakemake -s $PWD/workflow/Snakefile \"\$@\"
 }
 export -f run-wepp
 " >> ~/.bashrc

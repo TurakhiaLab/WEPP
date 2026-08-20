@@ -1,4 +1,154 @@
+import os
+import signal
+import subprocess
+import sys
+import time
 from pathlib import Path
+
+from snakemake.exceptions import WorkflowError
+
+
+def dashboard_is_enabled():
+    return config.get("DASHBOARD_ENABLED", False) in (True, "True")
+
+
+def dashboard_runtime_path(filename):
+    return Path.cwd() / "runtime" / filename
+
+
+def dashboard_pid_is_running(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+
+    try:
+        state = subprocess.check_output(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+    return bool(state) and not state.startswith("Z")
+
+
+def remove_owned_dashboard_pid_file(filename, expected_pid):
+    pid_file = dashboard_runtime_path(filename)
+    try:
+        recorded_pid = pid_file.read_text().strip()
+    except (FileNotFoundError, OSError):
+        return
+
+    if recorded_pid == str(expected_pid):
+        try:
+            pid_file.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def cleanup_dashboard_processes(backend_pid, nginx_pid):
+    for pid in (nginx_pid, backend_pid):
+        if dashboard_pid_is_running(pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not any(dashboard_pid_is_running(pid) for pid in (backend_pid, nginx_pid)):
+            break
+        time.sleep(0.1)
+
+    for pid in (nginx_pid, backend_pid):
+        if dashboard_pid_is_running(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    remove_owned_dashboard_pid_file("dashboard.pid", backend_pid)
+    remove_owned_dashboard_pid_file("nginx.pid", nginx_pid)
+    try:
+        dashboard_runtime_path("dashboard.ready").unlink()
+    except FileNotFoundError:
+        pass
+
+
+def monitor_dashboard():
+    ready_file = dashboard_runtime_path("dashboard.ready")
+    if not ready_file.is_file():
+        return
+
+    try:
+        frontend_port, backend_pid, nginx_pid = ready_file.read_text().split()
+        backend_pid = int(backend_pid)
+        nginx_pid = int(nginx_pid)
+        frontend_port = int(frontend_port)
+    except (OSError, TypeError, ValueError):
+        try:
+            ready_file.unlink()
+        except FileNotFoundError:
+            pass
+        raise WorkflowError("Dashboard lifecycle state is invalid.")
+
+    if not dashboard_pid_is_running(backend_pid) or not dashboard_pid_is_running(nginx_pid):
+        cleanup_dashboard_processes(backend_pid, nginx_pid)
+        raise WorkflowError("Dashboard services exited before lifecycle handoff.")
+
+    print(
+        "\n\n\nDASHBOARD IS RUNNING AT "
+        f"http://localhost:{frontend_port} (OR YOUR FORWARDED HOST PORT).\n"
+        "Press Ctrl-C to stop the dashboard.\n\n\n",
+        flush=True,
+    )
+
+    shutdown_requested = False
+
+    def request_shutdown(signum, frame):
+        nonlocal shutdown_requested
+        shutdown_requested = True
+
+    previous_sigint_handler = signal.signal(signal.SIGINT, request_shutdown)
+    try:
+        while not shutdown_requested:
+            backend_running = dashboard_pid_is_running(backend_pid)
+            nginx_running = dashboard_pid_is_running(nginx_pid)
+            if shutdown_requested or not (backend_running and nginx_running):
+                break
+            time.sleep(0.5)
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint_handler)
+
+    if shutdown_requested:
+        cleanup_dashboard_processes(backend_pid, nginx_pid)
+        print("Dashboard stopped.", flush=True)
+        return
+
+    if not dashboard_pid_is_running(backend_pid):
+        failed_service = "Dashboard backend"
+    else:
+        failed_service = "nginx"
+
+    cleanup_dashboard_processes(backend_pid, nginx_pid)
+    raise WorkflowError(f"{failed_service} exited unexpectedly.")
+
+
+if dashboard_is_enabled() and "--no-hooks" in sys.argv:
+    raise WorkflowError("The dashboard requires Snakemake hooks; remove --no-hooks.")
+
+
+onstart:
+    if dashboard_is_enabled():
+        try:
+            dashboard_runtime_path("dashboard.ready").unlink()
+        except FileNotFoundError:
+            pass
+
+
+onsuccess:
+    if dashboard_is_enabled():
+        monitor_dashboard()
 
 TREE = config["TREE"]
 GIVEN_TAXONIUM = config.get("TAXONIUM_FILE") or ""
@@ -116,6 +266,7 @@ rule dashboard_serve:
             export WEPP_DASHBOARD_PATH="$(pwd)/runtime"
             mkdir -p "$WEPP_DASHBOARD_PATH"
             rm -f "$WEPP_DASHBOARD_PATH/dashboard.ready"
+            READY_FILE_TMP="$WEPP_DASHBOARD_PATH/dashboard.ready.$$"
 
             BACKEND_PID=""
             NGINX_PID=""
@@ -173,7 +324,7 @@ rule dashboard_serve:
 
                 remove_owned_pid_file "$WEPP_DASHBOARD_PATH/dashboard.pid" "$BACKEND_PID"
                 remove_owned_pid_file "$WEPP_DASHBOARD_PATH/nginx.pid" "$NGINX_PID"
-                rm -f "$WEPP_DASHBOARD_PATH/dashboard.ready"
+                rm -f "$WEPP_DASHBOARD_PATH/dashboard.ready" "$READY_FILE_TMP"
                 exit "$EXIT_CODE"
             }}
 
@@ -262,7 +413,7 @@ rule dashboard_serve:
             fi
                 echo "Starting dashboard..." | tee -a {params.log}
 
-                mkdir -p "$WEPP_DASHBOARD_PATH/Dashboard" "$WEPP_DASHBOARD_PATH/results"
+                mkdir -p "$WEPP_DASHBOARD_PATH/Dashboard"
 
                 cp -r {params.dist_dir} "$WEPP_DASHBOARD_PATH/Dashboard"
                 rm -rf "$WEPP_DASHBOARD_PATH/results"
@@ -298,7 +449,8 @@ rule dashboard_serve:
                 done
                 if lsof -i :$FRONTEND_PORT >/dev/null 2>&1; then
                     cp {params.log} {output}
-                    printf '%s\n' "$FRONTEND_PORT" > "$WEPP_DASHBOARD_PATH/dashboard.ready"
+                    printf '%s %s %s\n' "$FRONTEND_PORT" "$BACKEND_PID" "$NGINX_PID" > "$READY_FILE_TMP"
+                    mv "$READY_FILE_TMP" "$WEPP_DASHBOARD_PATH/dashboard.ready"
                 else
                     echo -e "\n\n\nDASHBOARD NOT DETECTED ON PORT $FRONTEND_PORT. \n\n\n"
                     exit 1
