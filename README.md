@@ -381,6 +381,8 @@ http://localhost:8080
 ```
 ⚠️ Replace 8080 with any available local port.
 
+Step 4: When you are finished, press `Ctrl-C` in the terminal running WEPP. The command remains active while the dashboard is available and stops both dashboard services when interrupted.
+
 **Option 2: Visualize results on your local machine (requires Docker)**\
 You can also analyze your samples with WEPP on a server and run the dashboard locally.
 
