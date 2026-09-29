@@ -7,6 +7,9 @@ SEQUENCING_TYPE: "d"
 # Bed file samples given in the 'primers' folder: argument example - "primers/none.bed"
 PRIMER_BED: ""
 
+# Bed file to clip the input reads to remove non-target regions
+CLIP_BED: ""
+
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
 
