@@ -22,8 +22,8 @@ rule qc:
         primer_bed = lambda w: config.get("PRIMER_BED") or str(BASE_DIR / "primers/none.bed"),
         ref=lambda wildcards: config["REF"],
         min_len=lambda wildcards: config.get("MIN_LEN", "80"),
-        clip_file = config.get("CLIP_BED") or "None",
-        minimap2_args = config.get("MINIMAP2_ARGS") or "",
+        clip_bed = lambda w: config.get("CLIP_BED") or "",
+        minimap2_args = lambda w: config.get("MINIMAP2_ARGS") or "",
         qc_script = str(BASE_DIR / "src/WEPP/qc_preprocess.py")
     threads:
         workflow.cores
@@ -35,8 +35,8 @@ rule qc:
         python {params.qc_script} \
             --platform {params.seq_type} \
             --primers {params.primer_bed} \
-            --clip_bed {params.clip_file} \
-            --minimap2_args "{params.minimap2_args}" \
+            --clip_bed={params.clip_bed:q} \
+            --minimap2_args={params.minimap2_args:q} \
             --in $in_path \
             --out $out_path \
             --min_len {params.min_len} \

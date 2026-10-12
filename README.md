@@ -314,16 +314,18 @@ The WEPP Snakemake pipeline requires the following arguments, which can be provi
 4. `TREE` - Mutation-Annotated Tree.
 5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).
 6. `PRIMER_BED` - BED file argument for primers, with few primers provided in the `primers` folder. Requires path to the file.
-7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%).
-8. `MIN_DEPTH` - Sites with read depth below this threshold will be masked. 
-9. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-10. `MIN_PROP` - Minimum Proportion of haplotypes (Wastewater Samples: 0.5%, Clinical Samples: 5%).
-11. `MIN_LEN` - Minimum read length to be considered after ivar trim (Deafult: 80).
-12. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
-13. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it. 
-14. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2. 
-15. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
-16. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
+7. `CLIP_BED` - BED file of reference regions to soft-clip from reads with `samtools ampliconclip`. List the regions to **remove** (e.g. everything outside your target), not the target itself. Requires path to the file.
+8. `MINIMAP2_ARGS` - Arguments passed to `minimap2` command, e.g. MINIMAP2_ARGS="-O 12,48 -E 4,2". 
+9. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%).
+10. `MIN_DEPTH` - Sites with read depth below this threshold will be masked. 
+11. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
+12. `MIN_PROP` - Minimum Proportion of haplotypes (Wastewater Samples: 0.5%, Clinical Samples: 5%).
+13. `MIN_LEN` - Minimum read length to be considered after ivar trim (Deafult: 80).
+14. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
+15. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it. 
+16. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2. 
+17. `DASHBOARD_ENABLED` - Set to `True` to enable the interactive dashboard for viewing WEPP results, or `False` to disable it.
+18. `TAXONIUM_FILE` [Optional] - Name of the user-provided Taxonium `.jsonl` file for visualization. If specified, this file will be used instead of generating a new one from the given MAT. Ensure that the provided Taxonium file corresponds to the same MAT used for WEPP.
 
 ### <a name="snakemake"></a> Run Command
 WEPP's snakemake workflow requires `DIR` and `FILE_PREFIX` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires `--cores` from the command line, which specifies the number of threads used by the workflow.
