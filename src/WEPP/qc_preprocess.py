@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import shlex
 import glob
 import tempfile
 import subprocess
@@ -31,6 +32,8 @@ def parse_args():
     parser.add_argument('--threads', type=int, required=False, default=16)
     parser.add_argument('--reference', required=True)
     parser.add_argument('--prefix', required=True)
+    parser.add_argument('--clip_bed', required=False, default="", help="BED file of reference regions to soft-clip from reads (regions to REMOVE, not the target) before calling variants")
+    parser.add_argument('--minimap2_args', required=False, default="", help="Additional arguments passed to minimap2, e.g. --minimap2_args='-O 12,48 -E 4,2'")
     return parser.parse_args()
 
 def resolve_path(path, launch_dir):
@@ -126,7 +129,7 @@ def uniqify_duplicate_qnames_in_sam(sam_path):
         raise
 
 
-def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix):
+def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix, minimap2_args):
     ref_base = os.path.splitext(reference)[0]
     ref_mmi = f"{ref_base}.mmi"
     ref_mmi_path = os.path.join(output_dir, os.path.basename(ref_mmi))
@@ -136,7 +139,11 @@ def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix
     print(f"Building Index file in {output_dir} ...")
     subprocess.run(["minimap2", "-d", ref_mmi_path, reference], check=True)
 
-    cmd = ["minimap2", "-a", "--sam-hit-only", "--MD", "-2", "--no-hash-name"]
+    cmd = ["minimap2", "-a", "--no-hash-name", "--sam-hit-only", "--MD", "-2"]
+    # User options are placed before -x; minimap2 applies the preset first, so they still override it
+    if minimap2_args and minimap2_args.strip() and minimap2_args.strip() != "None":
+        cmd.extend(shlex.split(minimap2_args))
+
     if platform == "Illumina":
         cmd += ["-x", "sr"]
         if r2:
@@ -158,15 +165,23 @@ def reference_alignment(output_dir, r1, r2, platform, reference, threads, prefix
     uniqify_duplicate_qnames_in_sam(out_sam)
     return out_sam
 
-def trimming(output_dir, sam_file, primer_bed, min_len, threads, prefix):
+def trimming(output_dir, sam_file, primer_bed, min_len, threads, prefix, clip_bed):
     # Sort the SAM file to get sorted.bam
     sorted_bam = os.path.join(output_dir, prefix + "_sorted.bam")
     subprocess.run(["samtools", "sort", sam_file, "-o", sorted_bam, "-@", str(threads)], check=True)
+    trim_input = sorted_bam
+
+    # Soft-clip reads overlapping the regions in clip_bed; reads clipped entirely become unmapped and are dropped by ivar
+    clipped_bam = None
+    if clip_bed:
+        clipped_bam = os.path.join(output_dir, prefix + "_clipped.bam")
+        subprocess.run(["samtools", "ampliconclip", "--both-ends", "-b", clip_bed, sorted_bam, "-o", clipped_bam], check=True)
+        trim_input = clipped_bam
 
     # Trim with ivar and output directly to trimmed.bam
     trimmed_path = os.path.join(output_dir, prefix + "_trimmed")
     trim_cmd = [
-        "ivar", "trim", "-e", "-b", primer_bed, "-p", trimmed_path, "-i", sorted_bam, "-q", "1", "-m", str(min_len), "-x", "3"
+        "ivar", "trim", "-e", "-b", primer_bed, "-p", trimmed_path, "-i", trim_input, "-q", "1", "-m", str(min_len), "-x", "3"
     ]
     subprocess.run(trim_cmd, check=True)
 
@@ -177,6 +192,8 @@ def trimming(output_dir, sam_file, primer_bed, min_len, threads, prefix):
     # Clean up intermediate files
     os.remove(sam_file)
     os.remove(sorted_bam)
+    if clipped_bam:
+        os.remove(clipped_bam)
     os.remove(trimmed_path + ".bam")
 
 def main():
@@ -202,10 +219,16 @@ def main():
 
     primer_bed_file = args.primers
     reference_file = resolve_path(args.reference, args.input_dir)
+    # Like --primers, the clip BED path is taken relative to the launch directory
+    clip_bed_file = args.clip_bed.strip()
+    if clip_bed_file.lower() in ("none", "null"):
+        clip_bed_file = ""
+    if clip_bed_file and not os.path.isfile(clip_bed_file):
+        raise FileNotFoundError(f"CLIP_BED file not found: {clip_bed_file}")
     r1, r2 = find_fastq_files(args.input_dir, is_paired)
 
-    sam_file = reference_alignment(args.output_dir, r1, r2, platform, reference_file, args.threads, args.prefix)
-    trimming(args.output_dir, sam_file, primer_bed_file, args.min_len, args.threads, args.prefix)
+    sam_file = reference_alignment(args.output_dir, r1, r2, platform, reference_file, args.threads, args.prefix, args.minimap2_args)
+    trimming(args.output_dir, sam_file, primer_bed_file, args.min_len, args.threads, args.prefix, clip_bed_file)
     print(f"QC Completed")
 
 

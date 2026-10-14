@@ -161,10 +161,10 @@ void sam::add_reads(const std::vector<std::string> &lines, tbb::blocked_range<si
         std::vector<std::string> tokens;
         MAT::string_split(line, tokens);
 
-        /* skip if unmapped */
+        /* skip header lines and unmapped reads */
         if (tokens.empty() || tokens[0][0] == '@' || std::stoi(tokens[1]) & 4)
         {
-            return;
+            continue;
         }
 
         /* zero indexed */
