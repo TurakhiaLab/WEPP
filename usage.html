@@ -701,6 +701,8 @@
 <li><code>TREE</code> - Mutation-Annotated Tree.</li>
 <li><code>SEQUENCING_TYPE</code> - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads).</li>
 <li><code>PRIMER_BED</code> - BED file argument for primers, with few primers provided in the <code>primers</code> folder. Requires path to the file.</li>
+<li><code>CLIP_BED</code> - BED file of reference regions to soft-clip from reads with <code>samtools ampliconclip</code>. List the regions to <strong>remove</strong> (e.g. everything outside your target), not the target itself. Requires path to the file.</li>
+<li><code>MINIMAP2_ARGS</code> - Arguments passed to <code>minimap2</code> command, e.g. MINIMAP2_ARGS="-O 12,48 -E 4,2". </li>
 <li><code>MIN_AF</code> - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%).</li>
 <li><code>MIN_DEPTH</code> - Sites with read depth below this threshold will be masked. </li>
 <li><code>MIN_Q</code> - Alleles with a Phred score below this threshold in the reads will be masked.</li>
